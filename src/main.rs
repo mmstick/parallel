@@ -77,7 +77,8 @@ fn main() {
 
         // The actual thread where the work will happen on incoming data.
         let handle: JoinHandle<()> = thread::spawn(move || {
-            let slot_number = slot;
+            let slot = slot.to_string();
+            let job_total = num_inputs.to_string();
             let stderr = io::stderr();
             loop {
                 // Obtain the Nth item and it's job ID from the list of inputs.
@@ -89,7 +90,7 @@ fn main() {
                     } else {
                         let input_var = &input[old_counter];
                         let job_id = old_counter + 1;
-                        (input_var, job_id)
+                        (input_var, job_id.to_string())
                     }
                 };
 
@@ -107,9 +108,8 @@ fn main() {
                 } else {
                     // Build a command by merging the command template with the input,
                     // and then execute that command.
-                    let (slot, job) = (slot_number.to_string(), job_id.to_string());
                     if let Err(cmd_err) = command::exec(input_var, &command, &argument_tokens,
-                        &slot, &job)
+                        &slot, &job_id, &job_total)
                     {
                         let mut stderr = stderr.lock();
                         cmd_err.handle(&mut stderr);

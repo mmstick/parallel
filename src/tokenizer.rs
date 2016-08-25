@@ -1,13 +1,14 @@
 #[derive(Clone, PartialEq, Debug)]
 pub enum Token {
+    BaseAndExt,
+    Basename,
     Character(char),
+    Dirname,
+    Job,
+    JobTotal,
     Placeholder,
     RemoveExtension,
-    Basename,
-    Dirname,
-    BaseAndExt,
     Slot,
-    Job
 }
 
 pub fn tokenize(template: &str) -> Vec<Token> {
@@ -50,6 +51,7 @@ fn match_token(pattern: &str) -> Option<Token> {
         "/"  => Some(Token::Basename),
         "//" => Some(Token::Dirname),
         "/." => Some(Token::BaseAndExt),
+        "#^" => Some(Token::JobTotal),
         _    => None
     }
 }
@@ -93,6 +95,11 @@ fn tokenizer_slot() {
 #[test]
 fn tokenizer_job() {
     assert_eq!(tokenize("{#}"), vec![Token::Job]);
+}
+
+#[test]
+fn tokenizer_jobtotal() {
+    assert_eq!(tokenize("{#^}"), vec![Token::JobTotal]);
 }
 
 #[test]

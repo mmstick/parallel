@@ -46,6 +46,7 @@ Available syntax options for the placeholders values are:
 - **{//}**: Each occurrence will be replaced with the directory name of the input.
 - **{%}**: Each occurrence will be replaced with the slot number.
 - **{#}**: Each occurrence will be replaced with the job number.
+- **{#^}**: Each occurrence will be replaced with the total number of jobs.
 
 ## Useful Examples
 

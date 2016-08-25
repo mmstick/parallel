@@ -23,12 +23,12 @@ impl CommandErr {
 }
 
 /// Builds the command and executes it
-pub fn exec(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str)
-    -> Result<(), CommandErr>
+pub fn exec(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str,
+    job_total :&str) -> Result<(), CommandErr>
 {
     // First the arguments will be generated based on the tokens and input.
     let mut arguments = Vec::new();
-    build_arguments(&mut arguments, arg_tokens, input, slot_id, job_id);
+    build_arguments(&mut arguments, arg_tokens, input, slot_id, job_id, job_total);
 
     // Check to see if any placeholder tokens are in use.
     let placeholder_exists = arg_tokens.iter().any(|ref x| {
@@ -53,7 +53,7 @@ pub fn exec(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job
 /// Builds arguments using the `tokens` template with the current `input` value.
 /// The arguments will be stored within a `Vec<String>`
 fn build_arguments(args_vec: &mut Vec<String>, tokens: &[Token], input: &str, slot: &str,
-    job: &str)
+    job: &str, job_total: &str)
 {
     let mut arguments = String::new();
     for arg in tokens {
@@ -63,6 +63,7 @@ fn build_arguments(args_vec: &mut Vec<String>, tokens: &[Token], input: &str, sl
             Token::BaseAndExt      => arguments.push_str(basename(remove_extension(input))),
             Token::Dirname         => arguments.push_str(dirname(input)),
             Token::Job             => arguments.push_str(job),
+            Token::JobTotal        => arguments.push_str(job_total),
             Token::Placeholder     => arguments.push_str(input),
             Token::RemoveExtension => arguments.push_str(remove_extension(input)),
             Token::Slot            => arguments.push_str(slot)
@@ -149,13 +150,14 @@ fn build_arguments_test() {
     let input = "applesauce.mp4";
     let job   = "1";
     let slot  = "1";
+    let total = "1";
     let tokens = vec![
         Token::Character('-'), Token::Character('i'), Token::Character(' '), Token::Placeholder,
         Token::Character(' '), Token::RemoveExtension, Token::Character('.'), Token::Character('m'),
         Token::Character('k'),Token::Character('v')
     ];
     let mut arguments = Vec::new();
-    build_arguments(&mut arguments, &tokens, input, slot, job);
+    build_arguments(&mut arguments, &tokens, input, slot, job, total);
     let expected = vec![
         String::from("-i"), String::from("applesauce.mp4"), String::from("applesauce.mkv")
     ];
