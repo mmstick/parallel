@@ -258,7 +258,7 @@ fn dirname(input: &str) -> &str {
     for (id, character) in input.chars().enumerate() {
         if character == '/' { index = id; }
     }
-    if index == 0 { input } else { &input[0..index] }
+    if index == 0 { "." } else { &input[0..index] }
 }
 
 enum ParseErr {
@@ -402,7 +402,6 @@ fn path_basename_empty() {
 }
 
 #[test]
-#[ignore]
 fn path_dirname_simple() {
     assert_eq!(dirname("foo.txt"), ".");
 }
@@ -414,5 +413,5 @@ fn path_dirname_dir() {
 
 #[test]
 fn path_dirname_empty() {
-    assert_eq!(dirname(""), "");
+    assert_eq!(dirname(""), ".");
 }
