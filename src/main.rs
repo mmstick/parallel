@@ -12,7 +12,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
  - Use a tokenizer for building commands instead of string replacements.
  - {N}, {N.}, etc.
  - parallel command {1} {2} {3} ::: 1 2 3 ::: 4 5 6 ::: 7 8 9
- - parallel command ::: * instead of parallel command {} ::: *
  - paralllel command ::: a b c :::+ 1 2 3 ::: d e f :::+ 4 5 6
 */
 
@@ -103,7 +102,8 @@ fn main() {
                 } else {
                     // Build a command by merging the command template with the input,
                     // and then execute that command.
-                    if let Err(cmd_err) = cmd_builder(input_var, &command, slot_number, job_id) {
+                    let (slot, job) = (slot_number.to_string(), job_id.to_string());
+                    if let Err(cmd_err) = cmd_builder(input_var, &command, &slot, &job) {
                         let mut stderr = stderr.lock();
                         cmd_err.handle(&mut stderr);
                     }
@@ -144,8 +144,9 @@ impl CommandErr {
 }
 
 /// Builds the command and executes it
-fn cmd_builder(input: &str, template: &str, slot_id: usize, job_id: usize) -> Result<(), CommandErr> {
+fn cmd_builder(input: &str, template: &str, slot_id: &str, job_id: &str) -> Result<(), CommandErr> {
     // TODO: Use a tokenizer for building the command from the template.
+    let mut placeholder_does_not_exist = true;
     let mut iterator = template.split_whitespace();
     let command = match iterator.next() {
         Some(command) => command,
@@ -155,21 +156,32 @@ fn cmd_builder(input: &str, template: &str, slot_id: usize, job_id: usize) -> Re
     for arg in iterator {
         if arg.contains("{}") {
             arguments.push(arg.replace("{}", input));
+            placeholder_does_not_exist = false;
         } else if arg.contains("{.}") {
             arguments.push(arg.replace("{.}", remove_extension(input)));
+            placeholder_does_not_exist = false;
         } else if arg.contains("{/}") {
             arguments.push(arg.replace("{/}", basename(input)));
+            placeholder_does_not_exist = false;
         } else if arg.contains("{//}") {
             arguments.push(arg.replace("{//}", dirname(input)));
+            placeholder_does_not_exist = false;
         } else if arg.contains("{/.}") {
             arguments.push(arg.replace("{/.}", basename(remove_extension(input))));
+            placeholder_does_not_exist = false;
         } else if arg.contains("{#}") {
-            arguments.push(arg.replace("{#}", &job_id.to_string()));
+            arguments.push(arg.replace("{#}", job_id));
+            placeholder_does_not_exist = false;
         } else if arg.contains("{%}") {
-            arguments.push(arg.replace("{%}", &slot_id.to_string()));
+            arguments.push(arg.replace("{%}", slot_id));
+            placeholder_does_not_exist = false;
         } else {
             arguments.push(arg.to_owned());
         }
+    }
+
+    if placeholder_does_not_exist {
+        arguments.push(input.to_owned());
     }
 
     if let Err(_) = Command::new(&command).args(&arguments).status() {
