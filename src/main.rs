@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 /* TODO: Functionality can be increased to accept the following syntaxes from GNU Parallel:
  - Stdin support is currently missing.
- - Use a tokenizer for building commands instead of string replacements.
  - {N}, {N.}, etc.
  - parallel command {1} {2} {3} ::: 1 2 3 ::: 4 5 6 ::: 7 8 9
  - paralllel command ::: a b c :::+ 1 2 3 ::: d e f :::+ 4 5 6
@@ -19,11 +18,12 @@ fn main() {
     let stderr = io::stderr();
     let mut ncores = num_cpus::get();
     let mut command = String::new();
+    let mut arg_tokens = Vec::new();
     let mut inputs = Vec::new();
 
     // Let's collect all parameters that we need from the program's arguments.
     // If an error is returned, this will handle that error as efficiently as possible.
-    if let Err(why) = parse_arguments(&mut ncores, &mut command, &mut inputs) {
+    if let Err(why) = parse_arguments(&mut ncores, &mut command, &mut arg_tokens, &mut inputs) {
         let mut stderr = stderr.lock();
         let _ = stderr.write(b"parallel: parsing error: ");
         match why {
@@ -63,6 +63,8 @@ fn main() {
     for slot in 1..ncores+1 {
         // The command that each input variable will be sent to.
         let command = command.clone();
+        // The arguments for the command.
+        let argument_tokens = arg_tokens.clone();
         // Allow the thread to gain access to the list of inputs.
         let input = shared_input.clone();
         // Allow the thread to access the current command counter
@@ -103,7 +105,9 @@ fn main() {
                     // Build a command by merging the command template with the input,
                     // and then execute that command.
                     let (slot, job) = (slot_number.to_string(), job_id.to_string());
-                    if let Err(cmd_err) = cmd_builder(input_var, &command, &slot, &job) {
+                    if let Err(cmd_err) = cmd_builder(input_var, &command, &argument_tokens,
+                        &slot, &job)
+                    {
                         let mut stderr = stderr.lock();
                         cmd_err.handle(&mut stderr);
                     }
@@ -120,7 +124,6 @@ fn main() {
 }
 
 enum CommandErr {
-    NoCommandSpecified,
     Failed(String, Vec<String>)
 }
 
@@ -128,9 +131,6 @@ impl CommandErr {
     fn handle(self, stderr: &mut StderrLock) {
         let _ = stderr.write(b"parallel: command error: ");
         match self {
-            CommandErr::NoCommandSpecified => {
-                let _ = stderr.write(b"no command specified.\n");
-            },
             CommandErr::Failed(command, arguments) => {
                 let _ = stderr.write(command.as_bytes());
                 for arg in &arguments {
@@ -143,46 +143,92 @@ impl CommandErr {
     }
 }
 
+#[derive(Clone, PartialEq)]
+enum Token {
+    Character(char),
+    Placeholder,
+    RemoveExtension,
+    Basename,
+    Dirname,
+    BaseAndExt,
+    Slot,
+    Job
+}
+
+fn tokenize(template: &str) -> Vec<Token> {
+    let mut matching = false;
+    let mut tokens = Vec::new();
+    let mut pattern = String::new();
+    for character in template.chars() {
+        match (character, matching) {
+            ('{', false) => matching = true,
+            ('}', true)  => {
+                matching = false;
+                if pattern.is_empty() {
+                    tokens.push(Token::Placeholder);
+                } else {
+                    match match_token(&pattern) {
+                        Some(token) => tokens.push(token),
+                        None => {
+                            tokens.push(Token::Character('{'));
+                            for character in pattern.chars() {
+                                tokens.push(Token::Character(character));
+                            }
+                            tokens.push(Token::Character('}'));
+                        }
+                    }
+                    pattern.clear();
+                }
+            }
+            (_, false)  => tokens.push(Token::Character(character)),
+            (_, true) => pattern.push(character)
+        }
+    }
+    tokens
+}
+
+fn match_token(pattern: &str) -> Option<Token> {
+    match pattern {
+        "."  => Some(Token::RemoveExtension),
+        "#"  => Some(Token::Job),
+        "%"  => Some(Token::Slot),
+        "/"  => Some(Token::Basename),
+        "//" => Some(Token::Dirname),
+        "/." => Some(Token::BaseAndExt),
+        _    => None
+    }
+
+}
+
 /// Builds the command and executes it
-fn cmd_builder(input: &str, template: &str, slot_id: &str, job_id: &str) -> Result<(), CommandErr> {
-    // TODO: Use a tokenizer for building the command from the template.
-    let mut placeholder_does_not_exist = true;
-    let mut iterator = template.split_whitespace();
-    let command = match iterator.next() {
-        Some(command) => command,
-        None          => return Err(CommandErr::NoCommandSpecified)
-    };
-    let mut arguments = Vec::new();
-    for arg in iterator {
-        if arg.contains("{}") {
-            arguments.push(arg.replace("{}", input));
-            placeholder_does_not_exist = false;
-        } else if arg.contains("{.}") {
-            arguments.push(arg.replace("{.}", remove_extension(input)));
-            placeholder_does_not_exist = false;
-        } else if arg.contains("{/}") {
-            arguments.push(arg.replace("{/}", basename(input)));
-            placeholder_does_not_exist = false;
-        } else if arg.contains("{//}") {
-            arguments.push(arg.replace("{//}", dirname(input)));
-            placeholder_does_not_exist = false;
-        } else if arg.contains("{/.}") {
-            arguments.push(arg.replace("{/.}", basename(remove_extension(input))));
-            placeholder_does_not_exist = false;
-        } else if arg.contains("{#}") {
-            arguments.push(arg.replace("{#}", job_id));
-            placeholder_does_not_exist = false;
-        } else if arg.contains("{%}") {
-            arguments.push(arg.replace("{%}", slot_id));
-            placeholder_does_not_exist = false;
-        } else {
-            arguments.push(arg.to_owned());
+fn cmd_builder(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str)
+    -> Result<(), CommandErr>
+{
+    let mut arguments = String::new();
+    for arg in arg_tokens {
+        match *arg {
+            Token::Character(arg) => arguments.push(arg),
+            Token::Basename => arguments.push_str(input),
+            Token::BaseAndExt => arguments.push_str(basename(remove_extension(input))),
+            Token::Dirname => arguments.push_str(dirname(input)),
+            Token::Job => arguments.push_str(job_id),
+            Token::Placeholder => arguments.push_str(input),
+            Token::RemoveExtension => arguments.push_str(remove_extension(input)),
+            Token::Slot => arguments.push_str(slot_id)
         }
     }
 
-    if placeholder_does_not_exist {
-        arguments.push(input.to_owned());
+    let placeholder_exists = arg_tokens.iter().any(|ref x| {
+        x == &&Token::BaseAndExt || x == &&Token::Basename || x == &&Token::Dirname ||
+        x == &&Token::Job || x == &&Token::Placeholder || x == &&Token::RemoveExtension ||
+        x == &&Token::Slot
+    });
+
+    if !placeholder_exists {
+        arguments.push_str(input);
     }
+
+    let arguments = arguments.split_whitespace().map(|x| x.to_owned()).collect::<Vec<String>>();
 
     if let Err(_) = Command::new(&command).args(&arguments).status() {
         return Err(CommandErr::Failed(String::from(command), arguments));
@@ -222,12 +268,13 @@ enum ParseErr {
 }
 
 // Parses input arguments and stores their values into their associated variabless.
-fn parse_arguments(ncores: &mut usize, command: &mut String, input_variables: &mut Vec<String>)
-    -> Result<(), ParseErr>
+fn parse_arguments(ncores: &mut usize, command: &mut String, arg_tokens: &mut Vec<Token>,
+    input_variables: &mut Vec<String>) -> Result<(), ParseErr>
 {
     let mut parsing_arguments = true;
     let mut command_is_set    = false;
     let mut raw_args = env::args().skip(1).peekable();
+    let mut comm = String::new();
     while let Some(argument) = raw_args.next() {
         if parsing_arguments {
             match argument.as_str() {
@@ -246,10 +293,10 @@ fn parse_arguments(ncores: &mut usize, command: &mut String, input_variables: &m
                 ":::" => parsing_arguments = false,
                 _ => {
                     if command_is_set {
-                        command.push(' ');
-                        command.push_str(&argument);
+                        comm.push(' ');
+                        comm.push_str(&argument);
                     } else {
-                        command.push_str(&argument);
+                        comm.push_str(&argument);
                         command_is_set = true;
                     }
 
@@ -258,6 +305,16 @@ fn parse_arguments(ncores: &mut usize, command: &mut String, input_variables: &m
         } else {
             input_variables.push(argument);
         }
+    }
+
+    // This will fill in command and argument information needed by the threads.
+    // If there is a space in the argument, then the command has arguments
+    match comm.chars().position(|x| x == ' ') {
+        Some(pos) => {
+            *command    = String::from(&comm[0..pos]);
+            *arg_tokens = tokenize(&comm[pos+1..]);
+        },
+        None => *command = comm
     }
 
     if input_variables.is_empty() { return Err(ParseErr::InputVarsNotDefined) }
