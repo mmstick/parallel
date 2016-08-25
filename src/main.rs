@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
  - paralllel command ::: a b c :::+ 1 2 3 ::: d e f :::+ 4 5 6
 */
 
-/// A JobThread allows for the manipulation of content within.
+/// A `JobThread` allows for the manipulation of content within.
 struct JobThread {
     /// Allows us to know when a thread has completed all of it's tasks.
     handle: JoinHandle<()>,
@@ -86,7 +86,7 @@ fn main() {
         // Allow the thread to access the current command counter
         let counter = shared_counter.clone();
         // Allow the thread to know when it's time to stop.
-        let num_inputs = num_inputs.clone();
+        let num_inputs = num_inputs;
 
         // The actual thread where the work will happen on incoming data.
         let handle: JoinHandle<()> = thread::spawn(move || {
@@ -107,7 +107,7 @@ fn main() {
                 };
 
                 // Now the input can be processed with the command.
-                if let Err(cmd_err) = cmd_builder(&input_var, &command, slot_number, job_id) {
+                if let Err(cmd_err) = cmd_builder(input_var, &command, slot_number, job_id) {
                     let mut stderr = stderr.lock();
                     cmd_err.handle(&mut stderr);
                 }
@@ -184,7 +184,7 @@ fn cmd_builder(input: &str, template: &str, slot_id: usize, job_id: usize) -> Re
 }
 
 /// Removes the extension of a given input
-fn remove_extension<'a>(input: &'a str) -> &'a str {
+fn remove_extension(input: &str) -> &str {
     let mut index = 0;
     for (id, character) in input.chars().enumerate() {
         if character == '.' { index = id; }
@@ -192,7 +192,7 @@ fn remove_extension<'a>(input: &'a str) -> &'a str {
     if index == 0 { input } else { &input[0..index] }
 }
 
-fn basename<'a>(input: &'a str) -> &'a str {
+fn basename(input: &str) -> &str {
     let mut index = 0;
     for (id, character) in input.chars().enumerate() {
         if character == '/' { index = id; }
@@ -200,7 +200,7 @@ fn basename<'a>(input: &'a str) -> &'a str {
     if index == 0 { input } else { &input[index+1..] }
 }
 
-fn dirname<'a>(input: &'a str) -> &'a str {
+fn dirname(input: &str) -> &str {
     let mut index = 0;
     for (id, character) in input.chars().enumerate() {
         if character == '/' { index = id; }
