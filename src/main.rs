@@ -208,7 +208,7 @@ fn cmd_builder(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, 
     for arg in arg_tokens {
         match *arg {
             Token::Character(arg) => arguments.push(arg),
-            Token::Basename => arguments.push_str(input),
+            Token::Basename => arguments.push_str(basename(input)),
             Token::BaseAndExt => arguments.push_str(basename(remove_extension(input))),
             Token::Dirname => arguments.push_str(dirname(input)),
             Token::Job => arguments.push_str(job_id),
