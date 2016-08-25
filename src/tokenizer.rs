@@ -11,13 +11,17 @@ pub enum Token {
     Slot,
 }
 
+/// Takes the command arguments as the input and reduces it into tokens,
+/// which allows for easier management of string manipulation later on.
 pub fn tokenize(template: &str) -> Vec<Token> {
     let mut matching = false;
     let mut tokens = Vec::new();
     let mut pattern = String::new();
     for character in template.chars() {
         match (character, matching) {
+            // This condition initiates the pattern matching
             ('{', false) => matching = true,
+            // This condition ends the pattern matching process
             ('}', true)  => {
                 matching = false;
                 if pattern.is_empty() {
@@ -35,11 +39,20 @@ pub fn tokenize(template: &str) -> Vec<Token> {
                     }
                     pattern.clear();
                 }
-            }
+            },
             (_, false)  => tokens.push(Token::Character(character)),
             (_, true) => pattern.push(character)
         }
     }
+
+    // If matching is still enabled, add the contents of `pattern` as `Token::Character`s.
+    if matching {
+        tokens.push(Token::Character('{'));
+        for character in pattern.chars() {
+            tokens.push(Token::Character(character));
+        }
+    }
+
     tokens
 }
 
