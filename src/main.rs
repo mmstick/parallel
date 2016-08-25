@@ -13,7 +13,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
  - {N}, {N.}, etc.
  - parallel command {1} {2} {3} ::: 1 2 3 ::: 4 5 6 ::: 7 8 9
  - parallel command ::: * instead of parallel command {} ::: *
- - parallel ::: "command 1" "command 2"
  - paralllel command ::: a b c :::+ 1 2 3 ::: d e f :::+ 4 5 6
 */
 
@@ -45,6 +44,9 @@ fn main() {
         };
         exit(1);
     }
+
+    // If no command was given, then the inputs are actually commands themselves.
+    let input_is_command = command.is_empty();
 
     // It will be useful to know the number of inputs, to know when to quit.
     let num_inputs = inputs.len();
@@ -87,10 +89,24 @@ fn main() {
                     }
                 };
 
-                // Now the input can be processed with the command.
-                if let Err(cmd_err) = cmd_builder(input_var, &command, slot_number, job_id) {
-                    let mut stderr = stderr.lock();
-                    cmd_err.handle(&mut stderr);
+                if input_is_command {
+                    // The inputs are actually the commands.
+                    let mut iterator = input_var.split_whitespace();
+                    let actual_command = iterator.next().unwrap();
+                    let args = iterator.collect::<Vec<&str>>();
+                    if let Err(_) = Command::new(actual_command).args(&args).status() {
+                        let mut stderr = stderr.lock();
+                        let _ = stderr.write(b"parallel: command error: ");
+                        let _ = stderr.write(input_var.as_bytes());
+                        let _ = stderr.write(b"\n");
+                    }
+                } else {
+                    // Build a command by merging the command template with the input,
+                    // and then execute that command.
+                    if let Err(cmd_err) = cmd_builder(input_var, &command, slot_number, job_id) {
+                        let mut stderr = stderr.lock();
+                        cmd_err.handle(&mut stderr);
+                    }
                 }
             }
         });
