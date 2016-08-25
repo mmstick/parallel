@@ -4,7 +4,8 @@ use std::env;
 use std::io::{self, Write, StderrLock};
 use std::process::{Command, exit};
 use std::thread::{self, JoinHandle};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /* TODO: Functionality can be increased to accept the following syntaxes from GNU Parallel:
  - Stdin support is currently missing.
@@ -24,8 +25,6 @@ struct JobThread {
 
 /// Contains the parameters that each thread will acquire and manipulate.
 struct Inputs {
-    /// The counter that will be checked and incremented by each thread.
-    counter: usize,
     /// The values that each thread will copy values from.
     values: Vec<String>
 }
@@ -41,7 +40,7 @@ fn main() {
         ncores: num_cpus::get()
     };
     let mut command = String::new();
-    let mut inputs = Inputs { counter: 0, values: Vec::new() };
+    let mut inputs = Inputs { values: Vec::new() };
 
     // Let's collect all parameters that we need from the program's arguments.
     // If an error is returned, this will handle that error as efficiently as possible.
@@ -69,8 +68,11 @@ fn main() {
     // It will be useful to know the number of inputs, to know when to quit.
     let num_inputs = inputs.values.len();
 
-    // We will share the same list of inputs and counter with each thread.
-    let shared_input = Arc::new(Mutex::new((inputs)));
+    // Stores the next input to be processed
+    let shared_counter = Arc::new(AtomicUsize::new(0));
+
+    // We will share the same list of inputs with each thread.
+    let shared_input = Arc::new(inputs);
 
     // First we will create as many threads as `flags.ncores` specifies.
     // The `threads` vector will contain the thread handles needed to
@@ -81,6 +83,8 @@ fn main() {
         let command = command.clone();
         // Allow the thread to gain access to the list of inputs.
         let input = shared_input.clone();
+        // Allow the thread to access the current command counter
+        let counter = shared_counter.clone();
         // Allow the thread to know when it's time to stop.
         let num_inputs = num_inputs.clone();
 
@@ -91,15 +95,13 @@ fn main() {
             loop {
                 // Obtain the Nth item and it's job ID from the list of inputs.
                 let (input_var, job_id) = {
-                    // Lock the access to the counter and values so that other threads won't clash.
-                    let mut input = input.lock().unwrap();
-                    if input.counter == num_inputs {
+                    // Atomically increment the counter
+                    let old_counter = counter.fetch_add(1, Ordering::SeqCst);
+                    if old_counter >= num_inputs {
                         break
                     } else {
-                        // The value must then be copied so that we can unlock it.
-                        let input_var = input.values[input.counter].to_owned();
-                        let job_id = input.counter + 1;
-                        input.counter += 1;
+                        let input_var = &input.values[old_counter];
+                        let job_id = old_counter + 1;
                         (input_var, job_id)
                     }
                 };
