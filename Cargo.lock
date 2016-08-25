@@ -18,3 +18,6 @@ dependencies = [
  "libc 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
+[metadata]
+"checksum libc 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)" = "23e3757828fa702a20072c37ff47938e9dd331b92fac6e223d26d4b7a55f7ee2"
+"checksum num_cpus 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a859041cbf7a70ea1ece4b87d1a2c6ef364dcb68749c88db1f97304b9ec09d5f"

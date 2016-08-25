@@ -17,34 +17,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
  - paralllel command ::: a b c :::+ 1 2 3 ::: d e f :::+ 4 5 6
 */
 
-/// A `JobThread` allows for the manipulation of content within.
-struct JobThread {
-    /// Allows us to know when a thread has completed all of it's tasks.
-    handle: JoinHandle<()>,
-}
-
-/// Contains the parameters that each thread will acquire and manipulate.
-struct Inputs {
-    /// The values that each thread will copy values from.
-    values: Vec<String>
-}
-
-struct Flags {
-    /// The number of jobs to create for processing inputs.
-    ncores: usize,
-}
-
 fn main() {
     let stderr = io::stderr();
-    let mut flags = Flags {
-        ncores: num_cpus::get()
-    };
+    let mut ncores = num_cpus::get();
     let mut command = String::new();
-    let mut inputs = Inputs { values: Vec::new() };
+    let mut inputs = Vec::new();
 
     // Let's collect all parameters that we need from the program's arguments.
     // If an error is returned, this will handle that error as efficiently as possible.
-    if let Err(why) = parse_arguments(&mut flags, &mut command, &mut inputs.values) {
+    if let Err(why) = parse_arguments(&mut ncores, &mut command, &mut inputs) {
         let mut stderr = stderr.lock();
         let _ = stderr.write(b"parallel: parsing error: ");
         match why {
@@ -66,7 +47,7 @@ fn main() {
     }
 
     // It will be useful to know the number of inputs, to know when to quit.
-    let num_inputs = inputs.values.len();
+    let num_inputs = inputs.len();
 
     // Stores the next input to be processed
     let shared_counter = Arc::new(AtomicUsize::new(0));
@@ -74,11 +55,11 @@ fn main() {
     // We will share the same list of inputs with each thread.
     let shared_input = Arc::new(inputs);
 
-    // First we will create as many threads as `flags.ncores` specifies.
+    // First we will create as many threads as `ncores` specifies.
     // The `threads` vector will contain the thread handles needed to
     // know when to quit the program.
-    let mut threads: Vec<JobThread> = Vec::with_capacity(flags.ncores);
-    for slot in 1..flags.ncores+1 {
+    let mut threads: Vec<JoinHandle<()>> = Vec::with_capacity(ncores);
+    for slot in 1..ncores+1 {
         // The command that each input variable will be sent to.
         let command = command.clone();
         // Allow the thread to gain access to the list of inputs.
@@ -100,7 +81,7 @@ fn main() {
                     if old_counter >= num_inputs {
                         break
                     } else {
-                        let input_var = &input.values[old_counter];
+                        let input_var = &input[old_counter];
                         let job_id = old_counter + 1;
                         (input_var, job_id)
                     }
@@ -116,12 +97,10 @@ fn main() {
 
         // After the thread has been created, add the important pieces needed by the
         // main thread to the `threads` vector.
-        threads.push(JobThread {
-            handle: handle, // Gives the main thread access to using the thread's `join()` method.
-        });
+        threads.push(handle);
     }
 
-    for thread in threads.into_iter() { thread.handle.join().unwrap(); }
+    for thread in threads.into_iter() { thread.join().unwrap(); }
 }
 
 enum CommandErr {
@@ -215,7 +194,7 @@ enum ParseErr {
 }
 
 // Parses input arguments and stores their values into their associated variabless.
-fn parse_arguments(flags: &mut Flags, command: &mut String, input_variables: &mut Vec<String>)
+fn parse_arguments(ncores: &mut usize, command: &mut String, input_variables: &mut Vec<String>)
     -> Result<(), ParseErr>
 {
     let mut parsing_arguments = true;
@@ -228,7 +207,7 @@ fn parse_arguments(flags: &mut Flags, command: &mut String, input_variables: &mu
                 "-j"  => {
                     match raw_args.peek() {
                         Some(val) => match val.parse::<usize>() {
-                            Ok(val) => flags.ncores = val,
+                            Ok(val) => *ncores = val,
                             Err(_)  => return Err(ParseErr::JobsNaN(val.clone()))
                         },
                         None => return Err(ParseErr::JobsNoValue)
