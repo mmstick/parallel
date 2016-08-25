@@ -204,36 +204,52 @@ fn match_token(pattern: &str) -> Option<Token> {
 fn cmd_builder(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str)
     -> Result<(), CommandErr>
 {
-    let mut arguments = String::new();
-    for arg in arg_tokens {
-        match *arg {
-            Token::Character(arg) => arguments.push(arg),
-            Token::Basename => arguments.push_str(basename(input)),
-            Token::BaseAndExt => arguments.push_str(basename(remove_extension(input))),
-            Token::Dirname => arguments.push_str(dirname(input)),
-            Token::Job => arguments.push_str(job_id),
-            Token::Placeholder => arguments.push_str(input),
-            Token::RemoveExtension => arguments.push_str(remove_extension(input)),
-            Token::Slot => arguments.push_str(slot_id)
-        }
-    }
+    // First the arguments will be generated based on the tokens and input.
+    let mut arguments = Vec::new();
+    build_arguments(&mut arguments, arg_tokens, input, slot_id, job_id);
 
+    // Check to see if any placeholder tokens are in use.
     let placeholder_exists = arg_tokens.iter().any(|ref x| {
         x == &&Token::BaseAndExt || x == &&Token::Basename || x == &&Token::Dirname ||
         x == &&Token::Job || x == &&Token::Placeholder || x == &&Token::RemoveExtension ||
         x == &&Token::Slot
     });
 
+    // If no placeholder tokens are in use, the user probably wants to infer one.
     if !placeholder_exists {
-        arguments.push_str(input);
+        arguments.push(String::from(input));
     }
 
-    let arguments = arguments.split_whitespace().map(|x| x.to_owned()).collect::<Vec<String>>();
-
+    // Attempt to execute the command with the generated arguments.
     if let Err(_) = Command::new(&command).args(&arguments).status() {
+        // If an error status is returned, return it to be printed.
         return Err(CommandErr::Failed(String::from(command), arguments));
     }
     Ok(())
+}
+
+/// Builds arguments using the `tokens` template with the current `input` value.
+/// The arguments will be stored within a `Vec<String>`
+fn build_arguments(args_vec: &mut Vec<String>, tokens: &[Token], input: &str, slot: &str,
+    job: &str)
+{
+    let mut arguments = String::new();
+    for arg in tokens {
+        match *arg {
+            Token::Character(arg)  => arguments.push(arg),
+            Token::Basename        => arguments.push_str(basename(input)),
+            Token::BaseAndExt      => arguments.push_str(basename(remove_extension(input))),
+            Token::Dirname         => arguments.push_str(dirname(input)),
+            Token::Job             => arguments.push_str(job),
+            Token::Placeholder     => arguments.push_str(input),
+            Token::RemoveExtension => arguments.push_str(remove_extension(input)),
+            Token::Slot            => arguments.push_str(slot)
+        }
+    }
+
+    for argument in arguments.split_whitespace() {
+        args_vec.push(String::from(argument));
+    }
 }
 
 /// Removes the extension of a given input
@@ -414,4 +430,22 @@ fn path_dirname_dir() {
 #[test]
 fn path_dirname_empty() {
     assert_eq!(dirname(""), ".");
+}
+
+#[test]
+fn build_arguments_test() {
+    let input = "applesauce.mp4";
+    let job   = "1";
+    let slot  = "1";
+    let tokens = vec![
+        Token::Character('-'), Token::Character('i'), Token::Character(' '), Token::Placeholder,
+        Token::Character(' '), Token::RemoveExtension, Token::Character('.'), Token::Character('m'),
+        Token::Character('k'),Token::Character('v')
+    ];
+    let mut arguments = Vec::new();
+    build_arguments(&mut arguments, &tokens, input, slot, job);
+    let expected = vec![
+        String::from("-i"), String::from("applesauce.mp4"), String::from("applesauce.mkv")
+    ];
+    assert_eq!(arguments, expected)
 }
