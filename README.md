@@ -1,6 +1,28 @@
 # Parallel: A Command-line CPU Load Balancer Written in Rust
 This is an attempt at recreating the functionality of [GNU Parallel](https://www.gnu.org/software/parallel/) in Rust under a MIT license. The end goal will be to support much of the functionality of `GNU Parallel` and then to extend the functionality further for the next generation of command-line utilities written in Rust.
 
+## Benchmark Comparison to GNU Parallel
+
+Here are some benchmarks from an i5-2410M laptop running Ubuntu 16.04.
+
+```sh
+parallel 'echo {%}: {}' ::: /usr/bin/* > /dev/null
+```
+
+- **GNU Parallel**:
+```
+real    0m5.911s
+user    0m2.752s
+sys     0m1.764s
+```
+
+- **Rust/MIT Parallel**:
+```
+real    0m0.559s
+user    0m0.084s
+sys     0m0.372s
+```
+
 ## Syntax Examples
 Parallel does not currently support reading from stdin at this time. However, it does support parsing input arguments
 from the command line to achieve the same effect. The following syntax is supported:
