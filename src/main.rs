@@ -1,3 +1,5 @@
+extern crate num_cpus;
+
 use std::env;
 use std::io::{self, Write, StderrLock};
 use std::process::{Command, exit};
@@ -36,7 +38,7 @@ struct Flags {
 fn main() {
     let stderr = io::stderr();
     let mut flags = Flags {
-        ncores: 8
+        ncores: num_cpus::get()
     };
     let mut command = String::new();
     let mut inputs = Inputs { counter: 0, values: Vec::new() };
