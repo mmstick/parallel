@@ -143,7 +143,7 @@ impl CommandErr {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 enum Token {
     Character(char),
     Placeholder,
@@ -208,7 +208,7 @@ fn cmd_builder(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, 
     for arg in arg_tokens {
         match *arg {
             Token::Character(arg) => arguments.push(arg),
-            Token::Basename => arguments.push_str(input),
+            Token::Basename => arguments.push_str(basename(input)),
             Token::BaseAndExt => arguments.push_str(basename(remove_extension(input))),
             Token::Dirname => arguments.push_str(dirname(input)),
             Token::Job => arguments.push_str(job_id),
@@ -319,4 +319,100 @@ fn parse_arguments(ncores: &mut usize, command: &mut String, arg_tokens: &mut Ve
 
     if input_variables.is_empty() { return Err(ParseErr::InputVarsNotDefined) }
     Ok(())
+}
+
+#[test]
+fn tokenizer_character() {
+    assert_eq!(tokenize("foo"), vec![Token::Character('f'), Token::Character('o'), Token::Character('o')]);
+}
+
+#[test]
+fn tokenizer_placeholder() {
+    assert_eq!(tokenize("{}"), vec![Token::Placeholder]);
+}
+
+#[test]
+fn tokenizer_remove_extension() {
+    assert_eq!(tokenize("{.}"), vec![Token::RemoveExtension]);
+}
+
+#[test]
+fn tokenizer_basename() {
+    assert_eq!(tokenize("{/}"), vec![Token::Basename]);
+}
+
+#[test]
+fn tokenizer_dirname() {
+    assert_eq!(tokenize("{//}"), vec![Token::Dirname]);
+}
+
+#[test]
+fn tokenizer_base_and_ext() {
+    assert_eq!(tokenize("{/.}"), vec![Token::BaseAndExt]);
+}
+
+#[test]
+fn tokenizer_slot() {
+    assert_eq!(tokenize("{%}"), vec![Token::Slot]);
+}
+
+#[test]
+fn tokenizer_job() {
+    assert_eq!(tokenize("{#}"), vec![Token::Job]);
+}
+
+#[test]
+fn tokenizer_multiple() {
+    assert_eq!(tokenize("foo {} bar"), vec![Token::Character('f'), Token::Character('o'), Token::Character('o'), Token::Character(' '), Token::Placeholder, Token::Character(' '), Token::Character('b'), Token::Character('a'), Token::Character('r')]);
+}
+
+#[test]
+fn tokenizer_no_space() {
+    assert_eq!(tokenize("foo{}bar"), vec![Token::Character('f'), Token::Character('o'), Token::Character('o'), Token::Placeholder, Token::Character('b'), Token::Character('a'), Token::Character('r')]);
+}
+
+#[test]
+fn path_remove_ext_simple() {
+    assert_eq!(remove_extension("foo.txt"), "foo");
+}
+
+#[test]
+fn path_remove_ext_dir() {
+    assert_eq!(remove_extension("dir/foo.txt"), "dir/foo");
+}
+
+#[test]
+fn path_remove_ext_empty() {
+    assert_eq!(remove_extension(""), "");
+}
+
+#[test]
+fn path_basename_simple() {
+    assert_eq!(basename("foo.txt"), "foo.txt");
+}
+
+#[test]
+fn path_basename_dir() {
+    assert_eq!(basename("dir/foo.txt"), "foo.txt");
+}
+
+#[test]
+fn path_basename_empty() {
+    assert_eq!(basename(""), "");
+}
+
+#[test]
+#[ignore]
+fn path_dirname_simple() {
+    assert_eq!(dirname("foo.txt"), ".");
+}
+
+#[test]
+fn path_dirname_dir() {
+    assert_eq!(dirname("dir/foo.txt"), "dir");
+}
+
+#[test]
+fn path_dirname_empty() {
+    assert_eq!(dirname(""), "");
 }
