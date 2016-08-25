@@ -5,6 +5,28 @@ This is an attempt at recreating the functionality of [GNU Parallel](https://www
 Parallel does not currently support reading from stdin at this time. However, it does support parsing input arguments
 from the command line to achieve the same effect. The following syntax is supported:
 
+```sh
+parallel 'echo {}' ::: *                // {} will be replaced with each input found.
+parallel echo ::: *                     // If no placeholders are used, it is automatically assumed.
+parallel ::: "echo 1" "echo 2" "echo 3" // If no command is supplied, the input arguments become commands.
+```
+
+## Options
+
+In addition to the command syntax, there are also some options that you can use to configure the load balancer:
+- **-j**: Defines the number of jobs/threads to run in parallel.
+
+Available syntax options for the placeholders values are:
+- **{}**: Each occurrence will be replaced with the name of the input.
+- **{.}**: Each occurrence will be replaced with the input, with the extension removed.
+- **{/}**: Each occurrence will be replaced with the base name of the input.
+- **{/.}**: Each occurrence will be replaced with the base name of the input, with the extension removed.
+- **{//}**: Each occurrence will be replaced with the directory name of the input.
+- **{%}**: Each occurrence will be replaced with the slot number.
+- **{#}**: Each occurrence will be replaced with the job number.
+
+## Useful Examples
+
 ### Transcoding FLAC music to Opus
 ffmpeg is a highly useful application for converting music and videos. However, audio transcoding is limited to a
 a single core. If you have a large FLAC archive and you wanted to compress it into the efficient Opus codec, it would
@@ -24,20 +46,6 @@ vp9_params="-c:v libvpx-vp9 -tile-columns 6 -frame-parallel 1 -rc_lookahead 25 -
 opus_params="-c:a libopus -b:a 128k"
 parallel -j 3 "ffmpeg -v 0 -i {} $vp9_params $opus_params -f webm {.}.webm" ::: $(find -type f -name '*.mkv')
 ```
-
-## Options
-
-In addition to the command syntax, there are also some options that you can use to configure the load balancer:
-- **-j**: Defines the number of jobs/threads to run in parallel.
-
-Available syntax options for the placeholders values are:
-- **{}**: Each occurrence will be replaced with the name of the input.
-- **{.}**: Each occurrence will be replaced with the input, with the extension removed.
-- **{/}**: Each occurrence will be replaced with the base name of the input.
-- **{/.}**: Each occurrence will be replaced with the base name of the input, with the extension removed.
-- **{//}**: Each occurrence will be replaced with the directory name of the input.
-- **{%}**: Each occurrence will be replaced with the slot number.
-- **{#}**: Each occurrence will be replaced with the job number.
 
 ## How It Works
 
