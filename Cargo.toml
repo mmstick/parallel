@@ -14,3 +14,27 @@ num_cpus = "1.0"
 [profile.release]
 lto = true
 opt-level = 3
+
+[package.metadata.deb]
+maintainer = "Michael Aaron Murphy <mmstickman@gmail.com>"
+copyright = "2016, Michael Aaron Murphy <mmstickman@gmail.com>"
+license_file = ["LICENSE", "4"]
+extended_description = """\
+A CPU load balancer for the command-line, written in Rust and inspired by \
+GNU Parallel. The purpose of the application is to parallelize otherwise \
+serial tasks by evenly distributing tasks to all CPU cores in a system.
+
+The program is supplied with a command template and a list of inputs, \
+where those inputs will be evenly passed to each core in the system. \
+Inputs are processed serially in parallel, as in each job will be assigned \
+the next task in the queue as soon as a job completes. In addition, the \
+standard output/error of each task will be buffered so that they are \
+printed in the order that inputs are received, as if the commands were \
+executed serially in a traditional for loop."""
+depends = "$auto"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/parallel", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/parallel/README", "644"],
+]

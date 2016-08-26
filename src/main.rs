@@ -139,9 +139,20 @@ fn main() {
                     // The rest of the fields are arguments, if there are any arguments.
                     let args = iterator.collect::<Vec<&str>>();
                     // Attempt to run the current input as a command.
-                    if let Err(_) = Command::new(actual_command).args(&args).status() {
-                        let mut stderr = stderr.lock();
-                        let _ = write!(&mut stderr, "parallel: command error: {}\n", input_var);
+                    match Command::new(actual_command).args(&args).output() {
+                        Ok(ref output) if grouped => {
+                            output_tx.send(JobOutput{
+                                id:     job_id,
+                                stdout: output.stdout.clone(),
+                                stderr: output.stderr.clone(),
+                            }).unwrap();
+                        },
+                        Ok(_) => (),
+                        Err(why) => {
+                            let mut stderr = stderr.lock();
+                            let _ = write!(&mut stderr, "parallel: command error: {}: {}\n",
+                                input_var, why);
+                        }
                     }
                 } else {
                     // Build a command by merging the command template with the input,
