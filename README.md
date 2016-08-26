@@ -37,6 +37,7 @@ parallel ::: "echo 1" "echo 2" "echo 3" // If no command is supplied, the input 
 
 In addition to the command syntax, there are also some options that you can use to configure the load balancer:
 - **-j**: Defines the number of jobs/threads to run in parallel.
+- **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
 
 Available syntax options for the placeholders values are:
 - **{}**: Each occurrence will be replaced with the name of the input.

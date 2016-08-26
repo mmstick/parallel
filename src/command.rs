@@ -1,21 +1,23 @@
 use std::io::{StderrLock, Write};
-use std::process::Command;
+use std::process::{Command, Output};
 use tokenizer::Token;
 
 pub enum CommandErr {
-    Failed(String, Vec<String>)
+    Failed(String, Vec<String>, String)
 }
 
 impl CommandErr {
     pub fn handle(self, stderr: &mut StderrLock) {
         let _ = stderr.write(b"parallel: command error: ");
         match self {
-            CommandErr::Failed(command, arguments) => {
+            CommandErr::Failed(command, arguments, error) => {
                 let _ = stderr.write(command.as_bytes());
                 for arg in &arguments {
                     let _ = stderr.write(b" ");
                     let _ = stderr.write(arg.as_bytes());
                 }
+                let _ = stderr.write(b": ");
+                let _ = stderr.write(error.as_bytes());
                 let _ = stderr.write(b"\n");
             }
         }
@@ -24,7 +26,7 @@ impl CommandErr {
 
 /// Builds the command and executes it
 pub fn exec(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str,
-    job_total :&str) -> Result<(), CommandErr>
+    job_total :&str, grouping: bool) -> Result<Option<Output>, CommandErr>
 {
     // First the arguments will be generated based on the tokens and input.
     let mut arguments = Vec::new();
@@ -42,12 +44,17 @@ pub fn exec(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job
         arguments.push(String::from(input));
     }
 
-    // Attempt to execute the command with the generated arguments.
-    if let Err(_) = Command::new(&command).args(&arguments).status() {
-        // If an error status is returned, return it to be printed.
-        return Err(CommandErr::Failed(String::from(command), arguments));
+    if grouping {
+        Command::new(&command).args(&arguments).output()
+            .map(|x| Some(x)).map_err(|why| {
+                CommandErr::Failed(String::from(command), arguments, why.to_string())
+            })
+    } else {
+        match Command::new(&command).args(&arguments).status() {
+            Ok(_)    => Ok(None),
+            Err(why) => Err(CommandErr::Failed(String::from(command), arguments, why.to_string()))
+        }
     }
-    Ok(())
 }
 
 /// Builds arguments using the `tokens` template with the current `input` value.
