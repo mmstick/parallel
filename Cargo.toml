@@ -8,6 +8,10 @@ repository = "https://github.com/mmstick/parallel"
 keywords = ["cli", "parallel", "cpu", "load", "balancer"]
 readme = "README.md"
 
+[[bin]]
+name = "parallel"
+test = false
+
 [dependencies]
 num_cpus = "1.0"
 
