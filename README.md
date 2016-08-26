@@ -92,7 +92,7 @@ that every core has a job to process at any given point in time.  Not to mention
 for loop:
 
 ```sh
-# This a for loop
+# This is a for loop
 for file in *; do echo $file; done
 
 # This is a parallel version of that for loop
