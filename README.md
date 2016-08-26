@@ -1,6 +1,13 @@
 # Parallel: A Command-line CPU Load Balancer Written in Rust
 This is an attempt at recreating the functionality of [GNU Parallel](https://www.gnu.org/software/parallel/) in Rust under a MIT license. The end goal will be to support much of the functionality of `GNU Parallel` and then to extend the functionality further for the next generation of command-line utilities written in Rust.
 
+## Installation
+
+```sh
+git clone https://github.com/mmstick/parallel.git && cd parallel
+cargo install
+```
+
 ## Benchmark Comparison to GNU Parallel
 
 Here are some benchmarks from an i5-2410M laptop running Ubuntu 16.04.
