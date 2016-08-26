@@ -4,7 +4,6 @@ use tokenizer::{Token, tokenize};
 pub enum ParseErr {
     JobsNaN(String),
     JobsNoValue,
-    InputVarsNotDefined,
 }
 
 // Parses input arguments and stores their values into their associated variabless.
@@ -57,6 +56,5 @@ pub fn parse_arguments(ncores: &mut usize, command: &mut String, arg_tokens: &mu
         None => *command = comm
     }
 
-    if input_variables.is_empty() { return Err(ParseErr::InputVarsNotDefined) }
     Ok(())
 }

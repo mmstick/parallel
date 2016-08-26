@@ -77,11 +77,20 @@ fn build_arguments(args_vec: &mut Vec<String>, tokens: &[Token], input: &str, sl
 
 /// Removes the extension of a given input
 fn remove_extension(input: &str) -> &str {
-    let mut index = 0;
+    let mut dir_index = 0;
+    let mut ext_index = 0;
+
     for (id, character) in input.chars().enumerate() {
-        if character == '.' { index = id; }
+        if character == '/' { dir_index = id }
+        if character == '.' { ext_index = id; }
     }
-    if index == 0 { input } else { &input[0..index] }
+
+    // Account for hidden files and directories
+    if ext_index == 0 || dir_index > ext_index || dir_index == ext_index - 1 {
+        input
+    } else {
+        &input[0..ext_index]
+    }
 }
 
 fn basename(input: &str) -> &str {

@@ -3,7 +3,7 @@ mod command;   // Contains the functionality for building and processing externa
 mod tokenizer; // Takes the command template that is provided and reduces it to digestible tokens.
 mod parser;    // Collects the input arguments given to the program.
 
-use std::io::{self, Write};
+use std::io::{self, Write, BufRead};
 use std::process::{Command, exit};
 use std::thread::{self, JoinHandle};
 use std::sync::Arc;
@@ -40,16 +40,21 @@ fn main() {
             ParseErr::JobsNaN(value) => {
                 let _ = write!(&mut stderr, "jobs parameter, '{}', is not a number.\n", value);
             },
-            _ => {
-                let message: &[u8] = match why {
-                    ParseErr::InputVarsNotDefined => b"input variables were not defined.\n",
-                    ParseErr::JobsNoValue         => b"no jobs parameter was defined.\n",
-                    _ => unreachable!()
-                };
-                let _ = stderr.write(message);
+            ParseErr::JobsNoValue => {
+                let _ = stderr.write(b"no jobs parameter was defined.\n");
             }
         };
         exit(1);
+    }
+
+    // If no inputs are provided, read from stdin instead.
+    if inputs.is_empty() {
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            if let Ok(line) = line {
+                inputs.push(line)
+            }
+        }
     }
 
     // If no command was given, then the inputs are actually commands themselves.
