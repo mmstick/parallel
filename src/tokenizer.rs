@@ -14,9 +14,13 @@ pub enum Token {
 /// Takes the command arguments as the input and reduces it into tokens,
 /// which allows for easier management of string manipulation later on.
 pub fn tokenize(template: &str) -> Vec<Token> {
+    // When set to true, the characters following will be collected into `pattern`.
     let mut matching = false;
+    // This vector will contain the complete list of parsed tokens.
     let mut tokens = Vec::new();
-    let mut pattern = String::new();
+    // `pattern` is a buffer for the currently-matched pattern. IE: {./}
+    let mut pattern = String::with_capacity(4);
+
     for character in template.chars() {
         match (character, matching) {
             // This condition initiates the pattern matching
@@ -28,7 +32,9 @@ pub fn tokenize(template: &str) -> Vec<Token> {
                     tokens.push(Token::Placeholder);
                 } else {
                     match match_token(&pattern) {
+                        // If the token is a match, add the token.
                         Some(token) => tokens.push(token),
+                        // If the token is not a match, write each character out.
                         None => {
                             tokens.push(Token::Character('{'));
                             for character in pattern.chars() {
@@ -37,6 +43,7 @@ pub fn tokenize(template: &str) -> Vec<Token> {
                             tokens.push(Token::Character('}'));
                         }
                     }
+                    // Clear the pattern buffer as we have already tokenized it.
                     pattern.clear();
                 }
             },
@@ -56,6 +63,7 @@ pub fn tokenize(template: &str) -> Vec<Token> {
     tokens
 }
 
+/// Matches a pattern to it's associated token.
 fn match_token(pattern: &str) -> Option<Token> {
     match pattern {
         "."  => Some(Token::RemoveExtension),

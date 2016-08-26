@@ -1,7 +1,7 @@
 extern crate num_cpus;
-mod command;
-mod tokenizer;
-mod parser;
+mod command;   // Contains the functionality for building and processing external commands.
+mod tokenizer; // Takes the command template that is provided and reduces it to digestible tokens.
+mod parser;    // Collects the input arguments given to the program.
 
 use std::io::{self, Write};
 use std::process::{Command, exit};
@@ -18,22 +18,27 @@ use parser::{ParseErr, parse_arguments};
 */
 
 fn main() {
+    // Obtain a handle to standard error's buffer so we can write directly to it.
     let stderr = io::stderr();
+
+    // The `num_cpus` crate allows conveniently obtaining the number of CPU cores in the system.
+    // This number will be used to determine how many threads to run in parallel.
     let mut ncores = num_cpus::get();
+
+    // Initialize mutable vectors to store data that will be collected from input arguments.
     let mut command = String::new();
-    let mut arg_tokens = Vec::new();
+    let mut argument_tokens = Vec::new();
     let mut inputs = Vec::new();
 
     // Let's collect all parameters that we need from the program's arguments.
     // If an error is returned, this will handle that error as efficiently as possible.
-    if let Err(why) = parse_arguments(&mut ncores, &mut command, &mut arg_tokens, &mut inputs) {
+    if let Err(why) = parse_arguments(&mut ncores, &mut command, &mut argument_tokens, &mut inputs) {
+        // Always lock an output buffer before using it.
         let mut stderr = stderr.lock();
         let _ = stderr.write(b"parallel: parsing error: ");
         match why {
             ParseErr::JobsNaN(value) => {
-                let _ = stderr.write(b"jobs parameter, '");
-                let _ = stderr.write(value.as_bytes());
-                let _ = stderr.write(b"', is not a number.\n");
+                let _ = write!(&mut stderr, "jobs parameter, '{}', is not a number.\n" value);
             },
             _ => {
                 let message: &[u8] = match why {
@@ -53,7 +58,8 @@ fn main() {
     // It will be useful to know the number of inputs, to know when to quit.
     let num_inputs = inputs.len();
 
-    // Stores the next input to be processed
+    // Keeps track of the current step in the input queue.
+    // All threads will share this counter without stepping on each other's toes.
     let shared_counter = Arc::new(AtomicUsize::new(0));
 
     // We will share the same list of inputs with each thread.
@@ -66,44 +72,52 @@ fn main() {
     for slot in 1..ncores+1 {
         // The command that each input variable will be sent to.
         let command = command.clone();
-        // The arguments for the command.
-        let argument_tokens = arg_tokens.clone();
+        // The base command template that each thread will use.
+        let argument_tokens = argument_tokens.clone();
         // Allow the thread to gain access to the list of inputs.
         let input = shared_input.clone();
-        // Allow the thread to access the current command counter
+        // Allow the thread to access the input counter
         let counter = shared_counter.clone();
         // Allow the thread to know when it's time to stop.
         let num_inputs = num_inputs;
 
         // The actual thread where the work will happen on incoming data.
         let handle: JoinHandle<()> = thread::spawn(move || {
-            let slot = slot.to_string();
-            let job_total = num_inputs.to_string();
+            // Grab a handle to standard error for this thread.
             let stderr = io::stderr();
+
+            // The {%} token requires to know the thread's ID.
+            let slot = slot.to_string();
+            // Stores the value for the {#^} token.
+            let job_total = num_inputs.to_string();
+
+            // Starts the thread's main loop. which will only break when all inputs are processed.
             loop {
                 // Obtain the Nth item and it's job ID from the list of inputs.
                 let (input_var, job_id) = {
                     // Atomically increment the counter
-                    let old_counter = counter.fetch_add(1, Ordering::SeqCst);
-                    if old_counter >= num_inputs {
+                    let counter = counter.fetch_add(1, Ordering::SeqCst);
+                    // Check to see if all inputs have already been processed
+                    if counter >= num_inputs {
+                        // If the counter is >= the total number of inputs, processing is finished.
                         break
                     } else {
-                        let input_var = &input[old_counter];
-                        let job_id = old_counter + 1;
-                        (input_var, job_id.to_string())
+                        // Obtain the Nth input as well as the job ID
+                        (&input[counter], (counter + 1).to_string())
                     }
                 };
 
                 if input_is_command {
                     // The inputs are actually the commands.
                     let mut iterator = input_var.split_whitespace();
+                    // There will always be at least one argument: the command.
                     let actual_command = iterator.next().unwrap();
+                    // The rest of the fields are arguments, if there are any arguments.
                     let args = iterator.collect::<Vec<&str>>();
+                    // Attempt to run the current input as a command.
                     if let Err(_) = Command::new(actual_command).args(&args).status() {
                         let mut stderr = stderr.lock();
-                        let _ = stderr.write(b"parallel: command error: ");
-                        let _ = stderr.write(input_var.as_bytes());
-                        let _ = stderr.write(b"\n");
+                        let _ = write!(&mut stderr, "parallel: command error: {}\n", input_var);
                     }
                 } else {
                     // Build a command by merging the command template with the input,
@@ -123,5 +137,6 @@ fn main() {
         threads.push(handle);
     }
 
+    // Wait for each thread to complete before quitting the program.
     for thread in threads.into_iter() { thread.join().unwrap(); }
 }
