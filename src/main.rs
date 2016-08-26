@@ -38,7 +38,7 @@ fn main() {
         let _ = stderr.write(b"parallel: parsing error: ");
         match why {
             ParseErr::JobsNaN(value) => {
-                let _ = write!(&mut stderr, "jobs parameter, '{}', is not a number.\n" value);
+                let _ = write!(&mut stderr, "jobs parameter, '{}', is not a number.\n", value);
             },
             _ => {
                 let message: &[u8] = match why {
