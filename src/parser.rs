@@ -4,7 +4,6 @@ use tokenizer::{Token, tokenize};
 pub struct Args {
     pub ncores:    usize,
     pub grouped:   bool,
-    pub command:   String,
     pub arguments: Vec<Token>,
     pub inputs:    Vec<String>
 }
@@ -56,15 +55,7 @@ impl Args {
             }
         }
 
-        // This will fill in command and argument information needed by the threads.
-        // If there is a space in the argument, then the command has arguments
-        match comm.chars().position(|x| x == ' ') {
-            Some(pos) => {
-                self.command   = String::from(&comm[0..pos]);
-                self.arguments = tokenize(&comm[pos+1..]);
-            },
-            None => self.command = comm
-        }
+        self.arguments = tokenize(&comm);
 
         Ok(())
     }

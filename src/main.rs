@@ -4,7 +4,7 @@ mod tokenizer; // Takes the command template that is provided and reduces it to 
 mod parser;    // Collects the input arguments given to the program.
 
 use std::io::{self, Write, BufRead};
-use std::process::{Command, exit};
+use std::process::exit;
 
 use std::thread::{self, JoinHandle};
 use std::sync::Arc;
@@ -39,9 +39,7 @@ fn main() {
         ncores: num_cpus::get(),
         // Defines whether stdout/stderr buffers should be printed in order.
         grouped: true,
-        // Stores the command that will be executed
-        command: String::new(),
-        // Stores a Vec<Token> of the arguments to execute with the command.
+        // Stores a Vec<Token> of the command arguments.
         arguments: Vec::new(),
         // Stores the list of inputs supplied to the program.
         inputs: Vec::new()
@@ -74,8 +72,8 @@ fn main() {
         }
     }
 
-    // If no command was given, then the inputs are actually commands themselves.
-    let input_is_command = args.command.is_empty();
+    // If no command argument was given, then the inputs are actually commands themselves.
+    let input_is_command = args.arguments.is_empty();
 
     // It will be useful to know the number of inputs, to know when to quit.
     let num_inputs = args.inputs.len();
@@ -97,10 +95,8 @@ fn main() {
 
     // The `slot` variable is required by the {%} token.
     for slot in 1..args.ncores+1 {
-        // The command that each input variable will be sent to.
-        let command = args.command.clone();
         // The base command template that each thread will use.
-        let argument_tokens = args.arguments.clone();
+        let arguments = args.arguments.clone();
         // Allow the thread to gain access to the list of inputs.
         let input = shared_input.clone();
         // Allow the thread to access the input counter
@@ -111,7 +107,6 @@ fn main() {
         let grouped = args.grouped;
         // Each thread will receive it's own sender for sending stderr/stdout buffers.
         let output_tx = output_tx.clone();
-
 
         // The actual thread where the work will happen on incoming data.
         let handle: JoinHandle<()> = thread::spawn(move || {
@@ -140,17 +135,10 @@ fn main() {
                 };
 
                 if input_is_command {
-                    // The inputs are actually the commands.
-                    let mut iterator = input_var.split_whitespace();
-                    // There will always be at least one argument: the command.
-                    let actual_command = iterator.next().unwrap();
-                    // The rest of the fields are arguments, if there are any arguments.
-                    let args = iterator.collect::<Vec<&str>>();
-                    // Attempt to run the current input as a command.
                     if grouped {
-                        // Execute the command with it's arguments and collect the
+                        // Executes each input as if it were a command and returns a
                         // `Command::Output`, if the command executes successfully.
-                        match Command::new(actual_command).args(&args).output() {
+                        match command::get_command_output(input_var) {
                             Ok(ref output) => {
                                 // Assign the `job_id` with the command's stdout and stderr
                                 // buffers and transmit them back to the main thread.
@@ -171,16 +159,16 @@ fn main() {
                         // With no need to group the outputs, we only need to know the status
                         // of the command's execution. The standard output and standard error
                         // will automatically be inherited.
-                        if let Err(why) = Command::new(actual_command).args(&args).status() {
+                        if let Err(why) = command::get_command_status(input_var) {
                             let mut stderr = stderr.lock();
-                            let _ = write!(&mut stderr, "parallel: command error: {}: {}\n",
-                                input_var, why);
+                            let _ = stderr.write(b"parallel: command error:");
+                            let _ = write!(&mut stderr, "{}: {}\n", input_var, why);
                         }
                     }
                 } else {
                     // Build a command by merging the command template with the input,
                     // and then execute that command.
-                    match command::exec(input_var, &command, &argument_tokens, &slot,
+                    match command::exec(input_var, &arguments, &slot,
                         &job_id.to_string(), &job_total, grouped)
                     {
                         // If grouping is enabled, then we have an output to process.

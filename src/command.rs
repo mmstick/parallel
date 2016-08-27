@@ -1,21 +1,18 @@
-use std::io::{StderrLock, Write};
-use std::process::{Command, Output};
+use std::io::{self, StderrLock, Write};
+use std::ffi::OsStr;
+use std::process::{Command, ExitStatus, Output};
 use tokenizer::Token;
 
 pub enum CommandErr {
-    Failed(String, Vec<String>, String)
+    Failed(String, String)
 }
 
 impl CommandErr {
     pub fn handle(self, stderr: &mut StderrLock) {
         let _ = stderr.write(b"parallel: command error: ");
         match self {
-            CommandErr::Failed(command, arguments, error) => {
-                let _ = stderr.write(command.as_bytes());
-                for arg in &arguments {
-                    let _ = stderr.write(b" ");
-                    let _ = stderr.write(arg.as_bytes());
-                }
+            CommandErr::Failed(arguments, error) => {
+                let _ = stderr.write(arguments.as_bytes());
                 let _ = stderr.write(b": ");
                 let _ = stderr.write(error.as_bytes());
                 let _ = stderr.write(b"\n");
@@ -25,11 +22,11 @@ impl CommandErr {
 }
 
 /// Builds the command and executes it
-pub fn exec(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str,
+pub fn exec(input: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str,
     job_total :&str, grouping: bool) -> Result<Option<Output>, CommandErr>
 {
     // First the arguments will be generated based on the tokens and input.
-    let mut arguments = Vec::new();
+    let mut arguments = String::with_capacity(arg_tokens.len() << 1);
     build_arguments(&mut arguments, arg_tokens, input, slot_id, job_id, job_total);
 
     // Check to see if any placeholder tokens are in use.
@@ -41,25 +38,43 @@ pub fn exec(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job
 
     // If no placeholder tokens are in use, the user probably wants to infer one.
     if !placeholder_exists {
-        arguments.push(String::from(input));
+        arguments.push_str(input);
     }
 
     if grouping {
-        Command::new(&command).args(&arguments).output()
-            .map(Some).map_err(|why| {
-                CommandErr::Failed(String::from(command), arguments, why.to_string())
-            })
+        get_command_output(&arguments).map(Some).map_err(|why| {
+            CommandErr::Failed(arguments, why.to_string())
+        })
     } else {
-        match Command::new(&command).args(&arguments).status() {
-            Ok(_)    => Ok(None),
-            Err(why) => Err(CommandErr::Failed(String::from(command), arguments, why.to_string()))
-        }
+        get_command_status(&arguments).map(|_| None).map_err(|why| {
+            CommandErr::Failed(arguments, why.to_string())
+        })
     }
+}
+
+#[cfg(windows)]
+pub fn get_command_output<S: AsRef<OsStr>>(args: S) -> io::Result<Output> {
+    Command::new("cmd").arg("/C").arg(args).output()
+}
+
+#[cfg(windows)]
+pub fn get_command_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
+    Command::new("cmd").arg("/C").arg(args).status()
+}
+
+#[cfg(not(windows))]
+pub fn get_command_output<S: AsRef<OsStr>>(args: S) -> io::Result<Output> {
+    Command::new("sh").arg("-c").arg(args).output()
+}
+
+#[cfg(not(windows))]
+pub fn get_command_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
+    Command::new("sh").arg("-c").arg(args).status()
 }
 
 /// Builds arguments using the `tokens` template with the current `input` value.
 /// The arguments will be stored within a `Vec<String>`
-fn build_arguments(args_vec: &mut Vec<String>, tokens: &[Token], input: &str, slot: &str,
+fn build_arguments(args: &mut String, tokens: &[Token], input: &str, slot: &str,
     job: &str, job_total: &str)
 {
     let mut arguments = String::new();
@@ -77,7 +92,7 @@ fn build_arguments(args_vec: &mut Vec<String>, tokens: &[Token], input: &str, sl
         }
     }
 
-    *args_vec = arguments.split_whitespace().map(String::from).collect::<Vec<String>>();
+    *args = arguments;
 }
 
 /// Removes the extension of a given input
