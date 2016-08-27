@@ -107,14 +107,14 @@ that are available for download:
 ### Ubuntu
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.1.0/parallel_0.1.0_amd64.deb
-sudo dpkg -i parallel_0.1.0_amd64.deb
+wget https://github.com/mmstick/parallel/releases/download/0.1.1/parallel_0.1.1_amd64.deb
+sudo dpkg -i parallel_0.1.1_amd64.deb
 ```
 
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.1.0/parallel.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.1.1/parallel.tar.xz
 tar xf parallel.tar.xz
 sudo install parallel /usr/local/bin
 ```
