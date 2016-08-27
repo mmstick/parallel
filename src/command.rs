@@ -77,9 +77,7 @@ fn build_arguments(args_vec: &mut Vec<String>, tokens: &[Token], input: &str, sl
         }
     }
 
-    for argument in arguments.split_whitespace() {
-        args_vec.push(String::from(argument));
-    }
+    *args_vec = arguments.split_whitespace().map(String::from).collect::<Vec<String>>();
 }
 
 /// Removes the extension of a given input
@@ -93,11 +91,7 @@ fn remove_extension(input: &str) -> &str {
     }
 
     // Account for hidden files and directories
-    if ext_index == 0 || dir_index > ext_index || dir_index == ext_index - 1 {
-        input
-    } else {
-        &input[0..ext_index]
-    }
+    if ext_index == 0 || dir_index + 2 > ext_index { input } else { &input[0..ext_index] }
 }
 
 fn basename(input: &str) -> &str {

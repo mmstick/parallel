@@ -9,7 +9,7 @@ keywords = ["cli", "parallel", "cpu", "load", "balancer"]
 readme = "README.md"
 
 [dependencies]
-num_cpus = "1.0"
+num_cpus = { path = "deps/num_cpus" }
 
 [profile.release]
 lto = true
