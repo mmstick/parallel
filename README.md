@@ -99,3 +99,47 @@ for file in *; do echo $file; done
 # This is a parallel version of that for loop
 parallel 'echo {}' ::: *
 ```
+
+## Installation Instructions
+
+There are a number of methods that you can use to install the application. I provide binary packages for AMD64 systems
+that are available for download:
+
+### Ubuntu
+
+```sh
+wget https://github.com/mmstick/parallel/releases/download/0.0.1/parallel_0.0.1_amd64.deb
+sudo dpkg -i parallel_0.0.1_amd64.deb
+```
+
+### Everyone Else
+
+```sh
+wget https://github.com/mmstick/parallel/releases/download/0.0.1/parallel.tar.xz
+tar xf parallel.tar.xz
+sudo install parallel /usr/local/bin
+```
+
+## Compiling From Source
+
+All of the dependencies are vendored locally, so it is possible to build the packages without Internet access.
+
+#### First Method
+
+If you would like to install it directly to `~/.cargo/bin` using the official method.
+
+```sh
+cargo install --git https://github.com/mmstick/parallel
+```
+
+#### Second Method
+
+If you would like to install it system-wide.
+
+```sh
+wget https://github.com/mmstick/parallel/archive/master.zip
+unzip master.zip
+cd parallel-master
+cargo build --release
+sudo install target/release/parallel /usr/local/bin
+```
