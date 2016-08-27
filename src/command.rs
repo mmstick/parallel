@@ -33,10 +33,10 @@ pub fn exec(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job
     build_arguments(&mut arguments, arg_tokens, input, slot_id, job_id, job_total);
 
     // Check to see if any placeholder tokens are in use.
-    let placeholder_exists = arg_tokens.iter().any(|ref x| {
-        x == &&Token::BaseAndExt || x == &&Token::Basename || x == &&Token::Dirname ||
-        x == &&Token::Job || x == &&Token::Placeholder || x == &&Token::RemoveExtension ||
-        x == &&Token::Slot
+    let placeholder_exists = arg_tokens.iter().any(|x| {
+        x == &Token::BaseAndExt || x == &Token::Basename || x == &Token::Dirname ||
+        x == &Token::Job || x == &Token::Placeholder || x == &Token::RemoveExtension ||
+        x == &Token::Slot
     });
 
     // If no placeholder tokens are in use, the user probably wants to infer one.
@@ -46,7 +46,7 @@ pub fn exec(input: &str, command: &str, arg_tokens: &[Token], slot_id: &str, job
 
     if grouping {
         Command::new(&command).args(&arguments).output()
-            .map(|x| Some(x)).map_err(|why| {
+            .map(Some).map_err(|why| {
                 CommandErr::Failed(String::from(command), arguments, why.to_string())
             })
     } else {

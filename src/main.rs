@@ -36,8 +36,11 @@ fn main() {
         ncores: num_cpus::get(),
         // Defines whether stdout/stderr buffers should be printed in order.
         grouped: true,
+        // Stores the command that will be executed
         command: String::new(),
+        // Stores a Vec<Token> of the arguments to execute with the command.
         arguments: Vec::new(),
+        // Stores the list of inputs supplied to the program.
         inputs: Vec::new()
     };
 
@@ -157,7 +160,7 @@ fn main() {
                 } else {
                     // Build a command by merging the command template with the input,
                     // and then execute that command.
-                    match command::exec(&input_var, &command, &argument_tokens, &slot,
+                    match command::exec(input_var, &command, &argument_tokens, &slot,
                         &job_id.to_string(), &job_total, grouped)
                     {
                         Ok(Some(ref output)) if grouped => {
