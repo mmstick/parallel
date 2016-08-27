@@ -125,10 +125,10 @@ All of the dependencies are vendored locally, so it is possible to build the pac
 
 #### First Method
 
-If you would like to install it directly to `~/.cargo/bin` using the official method.
+If you would like to install the latest release directly to `~/.cargo/bin` using the official method.
 
 ```sh
-cargo install --git https://github.com/mmstick/parallel
+cargo install parallel
 ```
 
 #### Second Method
