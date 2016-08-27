@@ -24,8 +24,7 @@ sys     0m0.372s
 ```
 
 ## Syntax Examples
-Parallel does not currently support reading from stdin at this time. However, it does support parsing input arguments
-from the command line to achieve the same effect. The following syntax is supported:
+The following syntax is supported:
 
 ```sh
 parallel 'echo {}' ::: *                // {} will be replaced with each input found.

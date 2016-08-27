@@ -20,6 +20,9 @@ use parser::{Args, ParseErr};
  - paralllel command ::: a b c :::+ 1 2 3 ::: d e f :::+ 4 5 6
 */
 
+/// The `JobOutput` structure is utilized when grouping is enabled to transmit a command's
+/// associated job ID with it's stdout and stderr buffers back to the main thread to be
+/// queued for printing in the order that the inputs are supplied.
 struct JobOutput {
     id: usize,
     stdout: Vec<u8>,
@@ -91,6 +94,8 @@ fn main() {
     // The `threads` vector will contain the thread handles needed to
     // know when to quit the program.
     let mut threads: Vec<JoinHandle<()>> = Vec::with_capacity(args.ncores);
+
+    // The `slot` variable is required by the {%} token.
     for slot in 1..args.ncores+1 {
         // The command that each input variable will be sent to.
         let command = args.command.clone();
@@ -143,14 +148,19 @@ fn main() {
                     let args = iterator.collect::<Vec<&str>>();
                     // Attempt to run the current input as a command.
                     if grouped {
+                        // Execute the command with it's arguments and collect the
+                        // `Command::Output`, if the command executes successfully.
                         match Command::new(actual_command).args(&args).output() {
                             Ok(ref output) => {
+                                // Assign the `job_id` with the command's stdout and stderr
+                                // buffers and transmit them back to the main thread.
                                 output_tx.send(JobOutput{
                                     id:     job_id,
                                     stdout: output.stdout.clone(),
                                     stderr: output.stderr.clone(),
                                 }).unwrap();
                             },
+                            // The command has, sadly, failed. This will tell the user why.
                             Err(why) => {
                                 let mut stderr = stderr.lock();
                                 let _ = write!(&mut stderr, "parallel: command error: {}: {}\n",
@@ -158,6 +168,9 @@ fn main() {
                             }
                         }
                     } else {
+                        // With no need to group the outputs, we only need to know the status
+                        // of the command's execution. The standard output and standard error
+                        // will automatically be inherited.
                         if let Err(why) = Command::new(actual_command).args(&args).status() {
                             let mut stderr = stderr.lock();
                             let _ = write!(&mut stderr, "parallel: command error: {}: {}\n",
@@ -170,6 +183,7 @@ fn main() {
                     match command::exec(input_var, &command, &argument_tokens, &slot,
                         &job_id.to_string(), &job_total, grouped)
                     {
+                        // If grouping is enabled, then we have an output to process.
                         Ok(Some(ref output)) if grouped => {
                             output_tx.send(JobOutput{
                                 id: job_id,
@@ -177,7 +191,9 @@ fn main() {
                                 stderr: output.stderr.clone(),
                             }).unwrap();
                         },
+                        // If grouping was not enabled, nothing was returned.
                         Ok(_) => (),
+                        // I've an error handler already created for this error type.
                         Err(cmd_err) => {
                             let mut stderr = stderr.lock();
                             cmd_err.handle(&mut stderr);
@@ -196,8 +212,14 @@ fn main() {
         let stdout = io::stdout();
         let mut stdout = stdout.lock();
         let mut stderr = stderr.lock();
+        // Job ID's start counting from `1`. This counter will keep track of what ID
+        // we need to print next.
         let mut counter = 1;
+        // If the job we receive is ahead of the current counter, we will queue it for
+        // later printing in this `buffer` variable.
         let mut buffer = Vec::new();
+
+        // The loop will only quit once all inputs have been received. I guarantee it.
         while counter != num_inputs + 1 {
             // Block and wait until a new buffer is received.
             let output = input_rx.recv().unwrap();
@@ -214,10 +236,14 @@ fn main() {
             // Check to see if there are any stored buffers that can now be printed.
             // Items in the buffer will be removed after they are used.
             'outer: loop {
+                // Keep track of if any changes have been made in this iteration.
                 let mut changed = false;
+                // Store a list of indexes we need to drop after a match has been found.
                 let mut drop = Vec::new();
 
                 // Loop through the list of buffers and print buffers with the next ID in line.
+                // If a match was found, changed will be set to true and the job added to the
+                // drop list. If no change was found, the outer loop will quit.
                 for (id, output) in buffer.iter().enumerate() {
                     if output.id == counter {
                         let _ = stdout.write(&output.stdout);
@@ -230,6 +256,9 @@ fn main() {
 
                 // Drop the buffers that were used.
                 if !drop.is_empty() {
+                    // Values have to be dropped in reverse because each time a value is
+                    // removed from a vector, all of them items to the right are shifted to
+                    // to he left.
                     drop.sort();
                     for id in drop.iter().rev() {
                         let _ = buffer.remove(*id);
