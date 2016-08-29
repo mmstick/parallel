@@ -1,70 +1,85 @@
 #[derive(Clone, PartialEq, Debug)]
 pub enum Token {
+    /// An argument is simply a collection of characters that are not placeholders.
+    Argument(String),
     BaseAndExt,
     Basename,
-    Character(char),
     Dirname,
     Job,
     JobTotal,
     Placeholder,
     RemoveExtension,
-    Slot,
+    Slot
 }
 
 /// Takes the command arguments as the input and reduces it into tokens,
 /// which allows for easier management of string manipulation later on.
-pub fn tokenize(template: &str) -> Vec<Token> {
+pub fn tokenize(tokens: &mut Vec<Token>, template: &str) {
     // When set to true, the characters following will be collected into `pattern`.
-    let mut matching = false;
-    // This vector will contain the complete list of parsed tokens.
-    let mut tokens = Vec::new();
-    // `pattern` is a buffer for the currently-matched pattern. IE: {./}
-    let mut pattern = String::with_capacity(4);
+    let mut pattern_matching = false;
+    // Mark the index where the pattern's first character begins.
+    let mut pattern_start = 0;
 
-    for character in template.chars() {
-        match (character, matching) {
+    // Defines that an argument string is currently being matched
+    let mut argument_matching = false;
+    // Mark the index where the argument's first character begins.
+    let mut argument_start = 0;
+
+    for (id, character) in template.chars().enumerate() {
+        match (character, pattern_matching) {
             // This condition initiates the pattern matching
-            ('{', false) => matching = true,
-            // This condition ends the pattern matching process
-            ('}', true)  => {
-                matching = false;
-                if pattern.is_empty() {
-                    tokens.push(Token::Placeholder);
-                } else {
-                    match match_token(&pattern) {
-                        // If the token is a match, add the token.
-                        Some(token) => tokens.push(token),
-                        // If the token is not a match, write each character out.
-                        None => {
-                            tokens.push(Token::Character('{'));
-                            for character in pattern.chars() {
-                                tokens.push(Token::Character(character));
-                            }
-                            tokens.push(Token::Character('}'));
-                        }
-                    }
-                    // Clear the pattern buffer as we have already tokenized it.
-                    pattern.clear();
+            ('{', false) => {
+                pattern_matching = true;
+                pattern_start    = id;
+
+                // If pattern matching has initialized while argument matching was happening,
+                // this will append the argument to the token list and disable argument matching.
+                if argument_matching {
+                    argument_matching = false;
+                    let argument      = template[argument_start..id].to_owned();
+                    tokens.push(Token::Argument(argument));
                 }
             },
-            (_, false)  => tokens.push(Token::Character(character)),
-            (_, true) => pattern.push(character)
+            // This condition ends the pattern matching process
+            ('}', true)  => {
+                pattern_matching = false;
+                if id == pattern_start+1 {
+                    // This condition will be met when the pattern is "{}".
+                    tokens.push(Token::Placeholder);
+                } else {
+                    // Supply the internal contents of the pattern to the token matcher.
+                    match match_token(&template[pattern_start+1..id]) {
+                        // If the token is a match, add the matched token.
+                        Some(token) => tokens.push(token),
+                        // If the token is not a match, add it as an argument.
+                        None => {
+                            tokens.push(Token::Argument(template[pattern_start..id+1].to_owned()))
+                        }
+                    }
+                }
+            },
+            // If pattern matching is disabled and argument matching is also disabled,
+            // this will begin the argument matching process.
+            (_, false) if !argument_matching  => {
+                argument_matching = true;
+                argument_start    = id;
+            },
+            (_, _) => ()
         }
     }
 
-    // If matching is still enabled, add the contents of `pattern` as `Token::Character`s.
-    if matching {
-        tokens.push(Token::Character('{'));
-        for character in pattern.chars() {
-            tokens.push(Token::Character(character));
-        }
+    // In the event that there is leftover data that was not matched, this will add the final
+    // string to the token list.
+    if pattern_matching {
+        tokens.push(Token::Argument(template[pattern_start..].to_owned()));
+    } else if argument_matching {
+        tokens.push(Token::Argument(template[argument_start..].to_owned()));
     }
-
-    tokens
 }
 
 /// Matches a pattern to it's associated token.
 fn match_token(pattern: &str) -> Option<Token> {
+    println!("\n{}\n", pattern);
     match pattern {
         "."  => Some(Token::RemoveExtension),
         "#"  => Some(Token::Job),
@@ -78,61 +93,80 @@ fn match_token(pattern: &str) -> Option<Token> {
 }
 
 #[test]
-fn tokenizer_character() {
-    assert_eq!(tokenize("foo"), vec![Token::Character('f'), Token::Character('o'),
-        Token::Character('o')]);
+fn tokenizer_argument() {
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "foo");
+    assert_eq!(tokens, vec![Token::Argument("foo".to_owned())]);
 }
 
 #[test]
 fn tokenizer_placeholder() {
-    assert_eq!(tokenize("{}"), vec![Token::Placeholder]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "{}");
+    assert_eq!(tokens, vec![Token::Placeholder]);
 }
 
 #[test]
 fn tokenizer_remove_extension() {
-    assert_eq!(tokenize("{.}"), vec![Token::RemoveExtension]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "{.}");
+    assert_eq!(tokens, vec![Token::RemoveExtension]);
 }
 
 #[test]
 fn tokenizer_basename() {
-    assert_eq!(tokenize("{/}"), vec![Token::Basename]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "{/}");
+    assert_eq!(tokens, vec![Token::Basename]);
 }
 
 #[test]
 fn tokenizer_dirname() {
-    assert_eq!(tokenize("{//}"), vec![Token::Dirname]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "{//}");
+    assert_eq!(tokens, vec![Token::Dirname]);
 }
 
 #[test]
 fn tokenizer_base_and_ext() {
-    assert_eq!(tokenize("{/.}"), vec![Token::BaseAndExt]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "{/.}");
+    assert_eq!(tokens, vec![Token::BaseAndExt]);
 }
 
 #[test]
 fn tokenizer_slot() {
-    assert_eq!(tokenize("{%}"), vec![Token::Slot]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "{%}");
+    assert_eq!(tokens, vec![Token::Slot]);
 }
 
 #[test]
 fn tokenizer_job() {
-    assert_eq!(tokenize("{#}"), vec![Token::Job]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "{#}");
+    assert_eq!(tokens, vec![Token::Job]);
 }
 
 #[test]
 fn tokenizer_jobtotal() {
-    assert_eq!(tokenize("{#^}"), vec![Token::JobTotal]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "{#^}");
+    assert_eq!(tokens, vec![Token::JobTotal]);
 }
 
 #[test]
 fn tokenizer_multiple() {
-    assert_eq!(tokenize("foo {} bar"), vec![Token::Character('f'), Token::Character('o'),
-        Token::Character('o'), Token::Character(' '), Token::Placeholder, Token::Character(' '),
-        Token::Character('b'), Token::Character('a'), Token::Character('r')]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "foo {} bar");
+    assert_eq!(tokens, vec![Token::Argument("foo ".to_owned()), Token::Placeholder,
+        Token::Argument(" bar".to_owned())]);
 }
 
 #[test]
 fn tokenizer_no_space() {
-    assert_eq!(tokenize("foo{}bar"), vec![Token::Character('f'), Token::Character('o'),
-        Token::Character('o'), Token::Placeholder, Token::Character('b'), Token::Character('a'),
-        Token::Character('r')]);
+    let mut tokens = Vec::new();
+    tokenize(&mut tokens, "foo{}bar");
+    assert_eq!(tokens, vec![Token::Argument("foo".to_owned()), Token::Placeholder,
+        Token::Argument("bar".to_owned())]);
 }

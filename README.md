@@ -27,9 +27,11 @@ sys     0m0.372s
 The following syntax is supported:
 
 ```sh
-parallel 'echo {}' ::: *                // {} will be replaced with each input found.
-parallel echo ::: *                     // If no placeholders are used, it is automatically assumed.
-parallel ::: "echo 1" "echo 2" "echo 3" // If no command is supplied, the input arguments become commands.
+parallel 'echo {}' ::: *                        // {} will be replaced with each input found.
+parallel echo ::: *                             // If no placeholders are used, it is automatically assumed.
+parallel ::: "echo 1" "echo 2" "echo 3"         // If no command is supplied, the input arguments become commands.
+parallel 'cd {}; echo Directory: {}; echo - {}' // Commands may be chained in the platform\'s shell.
+ls | parallel 'echo {}'                         // If no input arguments are supplied, stdin will be read.
 ```
 
 ## Options

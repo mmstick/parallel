@@ -125,15 +125,8 @@ fn main() {
                     // Atomically increment the counter
                     let counter = counter.fetch_add(1, Ordering::SeqCst);
                     // Check to see if all inputs have already been processed
-                    if counter >= num_inputs {
-                        // If the counter is >= the total number of inputs, processing is finished.
-                        break
-                    } else {
-                        // Obtain the Nth input as well as the job ID
-                        (&input[counter], (counter + 1))
-                    }
+                    if counter >= num_inputs { break } else { (&input[counter], (counter + 1)) }
                 };
-
                 if input_is_command {
                     if grouped {
                         // Executes each input as if it were a command and returns a
@@ -200,12 +193,17 @@ fn main() {
         let stdout = io::stdout();
         let mut stdout = stdout.lock();
         let mut stderr = stderr.lock();
+
         // Job ID's start counting from `1`. This counter will keep track of what ID
         // we need to print next.
         let mut counter = 1;
+
         // If the job we receive is ahead of the current counter, we will queue it for
         // later printing in this `buffer` variable.
         let mut buffer = Vec::new();
+
+        // Store a list of indexes we need to drop from `buffer` after a match has been found.
+        let mut drop = Vec::with_capacity(args.ncores);
 
         // The loop will only quit once all inputs have been received. I guarantee it.
         while counter != num_inputs + 1 {
@@ -226,8 +224,6 @@ fn main() {
             'outer: loop {
                 // Keep track of if any changes have been made in this iteration.
                 let mut changed = false;
-                // Store a list of indexes we need to drop after a match has been found.
-                let mut drop = Vec::new();
 
                 // Loop through the list of buffers and print buffers with the next ID in line.
                 // If a match was found, changed will be set to true and the job added to the
@@ -248,8 +244,8 @@ fn main() {
                     // removed from a vector, all of them items to the right are shifted to
                     // to he left.
                     drop.sort();
-                    for id in drop.iter().rev() {
-                        let _ = buffer.remove(*id);
+                    for id in drop.drain(0..).rev() {
+                        let _ = buffer.remove(id);
                     }
                 }
 

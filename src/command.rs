@@ -37,9 +37,7 @@ pub fn exec(input: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str,
     });
 
     // If no placeholder tokens are in use, the user probably wants to infer one.
-    if !placeholder_exists {
-        arguments.push_str(input);
-    }
+    if !placeholder_exists { arguments.push_str(input); }
 
     if grouping {
         get_command_output(&arguments).map(Some).map_err(|why| {
@@ -51,6 +49,8 @@ pub fn exec(input: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str,
         })
     }
 }
+
+
 
 #[cfg(windows)]
 pub fn get_command_output<S: AsRef<OsStr>>(args: S) -> io::Result<Output> {
@@ -74,13 +74,12 @@ pub fn get_command_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
 
 /// Builds arguments using the `tokens` template with the current `input` value.
 /// The arguments will be stored within a `Vec<String>`
-fn build_arguments(args: &mut String, tokens: &[Token], input: &str, slot: &str,
+fn build_arguments(arguments: &mut String, tokens: &[Token], input: &str, slot: &str,
     job: &str, job_total: &str)
 {
-    let mut arguments = String::new();
     for arg in tokens {
         match *arg {
-            Token::Character(arg)  => arguments.push(arg),
+            Token::Argument(ref arg) => arguments.push_str(arg),
             Token::Basename        => arguments.push_str(basename(input)),
             Token::BaseAndExt      => arguments.push_str(basename(remove_extension(input))),
             Token::Dirname         => arguments.push_str(dirname(input)),
@@ -91,8 +90,6 @@ fn build_arguments(args: &mut String, tokens: &[Token], input: &str, slot: &str,
             Token::Slot            => arguments.push_str(slot)
         }
     }
-
-    *args = arguments;
 }
 
 /// Removes the extension of a given input
@@ -176,15 +173,10 @@ fn build_arguments_test() {
     let job   = "1";
     let slot  = "1";
     let total = "1";
-    let tokens = vec![
-        Token::Character('-'), Token::Character('i'), Token::Character(' '), Token::Placeholder,
-        Token::Character(' '), Token::RemoveExtension, Token::Character('.'), Token::Character('m'),
-        Token::Character('k'),Token::Character('v')
-    ];
-    let mut arguments = Vec::new();
+    let tokens = vec![Token::Argument("-i ".to_owned()), Token::Placeholder,
+        Token::Argument(" ".to_owned()), Token::RemoveExtension,
+        Token::Argument(".mkv".to_owned())];
+    let mut arguments = String::new();
     build_arguments(&mut arguments, &tokens, input, slot, job, total);
-    let expected = vec![
-        String::from("-i"), String::from("applesauce.mp4"), String::from("applesauce.mkv")
-    ];
-    assert_eq!(arguments, expected)
+    assert_eq!(arguments, String::from("-i applesauce.mp4 applesauce.mkv"))
 }
