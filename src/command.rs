@@ -23,7 +23,7 @@ impl CommandErr {
 
 /// Builds the command and executes it
 pub fn exec(input: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str,
-    job_total :&str, grouping: bool) -> Result<Option<Output>, CommandErr>
+    job_total :&str, grouped: bool, uses_shell: bool) -> Result<Option<Output>, CommandErr>
 {
     // First the arguments will be generated based on the tokens and input.
     let mut arguments = String::with_capacity(arg_tokens.len() << 1);
@@ -39,36 +39,56 @@ pub fn exec(input: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str,
     // If no placeholder tokens are in use, the user probably wants to infer one.
     if !placeholder_exists { arguments.push_str(input); }
 
-    if grouping {
-        get_command_output(&arguments).map(Some).map_err(|why| {
+    if grouped {
+        get_command_output(&arguments, uses_shell).map(Some).map_err(|why| {
             CommandErr::Failed(arguments, why.to_string())
         })
     } else {
-        get_command_status(&arguments).map(|_| None).map_err(|why| {
+        get_command_status(&arguments, uses_shell).map(|_| None).map_err(|why| {
             CommandErr::Failed(arguments, why.to_string())
         })
     }
 }
 
+pub fn get_command_output(command: &str, uses_shell: bool) -> io::Result<Output> {
+    if uses_shell {
+        shell_output(command)
+    } else {
+        let mut iter = command.split_whitespace();
+        let command = iter.next().unwrap();
+        let args = iter.collect::<Vec<&str>>();
+        Command::new(command).args(&args).output()
+    }
+}
 
+pub fn get_command_status(command: &str, uses_shell: bool) -> io::Result<ExitStatus> {
+    if uses_shell {
+        shell_status(command)
+    } else {
+        let mut iter = command.split_whitespace();
+        let command = iter.next().unwrap();
+        let args = iter.collect::<Vec<&str>>();
+        Command::new(command).args(&args).status()
+    }
+}
 
 #[cfg(windows)]
-pub fn get_command_output<S: AsRef<OsStr>>(args: S) -> io::Result<Output> {
+fn shell_output<S: AsRef<OsStr>>(args: S) -> io::Result<Output> {
     Command::new("cmd").arg("/C").arg(args).output()
 }
 
 #[cfg(windows)]
-pub fn get_command_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
+fn shell_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
     Command::new("cmd").arg("/C").arg(args).status()
 }
 
 #[cfg(not(windows))]
-pub fn get_command_output<S: AsRef<OsStr>>(args: S) -> io::Result<Output> {
+fn shell_output<S: AsRef<OsStr>>(args: S) -> io::Result<Output> {
     Command::new("sh").arg("-c").arg(args).output()
 }
 
 #[cfg(not(windows))]
-pub fn get_command_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
+fn shell_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
     Command::new("sh").arg("-c").arg(args).status()
 }
 

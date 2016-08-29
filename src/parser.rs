@@ -2,10 +2,11 @@ use std::env;
 use tokenizer::{Token, tokenize};
 
 pub struct Args {
-    pub ncores:    usize,
-    pub grouped:   bool,
-    pub arguments: Vec<Token>,
-    pub inputs:    Vec<String>
+    pub ncores:     usize,
+    pub grouped:    bool,
+    pub uses_shell: bool,
+    pub arguments:  Vec<Token>,
+    pub inputs:     Vec<String>
 }
 
 pub enum ParseErr {
@@ -45,6 +46,7 @@ impl Args {
                             let _ = raw_args.next();
                         },
                         "--ungroup" => self.grouped = false,
+                        "--no-shell" => self.uses_shell = false,
                         _ => {
                             comm.push_str(&argument);
                             command_mode = true;

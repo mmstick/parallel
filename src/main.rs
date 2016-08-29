@@ -39,6 +39,9 @@ fn main() {
         ncores: num_cpus::get(),
         // Defines whether stdout/stderr buffers should be printed in order.
         grouped: true,
+        // If set to true, utilizes the platform's shell to gain additional features at the cost of
+        // performance degradation.
+        uses_shell: true,
         // Stores a Vec<Token> of the command arguments.
         arguments: Vec::new(),
         // Stores the list of inputs supplied to the program.
@@ -105,6 +108,8 @@ fn main() {
         let num_inputs = num_inputs;
         // If grouped is set to true, stdout/stderr buffers will be collected.
         let grouped = args.grouped;
+        // If `uses_shell` is set to true, commands will be executed in the platform's shell.
+        let uses_shell = args.uses_shell;
         // Each thread will receive it's own sender for sending stderr/stdout buffers.
         let output_tx = output_tx.clone();
 
@@ -131,7 +136,7 @@ fn main() {
                     if grouped {
                         // Executes each input as if it were a command and returns a
                         // `Command::Output`, if the command executes successfully.
-                        match command::get_command_output(input_var) {
+                        match command::get_command_output(input_var, uses_shell) {
                             Ok(ref output) => {
                                 // Assign the `job_id` with the command's stdout and stderr
                                 // buffers and transmit them back to the main thread.
@@ -152,7 +157,7 @@ fn main() {
                         // With no need to group the outputs, we only need to know the status
                         // of the command's execution. The standard output and standard error
                         // will automatically be inherited.
-                        if let Err(why) = command::get_command_status(input_var) {
+                        if let Err(why) = command::get_command_status(input_var, uses_shell) {
                             let mut stderr = stderr.lock();
                             let _ = stderr.write(b"parallel: command error:");
                             let _ = write!(&mut stderr, "{}: {}\n", input_var, why);
@@ -162,7 +167,7 @@ fn main() {
                     // Build a command by merging the command template with the input,
                     // and then execute that command.
                     match command::exec(input_var, &arguments, &slot,
-                        &job_id.to_string(), &job_total, grouped)
+                        &job_id.to_string(), &job_total, grouped, uses_shell)
                     {
                         // If grouping is enabled, then we have an output to process.
                         Ok(Some(ref output)) if grouped => {

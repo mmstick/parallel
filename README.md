@@ -3,24 +3,75 @@ This is an attempt at recreating the functionality of [GNU Parallel](https://www
 
 ## Benchmark Comparison to GNU Parallel
 
-Here are some benchmarks from an i5-2410M laptop running Ubuntu 16.04.
+Here are some benchmarks from an i5-2410M laptop running Gentoo.
 
 ```sh
-parallel 'echo {%}: {}' ::: /usr/bin/* > /dev/null
+time parallel 'echo {#}: {}' ::: /usr/bin/* > /dev/null
 ```
 
-- **GNU Parallel**:
+### **GNU Parallel**:
+
+#### Default Options
+
 ```
-real    0m5.911s
-user    0m2.752s
-sys     0m1.764s
+real	0m5.728s
+user	0m2.960s
+sys 	0m1.310s
 ```
 
-- **Rust/MIT Parallel**:
+#### Executed with the `--ungroup` Option
+
+```
+real	0m4.801s
+user	0m2.070s
+sys  	0m1.290s
+```
+
+### **Rust Parallel**:
+
+#### Default Options
+
+```sh
+time target/release/parallel 'echo {#}: {}' ::: /usr/bin/* > /dev/null
+```
+
+The default options are the slowest options, with all features enabled.
+
+```
+real	0m1.198s
+user	0m0.130s
+sys  	0m0.550s
+```
+
+#### Executed with the `--no-shell` option
+
+```sh
+time target/release/parallel --no-shell 'echo {#}: {}' ::: /usr/bin/* > /dev/null
+```
+
+A significant amount of overhead is caused by executing commands within the platform's preferred shell. On Unix
+systems, that shell is `sh`, whereas on Windows it is `cmd`. Disabling shell executing is a good idea if your
+command is simple and doesn't require chaining multiple commands.
+
 ```
 real    0m0.559s
 user    0m0.084s
 sys     0m0.372s
+```
+
+#### Executed with the `--no-shell` and `--ungroup` Option
+
+```sh
+time target/release/parallel --no-shell --ungroup 'echo {#}: {}' ::: /usr/bin/* > /dev/null
+```
+
+This will achieve utmost optimization at the cost of not having the standard output and error printed in order.
+
+```
+real	0m0.575s
+user	0m0.060s
+sys	0m0.450s
+
 ```
 
 ## Syntax Examples
@@ -39,6 +90,7 @@ ls | parallel 'echo {}'                         // If no input arguments are sup
 In addition to the command syntax, there are also some options that you can use to configure the load balancer:
 - **-j**: Defines the number of jobs/threads to run in parallel.
 - **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
+- **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
 
 Available syntax options for the placeholders values are:
 - **{}**: Each occurrence will be replaced with the name of the input.
