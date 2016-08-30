@@ -65,9 +65,12 @@ OPTIONS
         significant performance boost. The downside to this is that you
         can only execute one command at a time.
 
+    -v, --verbose:
+        Print information about running processes.
+
     --num-cpu-cores:
         A convenience command that will print the number of CPU cores in the
-        system. 
+        system.
 
 EXAMPLES
     # Command followed by inputs

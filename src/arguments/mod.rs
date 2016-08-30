@@ -19,6 +19,8 @@ pub struct Args {
     ///
     /// **NOTE:** This has a large performance cost.
     pub uses_shell: bool,
+    /// If set to true, the application will print information about running tasks.
+    pub verbose:    bool,
     /// The command arguments collected as a list of `Token`s
     pub arguments:  Vec<Token>,
     /// The inputs supplied that will be used with `arguments`.
@@ -95,6 +97,7 @@ impl Args {
                                         },
                                         'n' => self.uses_shell = false,
                                         'u' => self.grouped = false,
+                                        'v' => self.verbose = true,
                                         _ => {
                                             return Err(ParseErr::InvalidArgument(argument.to_owned()))
                                         }
@@ -122,7 +125,8 @@ impl Args {
                                     "num-cpu-cores" => {
                                         println!("{}", num_cpus::get());
                                         exit(0);
-                                    }
+                                    },
+                                    "verbose" => self.verbose = true,
                                     _ => {
                                         return Err(ParseErr::InvalidArgument(argument.to_owned()));
                                     }

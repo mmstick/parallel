@@ -1,63 +1,84 @@
-use std::io::{self, StderrLock, Write};
+use std::io;
 use std::ffi::OsStr;
-use std::process::{Command, ExitStatus, Output};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use tokenizer::Token;
 
-pub enum CommandErr {
-    Failed(String, String)
+pub enum CommandResult {
+    Grouped,
+    Status
 }
 
-impl CommandErr {
-    pub fn handle(self, stderr: &mut StderrLock) {
-        let _ = stderr.write(b"parallel: command error: ");
-        match self {
-            CommandErr::Failed(arguments, error) => {
-                let _ = stderr.write(arguments.as_bytes());
-                let _ = stderr.write(b": ");
-                let _ = stderr.write(error.as_bytes());
-                let _ = stderr.write(b"\n");
+pub struct ParallelCommand<'a> {
+    pub slot_no:          &'a str,
+    pub job_no:           &'a str,
+    pub job_total:        &'a str,
+    pub input:            &'a str,
+    pub command_template: &'a [Token],
+}
+
+impl<'a> ParallelCommand<'a> {
+    pub fn exec(&self, grouped: bool, uses_shell: bool, child: &mut Child)
+        -> io::Result<CommandResult>
+    {
+        // First the arguments will be generated based on the tokens and input.
+        let mut arguments = String::with_capacity(self.command_template.len() << 1);
+        self.build_arguments(&mut arguments);
+
+        // Check to see if any placeholder tokens are in use.
+        let placeholder_exists = self.command_template.iter().any(|x| {
+            x == &Token::BaseAndExt || x == &Token::Basename || x == &Token::Dirname ||
+            x == &Token::Job || x == &Token::Placeholder || x == &Token::RemoveExtension ||
+            x == &Token::Slot
+        });
+
+        // If no placeholder tokens are in use, the user probably wants to infer one.
+        if !placeholder_exists {
+            arguments.push(' ');
+            arguments.push_str(self.input);
+        }
+
+        if grouped {
+            get_command_output(&arguments, uses_shell, child).map(|_| CommandResult::Grouped)
+        } else {
+            get_command_status(&arguments, uses_shell).map(|_| CommandResult::Status)
+        }
+    }
+
+    /// Builds arguments using the `tokens` template with the current `input` value.
+    /// The arguments will be stored within a `Vec<String>`
+    fn build_arguments(&self, arguments: &mut String) {
+        for arg in self.command_template {
+            match *arg {
+                Token::Argument(ref arg) => arguments.push_str(arg),
+                Token::Basename        => arguments.push_str(basename(self.input)),
+                Token::BaseAndExt      => arguments.push_str(basename(remove_extension(self.input))),
+                Token::Dirname         => arguments.push_str(dirname(self.input)),
+                Token::Job             => arguments.push_str(self.job_no),
+                Token::JobTotal        => arguments.push_str(self.job_total),
+                Token::Placeholder     => arguments.push_str(self.input),
+                Token::RemoveExtension => arguments.push_str(remove_extension(self.input)),
+                Token::Slot            => arguments.push_str(self.slot_no)
             }
         }
     }
 }
 
-/// Builds the command and executes it
-pub fn exec(input: &str, arg_tokens: &[Token], slot_id: &str, job_id: &str,
-    job_total :&str, grouped: bool, uses_shell: bool) -> Result<Option<Output>, CommandErr>
+pub fn get_command_output(command: &str, uses_shell: bool, child: &mut Child)
+    -> io::Result<()>
 {
-    // First the arguments will be generated based on the tokens and input.
-    let mut arguments = String::with_capacity(arg_tokens.len() << 1);
-    build_arguments(&mut arguments, arg_tokens, input, slot_id, job_id, job_total);
-
-    // Check to see if any placeholder tokens are in use.
-    let placeholder_exists = arg_tokens.iter().any(|x| {
-        x == &Token::BaseAndExt || x == &Token::Basename || x == &Token::Dirname ||
-        x == &Token::Job || x == &Token::Placeholder || x == &Token::RemoveExtension ||
-        x == &Token::Slot
-    });
-
-    // If no placeholder tokens are in use, the user probably wants to infer one.
-    if !placeholder_exists { arguments.push_str(input); }
-
-    if grouped {
-        get_command_output(&arguments, uses_shell).map(Some).map_err(|why| {
-            CommandErr::Failed(arguments, why.to_string())
-        })
-    } else {
-        get_command_status(&arguments, uses_shell).map(|_| None).map_err(|why| {
-            CommandErr::Failed(arguments, why.to_string())
-        })
-    }
-}
-
-pub fn get_command_output(command: &str, uses_shell: bool) -> io::Result<Output> {
     if uses_shell {
-        shell_output(command)
+        shell_output(command, child)
     } else {
         let mut iter = command.split_whitespace();
         let command = iter.next().unwrap();
         let args = iter.collect::<Vec<&str>>();
-        Command::new(command).args(&args).output()
+        Command::new(command).args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn().map(|process| {
+                *child = process;
+                ()
+            })
     }
 }
 
@@ -73,8 +94,14 @@ pub fn get_command_status(command: &str, uses_shell: bool) -> io::Result<ExitSta
 }
 
 #[cfg(windows)]
-fn shell_output<S: AsRef<OsStr>>(args: S) -> io::Result<Output> {
-    Command::new("cmd").arg("/C").arg(args).output()
+fn shell_output<S: AsRef<OsStr>>(args: S, child: &mut Child) -> io::Result<()> {
+    Command::new("cmd").arg("/C").arg(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn().map(|process| {
+            *child = process;
+            ()
+        })
 }
 
 #[cfg(windows)]
@@ -83,33 +110,19 @@ fn shell_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
 }
 
 #[cfg(not(windows))]
-fn shell_output<S: AsRef<OsStr>>(args: S) -> io::Result<Output> {
-    Command::new("sh").arg("-c").arg(args).output()
+fn shell_output<S: AsRef<OsStr>>(args: S, child: &mut Child) -> io::Result<()> {
+    Command::new("sh").arg("-c").arg(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn().map(|process| {
+            *child = process;
+            ()
+        })
 }
 
 #[cfg(not(windows))]
 fn shell_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
     Command::new("sh").arg("-c").arg(args).status()
-}
-
-/// Builds arguments using the `tokens` template with the current `input` value.
-/// The arguments will be stored within a `Vec<String>`
-fn build_arguments(arguments: &mut String, tokens: &[Token], input: &str, slot: &str,
-    job: &str, job_total: &str)
-{
-    for arg in tokens {
-        match *arg {
-            Token::Argument(ref arg) => arguments.push_str(arg),
-            Token::Basename        => arguments.push_str(basename(input)),
-            Token::BaseAndExt      => arguments.push_str(basename(remove_extension(input))),
-            Token::Dirname         => arguments.push_str(dirname(input)),
-            Token::Job             => arguments.push_str(job),
-            Token::JobTotal        => arguments.push_str(job_total),
-            Token::Placeholder     => arguments.push_str(input),
-            Token::RemoveExtension => arguments.push_str(remove_extension(input)),
-            Token::Slot            => arguments.push_str(slot)
-        }
-    }
 }
 
 /// Removes the extension of a given input

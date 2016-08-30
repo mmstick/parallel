@@ -89,9 +89,10 @@ ls | parallel 'echo {}'                         // If no input arguments are sup
 
 In addition to the command syntax, there are also some options that you can use to configure the load balancer:
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
-- **-j**, **-jobs**: Defines the number of jobs/threads to run in parallel.
+- **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
 - **-u**, **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
 - **-n**, **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
+- **-v**, **--verbose**: Prints information about running processes.
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
 
 Available syntax options for the placeholders values are:
@@ -112,7 +113,7 @@ a single core. If you have a large FLAC archive and you wanted to compress it in
 take forever with the fastest processor to complete, unless you were to take advantage of all cores in your CPU.
 
 ```sh
-parallel 'ffmpeg -v 0 -i {} -c:a libopus -b:a 128k {.}.opus' ::: $(find -type f -name '*.flac')
+parallel 'ffmpeg -v 0 -i "{}" -c:a libopus -b:a 128k "{.}.opus"' ::: $(find -type f -name '*.flac')
 ```
 
 ### Transcoding Videos to VP9
@@ -123,7 +124,7 @@ program to run three jobs at the same time, provided you also have enough memory
 ```sh
 vp9_params="-c:v libvpx-vp9 -tile-columns 6 -frame-parallel 1 -rc_lookahead 25 -threads 4 -speed 1 -b:v 0 -crf 18"
 opus_params="-c:a libopus -b:a 128k"
-parallel -j 3 "ffmpeg -v 0 -i {} $vp9_params $opus_params -f webm {.}.webm" ::: $(find -type f -name '*.mkv')
+parallel -j 3 'ffmpeg -v 0 -i "{}" $vp9_params $opus_params -f webm "{.}.webm"' ::: $(find -type f -name '*.mkv')
 ```
 
 ## How It Works
@@ -163,14 +164,14 @@ that are available for download:
 ### Ubuntu
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.1.1/parallel_0.1.1_amd64.deb
-sudo dpkg -i parallel_0.1.1_amd64.deb
+wget https://github.com/mmstick/parallel/releases/download/0.2.0/parallel_0.2.0_amd64.deb
+sudo dpkg -i parallel_0.2.0_amd64.deb
 ```
 
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.1.1/parallel_0.1.1_amd64.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.2.0/parallel_0.2.0_amd64.tar.xz
 tar xf parallel.tar.xz
 sudo install parallel /usr/local/bin
 ```
