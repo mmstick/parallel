@@ -70,7 +70,7 @@ This will achieve utmost optimization at the cost of not having the standard out
 ```
 real	0m0.575s
 user	0m0.060s
-sys	0m0.450s
+sys	    0m0.450s
 
 ```
 
@@ -88,9 +88,11 @@ ls | parallel 'echo {}'                         // If no input arguments are sup
 ## Options
 
 In addition to the command syntax, there are also some options that you can use to configure the load balancer:
-- **-j**: Defines the number of jobs/threads to run in parallel.
-- **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
-- **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
+- **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
+- **-j**, **-jobs**: Defines the number of jobs/threads to run in parallel.
+- **-u**, **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
+- **-n**, **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
+- **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
 
 Available syntax options for the placeholders values are:
 - **{}**: Each occurrence will be replaced with the name of the input.
@@ -186,6 +188,14 @@ cargo install parallel
 ```
 
 #### Second Method
+
+If you would like to install the latest git release:
+
+```sh
+cargo install --git https://github.com/mmstick/parallel parallel
+```
+
+#### Third Method
 
 If you would like to install it system-wide.
 

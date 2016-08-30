@@ -1,14 +1,23 @@
 #[derive(Clone, PartialEq, Debug)]
+/// A token is a placeholder for the operation to be performed on the input value.
 pub enum Token {
     /// An argument is simply a collection of characters that are not placeholders.
     Argument(String),
+    /// Takes the basename (file name) of the input with the extension removed.
     BaseAndExt,
+    /// Takes the basename (file name) of the input with the directory path removed.
     Basename,
+    /// Takes the directory path of the input with the basename removed.
     Dirname,
+    /// Returns the job ID of the current input.
     Job,
+    /// Returns the total number of jobs.
     JobTotal,
+    /// Takes the input, unmodified.
     Placeholder,
+    /// Removes the extension from the input.
     RemoveExtension,
+    /// Returns the thread ID.
     Slot
 }
 

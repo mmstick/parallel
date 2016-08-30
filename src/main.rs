@@ -1,9 +1,9 @@
 extern crate num_cpus;
 mod command;   // Contains the functionality for building and processing external commands.
 mod tokenizer; // Takes the command template that is provided and reduces it to digestible tokens.
-mod parser;    // Collects the input arguments given to the program.
+mod arguments; // Collects the input arguments given to the program.
 
-use std::io::{self, Write, BufRead};
+use std::io::{self, Write};
 use std::process::exit;
 
 use std::thread::{self, JoinHandle};
@@ -11,20 +11,22 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::channel;
 
-use parser::{Args, ParseErr};
+use arguments::{Args, ParseErr};
 
 /* TODO: Functionality can be increased to accept the following syntaxes from GNU Parallel:
- - Stdin support is currently missing.
  - {N}, {N.}, etc.
  - parallel command {1} {2} {3} ::: 1 2 3 ::: 4 5 6 ::: 7 8 9
  - paralllel command ::: a b c :::+ 1 2 3 ::: d e f :::+ 4 5 6
+ - Grouping currently only prints stdout/stderr of processes that are finished, instead
+   of printing while they are running.
+ - SSH support
 */
 
 /// The `JobOutput` structure is utilized when grouping is enabled to transmit a command's
 /// associated job ID with it's stdout and stderr buffers back to the main thread to be
 /// queued for printing in the order that the inputs are supplied.
 struct JobOutput {
-    id: usize,
+    id:     usize,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
 }
@@ -33,18 +35,12 @@ fn main() {
     // Obtain a handle to standard error's buffer so we can write directly to it.
     let stderr = io::stderr();
 
+    // Set the default arguments for the application.
     let mut args = Args {
-        // The `num_cpus` crate allows conveniently obtaining the number of CPU cores in the system.
-        // This number will be used to determine how many threads to run in parallel.
         ncores: num_cpus::get(),
-        // Defines whether stdout/stderr buffers should be printed in order.
         grouped: true,
-        // If set to true, utilizes the platform's shell to gain additional features at the cost of
-        // performance degradation.
         uses_shell: true,
-        // Stores a Vec<Token> of the command arguments.
         arguments: Vec::new(),
-        // Stores the list of inputs supplied to the program.
         inputs: Vec::new()
     };
 
@@ -60,23 +56,16 @@ fn main() {
             },
             ParseErr::JobsNoValue => {
                 let _ = stderr.write(b"no jobs parameter was defined.\n");
+            },
+            ParseErr::InvalidArgument(argument) => {
+                let _ = write!(&mut stderr, "invalid argument: {}\n", argument);
             }
         };
         exit(1);
     }
 
-    // If no inputs are provided, read from stdin instead.
-    if args.inputs.is_empty() {
-        let stdin = io::stdin();
-        for line in stdin.lock().lines() {
-            if let Ok(line) = line {
-                args.inputs.push(line)
-            }
-        }
-    }
-
     // If no command argument was given, then the inputs are actually commands themselves.
-    let input_is_command = args.arguments.is_empty();
+    let inputs_are_commands = args.arguments.is_empty();
 
     // It will be useful to know the number of inputs, to know when to quit.
     let num_inputs = args.inputs.len();
@@ -132,7 +121,7 @@ fn main() {
                     // Check to see if all inputs have already been processed
                     if counter >= num_inputs { break } else { (&input[counter], (counter + 1)) }
                 };
-                if input_is_command {
+                if inputs_are_commands {
                     if grouped {
                         // Executes each input as if it were a command and returns a
                         // `Command::Output`, if the command executes successfully.
