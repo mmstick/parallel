@@ -69,10 +69,8 @@ pub fn get_command_output(command: &str, uses_shell: bool, child: &mut Child)
     if uses_shell {
         shell_output(command, child)
     } else {
-        let mut iter = command.split_whitespace();
-        let command = iter.next().unwrap();
-        let args = iter.collect::<Vec<&str>>();
-        Command::new(command).args(&args)
+        let arguments = split_into_args(command);
+        Command::new(&arguments[0]).args(&arguments[1..])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn().map(|process| {
@@ -82,14 +80,95 @@ pub fn get_command_output(command: &str, uses_shell: bool, child: &mut Child)
     }
 }
 
+/// Handles quoting of arguments to prevent arguments with spaces as being read as
+/// multiple separate arguments. This is only executed when `--no-shell` is in use.
+fn split_into_args(command: &str) -> Vec<String> {
+    let mut output = Vec::new();
+    let mut buffer = String::new();
+    let mut quoted = false;
+    let mut prev_char_was_a_backslash = false;
+    for character in command.chars() {
+        if quoted {
+            match character {
+                '\\' => {
+                    if prev_char_was_a_backslash {
+                        buffer.push('\\');
+                        prev_char_was_a_backslash = false;
+                    } else {
+                        prev_char_was_a_backslash = true;
+                    }
+                },
+                '"' => {
+                    if prev_char_was_a_backslash {
+                        buffer.push('\\');
+                        prev_char_was_a_backslash = false;
+                    } else {
+                        if !buffer.is_empty() {
+                            output.push(buffer.clone());
+                            buffer.clear();
+                        }
+                        quoted = false;
+                    }
+                },
+                _ => {
+                    if prev_char_was_a_backslash {
+                        buffer.push('\\');
+                        prev_char_was_a_backslash = false;
+                    }
+                    buffer.push(character);
+                }
+            }
+        } else {
+            match character {
+                ' ' => {
+                    if prev_char_was_a_backslash {
+                        buffer.push(' ');
+                        prev_char_was_a_backslash = false;
+                    } else {
+                        if !buffer.is_empty() {
+                            output.push(buffer.clone());
+                            buffer.clear();
+                        }
+                    }
+                },
+                '\\' => {
+                    if prev_char_was_a_backslash {
+                        buffer.push('\\');
+                        prev_char_was_a_backslash = false;
+                    } else {
+                        prev_char_was_a_backslash = true;
+                    }
+                },
+                '"' => {
+                    if prev_char_was_a_backslash {
+                        buffer.push('"');
+                        prev_char_was_a_backslash = false;
+                    } else {
+                        quoted = true;
+                    }
+                },
+                _ => {
+                    if prev_char_was_a_backslash {
+                        buffer.push('\\');
+                        prev_char_was_a_backslash = false;
+                    } else {
+                        buffer.push(character);
+                    }
+                }
+            }
+        }
+    }
+    output
+}
+
 pub fn get_command_status(command: &str, uses_shell: bool) -> io::Result<ExitStatus> {
     if uses_shell {
         shell_status(command)
     } else {
         let mut iter = command.split_whitespace();
         let command = iter.next().unwrap();
-        let args = iter.collect::<Vec<&str>>();
-        Command::new(command).args(&args).status()
+        let arguments = split_into_args(command);
+        Command::new(&arguments[0]).args(&arguments[1..]).status()
     }
 }
 
@@ -202,14 +281,26 @@ fn path_dirname_empty() {
 
 #[test]
 fn build_arguments_test() {
-    let input = "applesauce.mp4";
-    let job   = "1";
-    let slot  = "1";
-    let total = "1";
     let tokens = vec![Token::Argument("-i ".to_owned()), Token::Placeholder,
         Token::Argument(" ".to_owned()), Token::RemoveExtension,
         Token::Argument(".mkv".to_owned())];
+
+    let command = ParallelCommand {
+        slot_no:   "1",
+        job_no:    "1",
+        job_total: "1",
+        input:     "applesauce.mp4",
+        command_template: &tokens,
+    };
+
     let mut arguments = String::new();
-    build_arguments(&mut arguments, &tokens, input, slot, job, total);
+    command.build_arguments(&mut arguments);
     assert_eq!(arguments, String::from("-i applesauce.mp4 applesauce.mkv"))
+}
+
+#[test]
+fn test_split_args() {
+    let argument = "ffmpeg -i \"file with spaces\" \"output with spaces\"";
+    let expected = vec!["ffmpeg", "-i", "file with spaces", "output with spaces"];
+    assert_eq!(split_into_args(argument), expected)
 }

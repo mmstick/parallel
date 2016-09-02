@@ -92,6 +92,7 @@ In addition to the command syntax, there are also some options that you can use 
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
 - **-u**, **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
 - **-n**, **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
+    - Double quotes and backslashes are used to allow spaces in inputs, similar to standard shells.
 - **-v**, **--verbose**: Prints information about running processes.
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
 
@@ -161,18 +162,20 @@ parallel 'echo {}' ::: *
 There are a number of methods that you can use to install the application. I provide binary packages for AMD64 systems
 that are available for download:
 
+### Gentoo
+
+I have a [personal Gentoo layman overlay](https://github.com/mmstick/mmstick-overlay) that provides this application for installation.
+
 ### Ubuntu
 
-```sh
-wget https://github.com/mmstick/parallel/releases/download/0.2.0/parallel_0.2.0_amd64.deb
-sudo dpkg -i parallel_0.2.0_amd64.deb
-```
+Debian packages are provided on the [releases page](https://github.com/mmstick/parallel/releases).
+If a release is not available, it's because I haven't built it yet with cargo deb.
 
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.2.0/parallel_0.2.0_amd64.tar.xz
-tar xf parallel.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.2.1/parallel_0.2.1_amd64.tar.xz
+tar xf parallel_0.2.1.tar.xz
 sudo install parallel /usr/local/bin
 ```
 
