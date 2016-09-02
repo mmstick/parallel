@@ -80,6 +80,47 @@ pub fn get_command_output(command: &str, uses_shell: bool, child: &mut Child)
     }
 }
 
+pub fn get_command_status(command: &str, uses_shell: bool) -> io::Result<ExitStatus> {
+    if uses_shell {
+        shell_status(command)
+    } else {
+        let arguments = split_into_args(command);
+        Command::new(&arguments[0]).args(&arguments[1..]).status()
+    }
+}
+
+#[cfg(windows)]
+fn shell_output<S: AsRef<OsStr>>(args: S, child: &mut Child) -> io::Result<()> {
+    Command::new("cmd").arg("/C").arg(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn().map(|process| {
+            *child = process;
+            ()
+        })
+}
+
+#[cfg(windows)]
+fn shell_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
+    Command::new("cmd").arg("/C").arg(args).status()
+}
+
+#[cfg(not(windows))]
+fn shell_output<S: AsRef<OsStr>>(args: S, child: &mut Child) -> io::Result<()> {
+    Command::new("sh").arg("-c").arg(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn().map(|process| {
+            *child = process;
+            ()
+        })
+}
+
+#[cfg(not(windows))]
+fn shell_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
+    Command::new("sh").arg("-c").arg(args).status()
+}
+
 /// Handles quoting of arguments to prevent arguments with spaces as being read as
 /// multiple separate arguments. This is only executed when `--no-shell` is in use.
 fn split_into_args(command: &str) -> Vec<String> {
@@ -159,49 +200,6 @@ fn split_into_args(command: &str) -> Vec<String> {
         }
     }
     output
-}
-
-pub fn get_command_status(command: &str, uses_shell: bool) -> io::Result<ExitStatus> {
-    if uses_shell {
-        shell_status(command)
-    } else {
-        let mut iter = command.split_whitespace();
-        let command = iter.next().unwrap();
-        let arguments = split_into_args(command);
-        Command::new(&arguments[0]).args(&arguments[1..]).status()
-    }
-}
-
-#[cfg(windows)]
-fn shell_output<S: AsRef<OsStr>>(args: S, child: &mut Child) -> io::Result<()> {
-    Command::new("cmd").arg("/C").arg(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn().map(|process| {
-            *child = process;
-            ()
-        })
-}
-
-#[cfg(windows)]
-fn shell_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
-    Command::new("cmd").arg("/C").arg(args).status()
-}
-
-#[cfg(not(windows))]
-fn shell_output<S: AsRef<OsStr>>(args: S, child: &mut Child) -> io::Result<()> {
-    Command::new("sh").arg("-c").arg(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn().map(|process| {
-            *child = process;
-            ()
-        })
-}
-
-#[cfg(not(windows))]
-fn shell_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
-    Command::new("sh").arg("-c").arg(args).status()
 }
 
 /// Removes the extension of a given input

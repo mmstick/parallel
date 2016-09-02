@@ -114,6 +114,7 @@ a single core. If you have a large FLAC archive and you wanted to compress it in
 take forever with the fastest processor to complete, unless you were to take advantage of all cores in your CPU.
 
 ```sh
+find -type f -name '*.flac' | parallel 'ffmpeg -v 0 -i "{}" -c:a libopus -b:a 128k "{.}.opus"
 parallel 'ffmpeg -v 0 -i "{}" -c:a libopus -b:a 128k "{.}.opus"' ::: $(find -type f -name '*.flac')
 ```
 
@@ -174,8 +175,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.2.1/parallel_0.2.1_amd64.tar.xz
-tar xf parallel_0.2.1.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.2.2/parallel_0.2.2_amd64.tar.xz
+tar xf parallel_0.2.2.tar.xz
 sudo install parallel /usr/local/bin
 ```
 

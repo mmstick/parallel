@@ -82,7 +82,7 @@ fn main() {
     let mut threads: Vec<JoinHandle<()>> = Vec::with_capacity(args.ncores);
 
     if args.verbose {
-        verbose::total_inputs(&io::stdout(), num_inputs, args.ncores);
+        verbose::total_inputs(&io::stdout(), args.ncores, num_inputs);
     }
 
     // The `slot` variable is required by the {%} token.
