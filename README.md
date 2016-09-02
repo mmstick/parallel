@@ -80,23 +80,57 @@ The following syntax is supported:
 ```sh
 parallel 'echo {}' ::: *                        // {} will be replaced with each input found.
 parallel echo ::: *                             // If no placeholders are used, it is automatically assumed.
+parallel echo :::: list1 list2 list3            // Read newline-delimited arguments stored in files.
+parallel echo ::: arg1 :::: list ::: arg2       // Interchangeably read arguments from the command line and files.
 parallel ::: "echo 1" "echo 2" "echo 3"         // If no command is supplied, the input arguments become commands.
 parallel 'cd {}; echo Directory: {}; echo - {}' // Commands may be chained in the platform\'s shell.
 ls | parallel 'echo {}'                         // If no input arguments are supplied, stdin will be read.
 ```
 
-## Options
+## Manual
 
-In addition to the command syntax, there are also some options that you can use to configure the load balancer:
-- **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
-- **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
-- **-u**, **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
-- **-n**, **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
-    - Double quotes and backslashes are used to allow spaces in inputs, similar to standard shells.
-- **-v**, **--verbose**: Prints information about running processes.
-- **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
+Parallel parallelizes otherwise non-parallel command-line tasks. When
+there are a number of commands that need to be executed, which may be
+executed in parallel, the Parallel application will evenly distribute
+tasks to all available CPU cores. There are three basic methods for how
+commands are supplied:
 
-Available syntax options for the placeholders values are:
+1. A COMMAND may be defined, followed by an  which denotes
+   that all following arguments will be usde as INPUTS for the command.
+
+2. If no COMMAND is provided, then the INPUTS will be interpreted as
+   COMMANDS.
+
+3. If no INPUTS are provided, then standard input will be read for INPUTS.
+
+By default, Parallel groups the standard output and error of each child
+process so that outputs are printed in the order that they are given, as
+if the tasks were executed serially in a traditional for loop. In addition,
+commands are executed in the platform's preferred shell by default, which
+is `sh -c` on Unix systems, and `cmd /C` on Windows. These both come at a
+performance cost, so they can be disabled with the --ungroup and --no-shell
+options.
+
+### INPUT MODES
+
+Input modes are used to determine whether the following inputs are files
+that contain inputs or inputs themselves. Files with inputs have each
+input stored on a separate line, and each line is considered an entire
+input.
+
+- **:::** Denotes that the input arguments that follow are input arguments.
+
+- **::::** Denotes that the input arguments that follow are files with inputs.
+
+### INPUT TOKENS
+
+COMMANDs are typically formed the same way that you would normally in the
+shell, only that you will replace your input arguments with placeholder
+tokens like {}, {.}, {/}, {//} and {/.}. If no tokens are provided, it is
+inferred that the final argument in the command will be {}. These tokens
+will perform text manipulation on the inputs to mangle them in the way you
+like. Ideas for more tokens are welcome.
+
 - **{}**: Each occurrence will be replaced with the name of the input.
 - **{.}**: Each occurrence will be replaced with the input, with the extension removed.
 - **{/}**: Each occurrence will be replaced with the base name of the input.
@@ -106,6 +140,19 @@ Available syntax options for the placeholders values are:
 - **{#}**: Each occurrence will be replaced with the job number.
 - **{#^}**: Each occurrence will be replaced with the total number of jobs.
 
+### OPTIONS
+
+Options may also be supplied to the program to change how the program
+operates:
+
+- **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
+- **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
+- **-u**, **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
+- **-n**, **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
+    - Double quotes and backslashes are used to allow spaces in inputs, similar to standard shells.
+- **-v**, **--verbose**: Prints information about running processes.
+- **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
+
 ## Useful Examples
 
 ### Transcoding FLAC music to Opus
@@ -114,7 +161,6 @@ a single core. If you have a large FLAC archive and you wanted to compress it in
 take forever with the fastest processor to complete, unless you were to take advantage of all cores in your CPU.
 
 ```sh
-find -type f -name '*.flac' | parallel 'ffmpeg -v 0 -i "{}" -c:a libopus -b:a 128k "{.}.opus"
 parallel 'ffmpeg -v 0 -i "{}" -c:a libopus -b:a 128k "{.}.opus"' ::: $(find -type f -name '*.flac')
 ```
 
@@ -129,35 +175,6 @@ opus_params="-c:a libopus -b:a 128k"
 parallel -j 3 'ffmpeg -v 0 -i "{}" $vp9_params $opus_params -f webm "{.}.webm"' ::: $(find -type f -name '*.mkv')
 ```
 
-## How It Works
-
-There are a lot of commands that will take an input and then consume an entire CPU core as it processes the input.
-However, sometimes you have dozens, hundreds, or even thousands of files that you want to process.  The standard
-solution would be to construct a for loop and run your jobs serially one at a time.  However, this would take forever
-with processes that only make use of a single core.  Another solution is to construct the same for loop but to have
-your shell run it in the background.  The problem with that solution is that if there are a lot of inputs to process,
-you will end locking up your system and crashing your jobs due to OOM (out of memory) errors.
-
-A complicated setup that I have seen people perform is to create as many separate lists or directories as they have CPU
-cores, and then manually spinning up a terminal and copying and pasting the same for loop into each one.  The issue with
-this approach is that it takes a lot of time to set this up, and because some tasks finish much sooner than others, you
-may end up with several cores sitting and waiting because they've completed all of their assigned inputs while other
-cores are busy with many more tasks left to perform.
-
-Instead of processing files using a for loop, you can use a load balancer like `parallel` to distribute jobs evenly
-to every core in the system, which will only pass new values when a core has finished it's task.  This has the benefit
-that you can process inputs chronologically, and because some inputs may finish sooner than others, you can ensure
-that every core has a job to process at any given point in time.  Not to mention, it's about as easy to write as a
-for loop:
-
-```sh
-# This is a for loop
-for file in *; do echo $file; done
-
-# This is a parallel version of that for loop
-parallel 'echo {}' ::: *
-```
-
 ## Installation Instructions
 
 There are a number of methods that you can use to install the application. I provide binary packages for AMD64 systems
@@ -170,13 +187,13 @@ I have a [personal Gentoo layman overlay](https://github.com/mmstick/mmstick-ove
 ### Ubuntu
 
 Debian packages are provided on the [releases page](https://github.com/mmstick/parallel/releases).
-If a release is not available, it's because I haven't built it yet with cargo deb.
+If a release is not available, it's because I haven't built it yet with cargo deb.  
 
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.2.2/parallel_0.2.2_amd64.tar.xz
-tar xf parallel_0.2.2.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.2.3/parallel_0.2.3_amd64.tar.xz
+tar xf parallel_0.2.3.tar.xz
 sudo install parallel /usr/local/bin
 ```
 

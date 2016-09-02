@@ -1,10 +1,12 @@
 use std::env;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, BufReader};
 use std::process::exit;
 use tokenizer::{Token, tokenize};
 use num_cpus;
 mod jobs;
 mod man;
+
+use std::fs;
 
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
@@ -29,6 +31,8 @@ pub struct Args {
 
 /// The error type for the argument module.
 pub enum ParseErr {
+    /// An error occured opening an input file.
+    InputFileError(String, String),
     /// The value supplied for `--jobs` is not a number.
     JobsNaN(String),
     /// No value was supplied for '--jobs'
@@ -37,26 +41,23 @@ pub enum ParseErr {
     InvalidArgument(String),
 }
 
+enum Mode {
+    Arguments,
+    Command,
+    Inputs,
+    Files
+}
+
 
 impl Args {
     pub fn parse(&mut self) -> Result<(), ParseErr> {
-        let mut parsing_arguments = true;
-        let mut command_mode      = false;
+        let mut mode = Mode::Arguments;
         let mut raw_args = env::args().skip(1).peekable();
         let mut comm = String::with_capacity(2048);
         while let Some(argument) = raw_args.next() {
-            if parsing_arguments {
-                let argument = argument.as_str();
-                if command_mode {
-                    match argument {
-                        // Arguments after `:::` are input values.
-                        ":::" => parsing_arguments = false,
-                        _ => {
-                            comm.push(' ');
-                            comm.push_str(&argument);
-                        }
-                    }
-                } else {
+            let argument = argument.as_str();
+            match mode {
+                Mode::Arguments => {
                     let mut char_iter = argument.chars().peekable();
 
                     // If the first character is a '-' then it will be processed as an argument.
@@ -139,11 +140,31 @@ impl Args {
                     } else {
                         // The command has been supplied, and argument parsing is over.
                         comm.push_str(argument);
-                        command_mode = true;
+                        mode = Mode::Command;
+                    }
+                },
+                Mode::Command => match argument {
+                    // Arguments after `:::` are input values.
+                    ":::" => mode = Mode::Inputs,
+                    // Arguments after `::::` are files with input lists.
+                    "::::" => mode = Mode::Files,
+                    // All other arguments are command arguments.
+                    _ => {
+                        comm.push(' ');
+                        comm.push_str(&argument);
+                    }
+                },
+                _ => match argument {
+                    ":::"  => mode = Mode::Inputs,
+                    "::::" => mode = Mode::Files,
+                    _ => match mode {
+                        Mode::Inputs => self.inputs.push(argument.to_owned()),
+                        Mode::Files => if let Err(why) = file_parse(&mut self.inputs, argument) {
+                            return Err(why)
+                        },
+                        _ => unreachable!()
                     }
                 }
-            } else {
-                self.inputs.push(argument);
             }
         }
 
@@ -161,4 +182,18 @@ impl Args {
 
         Ok(())
     }
+}
+
+/// Attempts to open an input argument and adds each line to the `inputs` list.
+fn file_parse(inputs: &mut Vec<String>, path: &str) -> Result<(), ParseErr> {
+    fs::File::open(path)
+        .map_err(|err| ParseErr::InputFileError(path.to_owned(), err.to_string()))
+        .map(|file| {
+            for line in BufReader::new(file).lines() {
+                if let Ok(line) = line {
+                    inputs.push(line);
+                }
+            }
+            ()
+        })
 }

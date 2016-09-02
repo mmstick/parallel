@@ -2,9 +2,9 @@ pub const MAN_PAGE: &'static str = r#"NAME
     parallel - a command-line CPU load balancer written in Rust
 
 SYNOPSIS
-    parallel [OPTIONS...] 'COMMAND' ::: INPUTS...
-    parallel [OPTIONS...] ::: 'COMMANDS'...
-    COMMAND | parallel [OPTIONS...] ::: INPUTS...
+    parallel [OPTIONS...] 'COMMAND' <MODE INPUTS...>...
+    parallel [OPTIONS...] <MODE 'COMMANDS'...>...
+    COMMAND | parallel [OPTIONS...] <MODE INPUTS...>...
 
 DESCRIPTION
     Parallel parallelizes otherwise non-parallel command-line tasks. When
@@ -13,7 +13,7 @@ DESCRIPTION
     tasks to all available CPU cores. There are three basic methods for how
     commands are supplied:
 
-    1. A COMMAND may be defined, followed by a ::: separator which denotes
+    1. A COMMAND may be defined, followed by an  which denotes
        that all following arguments will be usde as INPUTS for the command.
 
     2. If no COMMAND is provided, then the INPUTS will be interpreted as
@@ -28,6 +28,17 @@ DESCRIPTION
     is `sh -c` on Unix systems, and `cmd /C` on Windows. These both come at a
     performance cost, so they can be disabled with the --ungroup and --no-shell
     options.
+
+INPUT MODES
+    Input modes are used to determine whether the following inputs are files
+    that contain inputs or inputs themselves. Files with inputs have each
+    input stored on a separate line, and each line is considered an entire
+    input.
+
+    :::
+        Denotes that the input arguments that follow are input arguments.
+    ::::
+        Denotes that the input arguments that follow are files with inputs.
 
 INPUT TOKENS
     COMMANDs are typically formed the same way that you would normally in the
@@ -74,16 +85,19 @@ OPTIONS
 
 EXAMPLES
     # Command followed by inputs
-    parallel -un 'ffmpeg -i {} -c:a libopus -b:a 128k {.}.opus' ::: $(find -type f -name "*.flac")
+    parallel -vun 'ffmpeg -i "{}" -c:a libopus -b:a 128k "{.}.opus"' ::: $(find -type f -name "*.flac")
 
     # Reading from Stdin
-    find -type f -name "*.flac" | parallel -un 'ffmpeg -i {} -c:a libopus -b:a 128k {.}.opus'
+    find -type f -name "*.flac" | parallel -vun 'ffmpeg -i "{}" -c:a libopus -b:a 128k "{.}.opus"'
 
     # Inputs are used as commands
     parallel ::: "echo 1" "echo 2" "echo 3" "echo 4"
 
     # Placeholder values automatically inferred
     parallel -j2 wget ::: URL1 URL2 URL3 URL4
+
+    # Reading inputs from files and command arguments
+    parallel 'echo {}' :::: list1 list2 ::: $(seq 1 10) :::: list3 list4
 
 AUTHOR
     Written by Michael Aaron Murphy <mmstickman@gmail.com>

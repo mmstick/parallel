@@ -47,6 +47,9 @@ fn main() {
         let mut stderr = stderr.lock();
         let _ = stderr.write(b"parallel: parsing error: ");
         match why {
+            ParseErr::InputFileError(file, why) => {
+                let _ = write!(&mut stderr, "unable to open {}: {}", file, why);
+            },
             ParseErr::JobsNaN(value) => {
                 let _ = write!(&mut stderr, "jobs parameter, '{}', is not a number.\n", value);
             },
