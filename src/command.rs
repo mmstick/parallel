@@ -199,6 +199,8 @@ fn split_into_args(command: &str) -> Vec<String> {
             }
         }
     }
+
+    if !buffer.is_empty() { output.push(buffer); }
     output
 }
 
@@ -300,5 +302,9 @@ fn build_arguments_test() {
 fn test_split_args() {
     let argument = "ffmpeg -i \"file with spaces\" \"output with spaces\"";
     let expected = vec!["ffmpeg", "-i", "file with spaces", "output with spaces"];
-    assert_eq!(split_into_args(argument), expected)
+    assert_eq!(split_into_args(argument), expected);
+
+    let argument = "one\\ two\\\\ three";
+    let expected = vec!["one two\\", "three"];
+    assert_eq!(split_into_args(argument), expected);
 }
