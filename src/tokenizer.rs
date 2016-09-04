@@ -13,6 +13,8 @@ pub enum Token {
     Job,
     /// Returns the total number of jobs.
     JobTotal,
+    /// A number contains a token itself.
+    Number(usize, Box<Token>),
     /// Takes the input, unmodified.
     Placeholder,
     /// Removes the extension from the input.
@@ -88,7 +90,6 @@ pub fn tokenize(tokens: &mut Vec<Token>, template: &str) {
 
 /// Matches a pattern to it's associated token.
 fn match_token(pattern: &str) -> Option<Token> {
-    println!("\n{}\n", pattern);
     match pattern {
         "."  => Some(Token::RemoveExtension),
         "#"  => Some(Token::Job),
@@ -97,7 +98,24 @@ fn match_token(pattern: &str) -> Option<Token> {
         "//" => Some(Token::Dirname),
         "/." => Some(Token::BaseAndExt),
         "#^" => Some(Token::JobTotal),
-        _    => None
+        _    => {
+            let ndigits = pattern.chars().take_while(|&x| x.is_numeric()).count();
+            let nchars  = pattern.chars().count();
+            if ndigits != 0 {
+                let number = pattern[0..ndigits].parse::<usize>().unwrap();
+                if ndigits == nchars {
+                    Some(Token::Number(number, Box::new(Token::Placeholder)))
+                } else {
+                    match match_token(&pattern[ndigits..]) {
+                        None | Some(Token::Number(_, _)) | Some(Token::Job) |
+                            Some(Token::JobTotal) | Some(Token::Slot) => None,
+                        Some(token) => Some(Token::Number(number, Box::new(token))),
+                    }
+                }
+            } else {
+                None
+            }
+        }
     }
 }
 

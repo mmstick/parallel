@@ -16,10 +16,8 @@ use std::sync::mpsc::channel;
 use arguments::{Args, ParseErr};
 use pipe::State;
 
-/* TODO: Functionality can be increased to accept the following syntaxes from GNU Parallel:
- - {N}, {N.}, etc.
- - parallel command {1} {2} {3} ::: 1 2 3 ::: 4 5 6 ::: 7 8 9
- - paralllel command ::: a b c :::+ 1 2 3 ::: d e f :::+ 4 5 6
+/* TODO: Possible features that could be integrated:
+ - Benchmarking
  - SSH support
 */
 
@@ -47,7 +45,7 @@ fn main() {
         let _ = stderr.write(b"parallel: parsing error: ");
         match why {
             ParseErr::InputFileError(file, why) => {
-                let _ = write!(&mut stderr, "unable to open {}: {}", file, why);
+                let _ = write!(&mut stderr, "unable to open {}: {}\n", file, why);
             },
             ParseErr::JobsNaN(value) => {
                 let _ = write!(&mut stderr, "jobs parameter, '{}', is not a number.\n", value);
@@ -89,7 +87,7 @@ fn main() {
         // The base command template that each thread will use.
         let arguments = args.arguments.clone();
         // Allow the thread to gain access to the list of inputs.
-        let input = shared_input.clone();
+        let inputs = shared_input.clone();
         // Allow the thread to access the input counter
         let counter = shared_counter.clone();
         // Allow the thread to know when it's time to stop.
@@ -123,7 +121,7 @@ fn main() {
                     // Atomically increment the counter
                     let counter = counter.fetch_add(1, Ordering::SeqCst);
                     // Check to see if all inputs have already been processed
-                    if counter >= num_inputs { break } else { (&input[counter], (counter + 1)) }
+                    if counter >= num_inputs { break } else { (&inputs[counter], (counter + 1)) }
                 };
 
                 if verbose_enabled {
@@ -173,7 +171,7 @@ fn main() {
                     // used on the condition that this value is set.
                     let mut child = unsafe { mem::uninitialized::<Child>() };
 
-                    match command.exec(grouped, uses_shell, &mut child) {
+                    match command.exec(grouped, uses_shell, &mut child, &inputs ) {
                         // If grouping is enabled, then we have an output to process.
                         Ok(command::CommandResult::Grouped) => {
                             pipe::output(child, job_id, &output_tx)

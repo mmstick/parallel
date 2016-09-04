@@ -65,7 +65,7 @@ impl Args {
         };
 
         // If there are no arguments to be parsed, then the inputs are commands.
-        self.inputs_are_commands = mode == Mode::Inputs || mode == Mode::Arguments;
+        self.inputs_are_commands = mode == Mode::Inputs || mode == Mode::Files;
 
         // Parse each and every input argument supplied to the program.
         while let Some(argument) = raw_args.next() {
@@ -142,9 +142,21 @@ impl Args {
                             return Err(ParseErr::InvalidArgument("-".to_owned()));
                         }
                     } else {
-                        // The command has been supplied, and argument parsing is over.
-                        comm.push_str(argument);
-                        mode = Mode::Command;
+                        match argument {
+                            ":::" => {
+                                mode = Mode::Inputs;
+                                self.inputs_are_commands = true;
+                            },
+                            "::::" => {
+                                mode = Mode::Files;
+                                self.inputs_are_commands = true;
+                            }
+                            _ => {
+                                // The command has been supplied, and argument parsing is over.
+                                comm.push_str(argument);
+                                mode = Mode::Command;
+                            }
+                        }
                     }
                 },
                 Mode::Command => match argument {

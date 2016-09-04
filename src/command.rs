@@ -17,12 +17,12 @@ pub struct ParallelCommand<'a> {
 }
 
 impl<'a> ParallelCommand<'a> {
-    pub fn exec(&self, grouped: bool, uses_shell: bool, child: &mut Child)
+    pub fn exec(&self, grouped: bool, uses_shell: bool, child: &mut Child, jobs: &[String])
         -> io::Result<CommandResult>
     {
         // First the arguments will be generated based on the tokens and input.
         let mut arguments = String::with_capacity(self.command_template.len() << 1);
-        self.build_arguments(&mut arguments);
+        self.build_arguments(&mut arguments, jobs);
 
         // Check to see if any placeholder tokens are in use.
         let placeholder_exists = self.command_template.iter().any(|x| {
@@ -46,15 +46,37 @@ impl<'a> ParallelCommand<'a> {
 
     /// Builds arguments using the `tokens` template with the current `input` value.
     /// The arguments will be stored within a `Vec<String>`
-    fn build_arguments(&self, arguments: &mut String) {
+    fn build_arguments(&self, arguments: &mut String, jobs: &[String]) {
         for arg in self.command_template {
-            match *arg {
-                Token::Argument(ref arg) => arguments.push_str(arg),
-                Token::Basename        => arguments.push_str(basename(self.input)),
-                Token::BaseAndExt      => arguments.push_str(basename(remove_extension(self.input))),
-                Token::Dirname         => arguments.push_str(dirname(self.input)),
-                Token::Job             => arguments.push_str(self.job_no),
-                Token::JobTotal        => arguments.push_str(self.job_total),
+            match arg.clone() {
+                Token::Argument(ref arg)  => arguments.push_str(arg),
+                Token::Basename           => arguments.push_str(basename(self.input)),
+                Token::BaseAndExt         => arguments.push_str(basename(remove_extension(self.input))),
+                Token::Dirname            => arguments.push_str(dirname(self.input)),
+                Token::Job                => arguments.push_str(self.job_no),
+                Token::JobTotal           => arguments.push_str(self.job_total),
+                Token::Number(job, token) => {
+                    // The `token` is a pointer which needs to be unboxed.
+                    let raw_token = Box::into_raw(token);
+                    let input = &jobs[job-1];
+
+                    unsafe {
+                        // Match the associated token to be used with the job number.
+                        // Unreachable patterns are not possible combinations by the tokenizer.
+                        match *raw_token {
+                            Token::Argument(_)     => unreachable!(),
+                            Token::Basename        => arguments.push_str(basename(input)),
+                            Token::BaseAndExt      => arguments.push_str(basename(remove_extension(input))),
+                            Token::Dirname         => arguments.push_str(dirname(input)),
+                            Token::Job             => unreachable!(),
+                            Token::JobTotal        => unreachable!(),
+                            Token::Number(_, _)    => unreachable!(),
+                            Token::Placeholder     => arguments.push_str(input),
+                            Token::RemoveExtension => arguments.push_str(remove_extension(input)),
+                            Token::Slot            => unreachable!()
+                        }
+                    }
+                }
                 Token::Placeholder     => arguments.push_str(self.input),
                 Token::RemoveExtension => arguments.push_str(remove_extension(self.input)),
                 Token::Slot            => arguments.push_str(self.slot_no)
@@ -70,13 +92,15 @@ pub fn get_command_output(command: &str, uses_shell: bool, child: &mut Child)
         shell_output(command, child)
     } else {
         let arguments = split_into_args(command);
-        Command::new(&arguments[0]).args(&arguments[1..])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn().map(|process| {
-                *child = process;
-                ()
-            })
+        if arguments.len() == 1 {
+            Command::new(&arguments[0])
+                .stdout(Stdio::piped()).stderr(Stdio::piped())
+                .spawn().map(|process| { *child = process; () })
+        } else {
+            Command::new(&arguments[0]).args(&arguments[1..])
+                .stdout(Stdio::piped()).stderr(Stdio::piped())
+                .spawn().map(|process| { *child = process; () })
+        }
     }
 }
 
@@ -85,7 +109,11 @@ pub fn get_command_status(command: &str, uses_shell: bool) -> io::Result<ExitSta
         shell_status(command)
     } else {
         let arguments = split_into_args(command);
-        Command::new(&arguments[0]).args(&arguments[1..]).status()
+        if arguments.len() == 1 {
+            Command::new(&arguments[0]).status()
+        } else {
+            Command::new(&arguments[0]).args(&arguments[1..]).status()
+        }
     }
 }
 
@@ -108,12 +136,8 @@ fn shell_status<S: AsRef<OsStr>>(args: S) -> io::Result<ExitStatus> {
 #[cfg(not(windows))]
 fn shell_output<S: AsRef<OsStr>>(args: S, child: &mut Child) -> io::Result<()> {
     Command::new("sh").arg("-c").arg(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn().map(|process| {
-            *child = process;
-            ()
-        })
+        .stdout(Stdio::piped()).stderr(Stdio::piped())
+        .spawn().map(|process| { *child = process; () })
 }
 
 #[cfg(not(windows))]

@@ -139,6 +139,11 @@ like. Ideas for more tokens are welcome.
 - **{%}**: Each occurrence will be replaced with the slot number.
 - **{#}**: Each occurrence will be replaced with the job number.
 - **{#^}**: Each occurrence will be replaced with the total number of jobs.
+- **{N}**: Where N is a number, display the associated job number.
+- **{N.}**: will remove the extension from the Nth job.
+- **{N/}**: Displays the base name (file name) of the Nth job.
+- **{N//}**: Displays the directory name of the Nth job.
+- **{N/.}**: Displays the base name of the Nth job with the extension removed.
 
 ### OPTIONS
 
@@ -192,8 +197,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.2.3/parallel_0.2.3_amd64.tar.xz
-tar xf parallel_0.2.3.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.3.0/parallel_0.3.0_amd64.tar.xz
+tar xf parallel_0.3.0.tar.xz
 sudo install parallel /usr/local/bin
 ```
 
