@@ -20,8 +20,6 @@ use pipe::State;
  - {N}, {N.}, etc.
  - parallel command {1} {2} {3} ::: 1 2 3 ::: 4 5 6 ::: 7 8 9
  - paralllel command ::: a b c :::+ 1 2 3 ::: d e f :::+ 4 5 6
- - Grouping currently only prints stdout/stderr of processes that are finished, instead
-   of printing while they are running.
  - SSH support
 */
 
@@ -36,6 +34,7 @@ fn main() {
         grouped: true,
         uses_shell: true,
         verbose: false,
+        inputs_are_commands: false,
         arguments: Vec::new(),
         inputs: Vec::new()
     };
@@ -62,9 +61,6 @@ fn main() {
         };
         exit(1);
     }
-
-    // If no command argument was given, then the inputs are actually commands themselves.
-    let inputs_are_commands = args.arguments.is_empty();
 
     // It will be useful to know the number of inputs, to know when to quit.
     let num_inputs = args.inputs.len();
@@ -104,6 +100,8 @@ fn main() {
         let uses_shell = args.uses_shell;
         // If set to true, this will print the current processing task.
         let verbose_enabled = args.verbose;
+        // If no command arguments were given, then the inputs will be read as commands.
+        let inputs_are_commands = args.inputs_are_commands;
         // Each thread will receive it's own sender for sending stderr/stdout buffers.
         let output_tx = output_tx.clone();
 

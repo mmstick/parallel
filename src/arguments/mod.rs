@@ -21,6 +21,8 @@ pub struct Args {
     ///
     /// **NOTE:** This has a large performance cost.
     pub uses_shell: bool,
+    /// Evaluates to true if the first argument is either `:::` or `::::`.
+    pub inputs_are_commands: bool,
     /// If set to true, the application will print information about running tasks.
     pub verbose:    bool,
     /// The command arguments collected as a list of `Token`s
@@ -41,6 +43,7 @@ pub enum ParseErr {
     InvalidArgument(String),
 }
 
+#[derive(PartialEq)]
 enum Mode {
     Arguments,
     Command,
@@ -51,9 +54,20 @@ enum Mode {
 
 impl Args {
     pub fn parse(&mut self) -> Result<(), ParseErr> {
-        let mut mode = Mode::Arguments;
         let mut raw_args = env::args().skip(1).peekable();
         let mut comm = String::with_capacity(2048);
+
+        // The purpose of this is to set the initial parsing mode.
+        let mut mode = match raw_args.peek().unwrap().as_ref() {
+            ":::"  => Mode::Inputs,
+            "::::" => Mode::Files,
+            _      => Mode::Arguments
+        };
+
+        // If there are no arguments to be parsed, then the inputs are commands.
+        self.inputs_are_commands = mode == Mode::Inputs || mode == Mode::Arguments;
+
+        // Parse each and every input argument supplied to the program.
         while let Some(argument) = raw_args.next() {
             let argument = argument.as_str();
             match mode {
@@ -169,7 +183,7 @@ impl Args {
         }
 
         tokenize(&mut self.arguments, &comm);
-
+        
         // If no inputs are provided, read from stdin instead.
         if self.inputs.is_empty() {
             let stdin = io::stdin();
