@@ -7,17 +7,11 @@ pub fn parse(value: &str) -> Result<usize, ParseErr> {
     if value.chars().rev().next().unwrap() == '%' {
         // If the last character is `%`, then all but the last character are the value.
         let nchars = value.chars().count();
-        if let Ok(percent) = value[0..nchars].parse::<usize>() {
-            // No need for floating point math here.
-            Ok((num_cpus::get() * percent) / 100)
-        } else {
-            Err(ParseErr::JobsNaN(value.to_owned()))
-        }
+        value[0..nchars].parse::<usize>()
+            .map(|percent| (num_cpus::get() * percent) / 100)
+            .map_err(|_| ParseErr::JobsNaN(value.to_owned()))
+
     } else {
-        if let Ok(ncores) = value.parse::<usize>() {
-            Ok(ncores)
-        } else {
-            Err(ParseErr::JobsNaN(value.to_owned()))
-        }
+        value.parse::<usize>().map_err(|_| ParseErr::JobsNaN(value.to_owned()))
     }
 }

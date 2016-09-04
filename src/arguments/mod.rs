@@ -83,28 +83,22 @@ impl Args {
                             // command line arguments, to allow for laziness.
                             if character == 'j' {
                                 // The short-hand job argument needs to be handled specially.
-                                if char_iter.peek().is_some() {
+                                self.ncores = if char_iter.peek().is_some() {
                                     // Each character that follows after `j` will be considered an
                                     // input value.
-                                    match jobs::parse(&argument[2..]) {
-                                        Ok(ncores) => self.ncores = ncores,
-                                        Err(err)   => return Err(err)
-                                    }
+                                    try!(jobs::parse(&argument[2..]))
                                 } else {
                                     // If there wasn't a character after `j`, the argument must
                                     // be supplied as the following argument.
-                                    match raw_args.peek() {
-                                        Some(val) => match jobs::parse(val) {
-                                            Ok(ncores) => self.ncores = ncores,
-                                            Err(err)   => return Err(err)
-                                        },
+                                    match raw_args.next() {
+                                        Some(ref val) => try!(jobs::parse(val)),
                                         None => return Err(ParseErr::JobsNoValue)
                                     }
-                                    let _ = raw_args.next();
                                 }
                             } else if character != '-' {
                                 // All following characters will be considered their own argument.
-                                for character in argument[1..].chars() {
+                                let mut char_iter = argument[1..].chars();
+                                while let Some(character) = char_iter.next() {
                                     match character {
                                         'h' => {
                                             println!("{}", man::MAN_PAGE);
@@ -126,14 +120,10 @@ impl Args {
                                         exit(0);
                                     },
                                     "jobs" => {
-                                        match raw_args.peek() {
-                                            Some(val) => match jobs::parse(val) {
-                                                Ok(ncores) => self.ncores = ncores,
-                                                Err(err)   => return Err(err)
-                                            },
+                                        self.ncores = match raw_args.next() {
+                                            Some(ref val) => try!(jobs::parse(val)),
                                             None => return Err(ParseErr::JobsNoValue)
-                                        }
-                                        let _ = raw_args.next();
+                                        };
                                     },
                                     "ungroup" => self.grouped = false,
                                     "no-shell" => self.uses_shell = false,
@@ -173,9 +163,7 @@ impl Args {
                     "::::" => mode = Mode::Files,
                     _ => match mode {
                         Mode::Inputs => self.inputs.push(argument.to_owned()),
-                        Mode::Files => if let Err(why) = file_parse(&mut self.inputs, argument) {
-                            return Err(why)
-                        },
+                        Mode::Files => try!(file_parse(&mut self.inputs, argument)),
                         _ => unreachable!()
                     }
                 }
@@ -183,14 +171,12 @@ impl Args {
         }
 
         tokenize(&mut self.arguments, &comm);
-        
+
         // If no inputs are provided, read from stdin instead.
         if self.inputs.is_empty() {
             let stdin = io::stdin();
             for line in stdin.lock().lines() {
-                if let Ok(line) = line {
-                    self.inputs.push(line)
-                }
+                if let Ok(line) = line { self.inputs.push(line) }
             }
         }
 
@@ -200,14 +186,10 @@ impl Args {
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.
 fn file_parse(inputs: &mut Vec<String>, path: &str) -> Result<(), ParseErr> {
-    fs::File::open(path)
-        .map_err(|err| ParseErr::InputFileError(path.to_owned(), err.to_string()))
-        .map(|file| {
-            for line in BufReader::new(file).lines() {
-                if let Ok(line) = line {
-                    inputs.push(line);
-                }
-            }
-            ()
-        })
+    let file = try!(fs::File::open(path)
+        .map_err(|err| ParseErr::InputFileError(path.to_owned(), err.to_string())));
+    for line in BufReader::new(file).lines() {
+        if let Ok(line) = line { inputs.push(line); }
+    }
+    Ok(())
 }
