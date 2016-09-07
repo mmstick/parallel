@@ -43,6 +43,8 @@ pub enum ParseErr {
     JobsNoValue,
     /// The argument supplied is not a valid argument.
     InvalidArgument(String),
+    /// No arguments were given to the program.
+    NoArguments
 }
 
 #[derive(PartialEq)]
@@ -62,7 +64,7 @@ impl Args {
         let mut current_inputs: Vec<String> = Vec::new();
 
         // The purpose of this is to set the initial parsing mode.
-        let mut mode = match raw_args.peek().unwrap().as_ref() {
+        let mut mode = match try!(raw_args.peek().ok_or(ParseErr::NoArguments)).as_ref() {
             ":::"  => Mode::Inputs,
             "::::" => Mode::Files,
             _      => Mode::Arguments

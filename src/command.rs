@@ -317,8 +317,10 @@ fn build_arguments_test() {
         command_template: &tokens,
     };
 
+    let jobs = ["one".to_owned(), "two".to_owned(), "three".to_owned()];
+
     let mut arguments = String::new();
-    command.build_arguments(&mut arguments);
+    command.build_arguments(&mut arguments, &jobs[..]);
     assert_eq!(arguments, String::from("-i applesauce.mp4 applesauce.mkv"))
 }
 

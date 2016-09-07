@@ -70,7 +70,7 @@ This will achieve utmost optimization at the cost of not having the standard out
 ```
 real	0m0.575s
 user	0m0.060s
-sys	    0m0.450s
+sys	    0m0.4.1s
 
 ```
 
@@ -211,8 +211,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.4.0/parallel_0.4.0_amd64.tar.xz
-tar xf parallel_0.4.0.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.4.1/parallel_0.4.1_amd64.tar.xz
+tar xf parallel_0.4.1.tar.xz
 sudo install parallel /usr/local/bin
 ```
 

@@ -43,6 +43,7 @@ fn main() {
     if let Err(why) = args.parse() {
         // Always lock an output buffer before using it.
         let mut stderr = stderr.lock();
+        let mut stdout = stdout.lock();
         let _ = stderr.write(b"parallel: parsing error: ");
         match why {
             ParseErr::InputFileError(file, why) => {
@@ -56,8 +57,12 @@ fn main() {
             },
             ParseErr::InvalidArgument(argument) => {
                 let _ = write!(&mut stderr, "invalid argument: {}\n", argument);
+            },
+            ParseErr::NoArguments => {
+                let _ = write!(&mut stderr, "no input arguments were given.\n");
             }
         };
+        let _ = stdout.write(b"For help on command-line usage, execute `parallel -h`\n");
         exit(1);
     }
 
