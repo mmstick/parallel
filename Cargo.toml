@@ -1,6 +1,6 @@
 [package]
 name = "parallel"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Michael Aaron Murphy <mmstickman@gmail.com>"]
 license = "MIT"
 description = "Command-line CPU load balancer for executing jobs in parallel"
@@ -10,6 +10,7 @@ readme = "README.md"
 
 [dependencies]
 num_cpus = { path = "deps/num_cpus", version = "1.0.0" }
+permutate = { path = "deps/permutate", version = "0.1.0" }
 
 [profile.release]
 lto = true

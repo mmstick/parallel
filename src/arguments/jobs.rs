@@ -6,8 +6,7 @@ use num_cpus;
 pub fn parse(value: &str) -> Result<usize, ParseErr> {
     if value.chars().rev().next().unwrap() == '%' {
         // If the last character is `%`, then all but the last character are the value.
-        let nchars = value.chars().count();
-        value[0..nchars].parse::<usize>()
+        value[0..value.chars().count()].parse::<usize>()
             .map(|percent| (num_cpus::get() * percent) / 100)
             .map_err(|_| ParseErr::JobsNaN(value.to_owned()))
 

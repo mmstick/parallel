@@ -1,0 +1,18 @@
+[package]
+name = "permutate"
+version = "0.1.0"
+authors = ["Michael Aaron Murphy <mmstickman@gmail.com>"]
+license = "MIT"
+description = "Generic permutator that permutates singular and multiple lists using references"
+repository = "https://github.com/mmstick/permutate"
+documentation = "https://docs.rs/permutate/0.1.0/permutate/"
+keywords = ["permutate", "permutator"]
+readme = "README.md"
+
+[[bin]]
+name = "permutate"
+doc = false
+
+[profile.release]
+lto = true
+opt-level = 3

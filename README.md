@@ -78,13 +78,14 @@ sys	    0m0.450s
 The following syntax is supported:
 
 ```sh
-parallel 'echo {}' ::: *                        // {} will be replaced with each input found.
-parallel echo ::: *                             // If no placeholders are used, it is automatically assumed.
-parallel echo :::: list1 list2 list3            // Read newline-delimited arguments stored in files.
-parallel echo ::: arg1 :::: list ::: arg2       // Interchangeably read arguments from the command line and files.
-parallel ::: "echo 1" "echo 2" "echo 3"         // If no command is supplied, the input arguments become commands.
-parallel 'cd {}; echo Directory: {}; echo - {}' // Commands may be chained in the platform\'s shell.
-ls | parallel 'echo {}'                         // If no input arguments are supplied, stdin will be read.
+parallel 'echo {}' ::: *                          // {} will be replaced with each input found.
+parallel echo ::: *                               // If no placeholders are used, it is automatically assumed.
+parallel echo :::: list1 list2 list3              // Read newline-delimited arguments stored in files.
+parallel echo ::: arg1 ::::+ list :::+ arg2       // Interchangeably read arguments from the command line and files.
+parallel echo ::: 1 2 3 ::: A B C ::: D E F       // Permutate the inputs.
+parallel ::: "echo 1" "echo 2" "echo 3"           // If no command is supplied, the input arguments become commands.
+parallel 'cd {}; echo Directory: {}; echo - {}'   // Commands may be chained in the platform\'s shell.
+ls | parallel 'echo {}'                           // If no input arguments are supplied, stdin will be read.
 ```
 
 ## Manual
@@ -116,11 +117,24 @@ options.
 Input modes are used to determine whether the following inputs are files
 that contain inputs or inputs themselves. Files with inputs have each
 input stored on a separate line, and each line is considered an entire
-input.
+input.When there are multiple collected lists of inputs, each individual
+input list will be permutated together into a single list.
 
-- **:::** Denotes that the input arguments that follow are input arguments.
+- **:::**
+>    Denotes that the input arguments that follow are input arguments.
+>    Additionally, those arguments will be collected into a new list.
 
-- **::::** Denotes that the input arguments that follow are files with inputs.
+- **:::+**
+>    Deontes that the input arguments that follow are input arguments.
+>    Additionally, those arguments will be added to the current list.
+
+- **::::**
+>    Denotes that the input arguments that follow are files with inputs.
+>    Additionally, those arguments will be collected into a new list.
+
+- **::::+**
+>    Denotes that the input arguments that follow are files with inputs.
+>    Additionally, those arguments will be added to the current list.
 
 ### INPUT TOKENS
 
@@ -197,8 +211,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.3.0/parallel_0.3.0_amd64.tar.xz
-tar xf parallel_0.3.0.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.4.0/parallel_0.4.0_amd64.tar.xz
+tar xf parallel_0.4.0.tar.xz
 sudo install parallel /usr/local/bin
 ```
 

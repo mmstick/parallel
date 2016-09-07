@@ -2,7 +2,9 @@ use std::env;
 use std::io::{self, BufRead, BufReader};
 use std::process::exit;
 use tokenizer::{Token, tokenize};
+use permutate::Permutator;
 use num_cpus;
+
 mod jobs;
 mod man;
 
@@ -55,7 +57,9 @@ enum Mode {
 impl Args {
     pub fn parse(&mut self) -> Result<(), ParseErr> {
         let mut raw_args = env::args().skip(1).peekable();
-        let mut comm = String::with_capacity(2048);
+        let mut comm = String::with_capacity(128);
+        let mut lists: Vec<Vec<String>>= Vec::new();
+        let mut current_inputs: Vec<String> = Vec::new();
 
         // The purpose of this is to set the initial parsing mode.
         let mut mode = match raw_args.peek().unwrap().as_ref() {
@@ -88,12 +92,10 @@ impl Args {
                                     // input value.
                                     try!(jobs::parse(&argument[2..]))
                                 } else {
-                                    // If there wasn't a character after `j`, the argument must
-                                    // be supplied as the following argument.
-                                    match raw_args.next() {
-                                        Some(ref val) => try!(jobs::parse(val)),
-                                        None => return Err(ParseErr::JobsNoValue)
-                                    }
+                                    // If there was no character after `j`, the following argument
+                                    // must be the job value.
+                                    let ref val = try!(raw_args.next().ok_or(ParseErr::JobsNoValue));
+                                    try!(jobs::parse(val))
                                 }
                             } else if character != '-' {
                                 // All following characters will be considered their own argument.
@@ -120,10 +122,8 @@ impl Args {
                                         exit(0);
                                     },
                                     "jobs" => {
-                                        self.ncores = match raw_args.next() {
-                                            Some(ref val) => try!(jobs::parse(val)),
-                                            None => return Err(ParseErr::JobsNoValue)
-                                        };
+                                        let ref val = try!(raw_args.next().ok_or(ParseErr::JobsNoValue));
+                                        self.ncores = try!(jobs::parse(val))
                                     },
                                     "ungroup" => self.grouped = false,
                                     "no-shell" => self.uses_shell = false,
@@ -161,9 +161,9 @@ impl Args {
                 },
                 Mode::Command => match argument {
                     // Arguments after `:::` are input values.
-                    ":::" => mode = Mode::Inputs,
-                    // Arguments after `::::` are files with input lists.
-                    "::::" => mode = Mode::Files,
+                    ":::" | ":::+" => mode = Mode::Inputs,
+                    // Arguments after `::::` are files with inputs.
+                    "::::" | "::::+" => mode = Mode::Files,
                     // All other arguments are command arguments.
                     _ => {
                         comm.push(' ');
@@ -171,11 +171,25 @@ impl Args {
                     }
                 },
                 _ => match argument {
-                    ":::"  => mode = Mode::Inputs,
-                    "::::" => mode = Mode::Files,
+                    ":::"  => {
+                        mode = Mode::Inputs;
+                        if !current_inputs.is_empty() {
+                            lists.push(current_inputs.clone());
+                            current_inputs.clear();
+                        }
+                    },
+                    ":::+" => mode = Mode::Inputs,
+                    "::::"  => {
+                        mode = Mode::Files;
+                        if !current_inputs.is_empty() {
+                            lists.push(current_inputs.clone());
+                            current_inputs.clear();
+                        }
+                    },
+                    "::::+" => mode = Mode::Files,
                     _ => match mode {
-                        Mode::Inputs => self.inputs.push(argument.to_owned()),
-                        Mode::Files => try!(file_parse(&mut self.inputs, argument)),
+                        Mode::Inputs => current_inputs.push(argument.to_owned()),
+                        Mode::Files => try!(file_parse(&mut current_inputs, argument)),
                         _ => unreachable!()
                     }
                 }
@@ -183,6 +197,39 @@ impl Args {
         }
 
         tokenize(&mut self.arguments, &comm);
+
+        if !current_inputs.is_empty() {
+            lists.push(current_inputs.clone());
+        }
+
+        if lists.len() > 1 {
+            // Convert the Vec<Vec<String>> into a Vec<Vec<&str>>
+            let tmp: Vec<Vec<&str>> = lists.iter()
+                .map(|list| list.iter().map(AsRef::as_ref).collect::<Vec<&str>>())
+                .collect();
+
+            // Convert the Vec<Vec<&str>> into a Vec<&[&str]>
+            let list_array: Vec<&[&str]> = tmp.iter().map(AsRef::as_ref).collect();
+
+            // Create a `Permutator` with the &[&[&str]] as the input.
+            let permutator = Permutator::new(&list_array[..])
+                // Have the permutator produce space-delimited strings with the permutations.
+                .map(|permutation| {
+                    let mut iter = permutation.iter();
+                    let mut output = String::from(*iter.next().unwrap());
+                    for element in iter {
+                        output.push(' ');
+                        output.push_str(element);
+                    }
+                    output
+                });
+
+            for permutation in permutator {
+                self.inputs.push(permutation)
+            }
+        } else {
+            self.inputs = current_inputs;
+        }
 
         // If no inputs are provided, read from stdin instead.
         if self.inputs.is_empty() {

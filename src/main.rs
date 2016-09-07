@@ -1,4 +1,5 @@
 extern crate num_cpus;
+extern crate permutate;
 mod arguments; // Collects the input arguments given to the program.
 mod command;   // Contains the functionality for building and processing external commands.
 mod pipe;      // Used for piping the outputs in grouped mode so that they are ordered.

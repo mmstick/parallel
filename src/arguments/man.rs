@@ -33,12 +33,24 @@ INPUT MODES
     Input modes are used to determine whether the following inputs are files
     that contain inputs or inputs themselves. Files with inputs have each
     input stored on a separate line, and each line is considered an entire
-    input.
+    input. When there are multiple collected lists of inputs, each individual
+    input list will be permutated together into a single list.
 
     :::
         Denotes that the input arguments that follow are input arguments.
+        Additionally, those arguments will be collected into a new list.
+
+    :::+
+        Deontes that the input arguments that follow are input arguments.
+        Additionally, those arguments will be added to the current list.
+
     ::::
         Denotes that the input arguments that follow are files with inputs.
+        Additionally, those arguments will be collected into a new list.
+
+    ::::+
+        Denotes that the input arguments that follow are files with inputs.
+        Additionally, those arguments will be added to the current list.
 
 INPUT TOKENS
     COMMANDs are typically formed the same way that you would normally in the
