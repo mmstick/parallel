@@ -177,13 +177,19 @@ impl<'a, T: 'a + ?Sized> Iterator for Permutator<'a, T> {
         self.curr_iteration += 1;
 
         // Generates the next permutation sequence using the current counter.
+        // We are using `get_unchecked()` here because the incrementing
+        // algorithim prohibits values from being out of bounds.
         let output = if self.single_list {
             self.counter.counter.iter()
-                .map(|value| self.lists[0][*value])
+                .map(|value| unsafe {
+                    *self.lists.get_unchecked(0).get_unchecked(*value)
+                })
                 .collect::<Vec<&T>>()
         } else {
             self.counter.counter.iter().enumerate()
-                .map(|(list, value)| self.lists[list][*value])
+                .map(|(list, value)| unsafe {
+                    *self.lists.get_unchecked(list).get_unchecked(*value)
+                })
                 .collect::<Vec<&T>>()
         };
 
@@ -206,15 +212,28 @@ struct Counter {
 impl Counter {
     fn increment(&mut self, nlists: usize) {
         // Check to see if the Nth value is on it's bounds
-        if self.counter[nlists] == self.max[nlists] {
-            // Recurse until nlist is zero.
-            if nlists != 0 {
-                self.counter[nlists] = 0;
-                self.increment(nlists - 1);
+        // let (current, max) = unsafe {(
+        //     self.counter.get_unchecked(nlists),
+        //     self.max.get_unchecked(nlists)
+        // )};
+        let mut increment = false;
+        {
+            let current = unsafe { self.counter.get_unchecked_mut(nlists) };
+            let max     = unsafe { self.max.get_unchecked(nlists) };
+            if *current == *max {
+                // Recurse until nlist is zero.
+                if nlists != 0 {
+                    *current = 0;
+                    increment = true;
+                }
+            } else {
+                // Increment the Nth value's index by one.
+                *current += 1;
             }
-        } else {
-            // Increment the Nth value's index by one.
-            self.counter[nlists] += 1;
+        }
+
+        if increment {
+            self.increment(nlists - 1);
         }
     }
 

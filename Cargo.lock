@@ -1,9 +1,9 @@
 [root]
 name = "parallel"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "num_cpus 1.0.0",
- "permutate 0.1.0",
+ "permutate 0.1.3",
 ]
 
 [[package]]
@@ -19,5 +19,5 @@ dependencies = [
 
 [[package]]
 name = "permutate"
-version = "0.1.0"
+version = "0.1.3"
 

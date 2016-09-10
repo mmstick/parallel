@@ -1,6 +1,6 @@
 [package]
 name = "permutate"
-version = "0.1.0"
+version = "0.1.3"
 authors = ["Michael Aaron Murphy <mmstickman@gmail.com>"]
 license = "MIT"
 description = "Generic permutator that permutates singular and multiple lists using references"

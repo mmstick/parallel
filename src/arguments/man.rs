@@ -93,8 +93,14 @@ OPTIONS
         significant performance boost. The downside to this is that you
         can only execute one command at a time.
 
+    -q, --quiet:
+        Disables printing the standard output of running processes.
+
     -v, --verbose:
         Print information about running processes.
+
+    --version:
+        Print version information.
 
     --num-cpu-cores:
         A convenience command that will print the number of CPU cores in the

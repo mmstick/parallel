@@ -48,24 +48,12 @@ impl Pipe {
 
 /// Sends messages received by a `Child` process's standard output and error and sends them
 /// to be handled by the grouped output channel.
-pub fn output(child: Child, job_id: usize, output_tx: &Sender<State>) {
-    // Simultaneously buffer lines from both `stdout` and `stderr`.
-    let stdout = child.stdout.expect("unable to open stdout of child");
+pub fn output(child: Child, job_id: usize, output_tx: &Sender<State>, quiet: bool) {
     let stderr = child.stderr.expect("unable to open stderr of child");
-    let mut stdout_buffer = BufReader::new(stdout).lines();
     let mut stderr_buffer = BufReader::new(stderr).lines();
 
-    // Attempt to read from stdout and stderr simultaneously until both are exhausted of messages.
-    loop {
-        if let Some(stdout) = stdout_buffer.next() {
-            // If a message is received from standard output, it will be sent as a `Pipe::Stdout`.
-            let _ = stdout.map(|stdout| {
-                let _ = output_tx.send(State::Processing(JobOutput {
-                    id:   job_id,
-                    pipe: Pipe::Stdout(stdout)
-                }));
-            });
-        } else if let Some(stderr) = stderr_buffer.next() {
+    if quiet {
+        for stderr in stderr_buffer {
             // If a message is received from standard error, it will be sent as a `Pipe::Stderr`.
             let _ = stderr.map(|stderr| {
                 let _ = output_tx.send(State::Processing(JobOutput {
@@ -73,8 +61,35 @@ pub fn output(child: Child, job_id: usize, output_tx: &Sender<State>) {
                     pipe: Pipe::Stderr(stderr)
                 }));
             });
-        } else {
-            break
+        }
+    } else {
+        // Simultaneously buffer lines from both `stdout` and `stderr`.
+        let stdout = child.stdout.expect("unable to open stdout of child");
+        let mut stdout_buffer = BufReader::new(stdout).lines();
+
+        // Attempt to read from stdout and stderr simultaneously until both are exhausted of messages.
+        loop {
+            if let Some(stdout) = stdout_buffer.next() {
+                // If a message is received from standard output, it will be sent as a `Pipe::Stdout`.
+                if let Ok(stdout) = stdout {
+                    let _ = output_tx.send(State::Processing(JobOutput {
+                        id:   job_id,
+                        pipe: Pipe::Stdout(stdout)
+                    }));
+                } else {
+                    break
+                }
+            } else if let Some(stderr) = stderr_buffer.next() {
+                // If a message is received from standard error, it will be sent as a `Pipe::Stderr`.
+                let _ = stderr.map(|stderr| {
+                    let _ = output_tx.send(State::Processing(JobOutput {
+                        id:   job_id,
+                        pipe: Pipe::Stderr(stderr)
+                    }));
+                });
+            } else {
+                break
+            }
         }
     }
 

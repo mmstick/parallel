@@ -169,7 +169,9 @@ operates:
 - **-u**, **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
 - **-n**, **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
     - Double quotes and backslashes are used to allow spaces in inputs, similar to standard shells.
+- **-q**, **--quiet**: Disables printing the standard output of running processes.
 - **-v**, **--verbose**: Prints information about running processes.
+- **--version**: Prints the current version of the application and it's dependencies.
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
 
 ## Useful Examples
@@ -211,8 +213,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.4.1/parallel_0.4.1_amd64.tar.xz
-tar xf parallel_0.4.1.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.4.2/parallel_0.4.2_amd64.tar.xz
+tar xf parallel_0.4.2.tar.xz
 sudo install parallel /usr/local/bin
 ```
 
