@@ -1,3 +1,12 @@
+use std::io;
+use std::path::Path;
+
+#[derive(Debug)]
+pub enum TokenErr {
+    File(io::Error),
+    OutOfBounds,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 /// A token is a placeholder for the operation to be performed on the input value.
 pub enum Token {
@@ -11,10 +20,6 @@ pub enum Token {
     Dirname,
     /// Returns the job ID of the current input.
     Job,
-    /// Returns the total number of jobs.
-    JobTotal,
-    /// A number contains a token itself.
-    Number(usize, Box<Token>),
     /// Takes the input, unmodified.
     Placeholder,
     /// Removes the extension from the input.
@@ -23,9 +28,42 @@ pub enum Token {
     Slot
 }
 
+struct Number {
+    id: usize,
+    token: Token,
+}
+
+impl Number {
+    fn new(id: usize, token: Token) -> Number {
+        Number{ id: id, token: token }
+    }
+
+    fn into_argument(self, path: &Path) -> Result<String, TokenErr> {
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+        use super::token_matcher::*;
+        let file = try!(File::open(path).map_err(TokenErr::File));
+        let input = &try!(BufReader::new(file).lines().skip(self.id-1)
+            .next().unwrap().map_err(TokenErr::File));
+        let argument = match self.token {
+            Token::Argument(_)     => unreachable!(),
+            Token::Basename        => basename(input),
+            Token::BaseAndExt      => basename(remove_extension(input)),
+            Token::Dirname         => dirname(input),
+            Token::Job             => unreachable!(),
+            Token::Placeholder     => input,
+            Token::RemoveExtension => remove_extension(input),
+            Token::Slot            => unreachable!()
+        };
+        Ok(String::from(argument))
+    }
+}
+
 /// Takes the command arguments as the input and reduces it into tokens,
 /// which allows for easier management of string manipulation later on.
-pub fn tokenize(tokens: &mut Vec<Token>, template: &str) {
+pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usize)
+    -> Result<(), TokenErr>
+{
     // When set to true, the characters following will be collected into `pattern`.
     let mut pattern_matching = false;
     // Mark the index where the pattern's first character begins.
@@ -59,7 +97,7 @@ pub fn tokenize(tokens: &mut Vec<Token>, template: &str) {
                     tokens.push(Token::Placeholder);
                 } else {
                     // Supply the internal contents of the pattern to the token matcher.
-                    match match_token(&template[pattern_start+1..id]) {
+                    match try!(match_token(&template[pattern_start+1..id], path, nargs)) {
                         // If the token is a match, add the matched token.
                         Some(token) => tokens.push(token),
                         // If the token is not a match, add it as an argument.
@@ -86,34 +124,42 @@ pub fn tokenize(tokens: &mut Vec<Token>, template: &str) {
     } else if argument_matching {
         tokens.push(Token::Argument(template[argument_start..].to_owned()));
     }
+
+    Ok(())
 }
 
 /// Matches a pattern to it's associated token.
-fn match_token(pattern: &str) -> Option<Token> {
+fn match_token(pattern: &str, path: &Path, nargs: usize) -> Result<Option<Token>, TokenErr> {
     match pattern {
-        "."  => Some(Token::RemoveExtension),
-        "#"  => Some(Token::Job),
-        "%"  => Some(Token::Slot),
-        "/"  => Some(Token::Basename),
-        "//" => Some(Token::Dirname),
-        "/." => Some(Token::BaseAndExt),
-        "#^" => Some(Token::JobTotal),
+        "."  => Ok(Some(Token::RemoveExtension)),
+        "#"  => Ok(Some(Token::Job)),
+        "%"  => Ok(Some(Token::Slot)),
+        "/"  => Ok(Some(Token::Basename)),
+        "//" => Ok(Some(Token::Dirname)),
+        "/." => Ok(Some(Token::BaseAndExt)),
+        "#^" => Ok(Some(Token::Argument(nargs.to_string()))),
         _    => {
             let ndigits = pattern.chars().take_while(|&x| x.is_numeric()).count();
             let nchars  = pattern.chars().count();
             if ndigits != 0 {
                 let number = pattern[0..ndigits].parse::<usize>().unwrap();
                 if ndigits == nchars {
-                    Some(Token::Number(number, Box::new(Token::Placeholder)))
+                    if number == 0 || number > nargs {
+                        return Err(TokenErr::OutOfBounds);
+                    }
+                    let argument = try!(Number::new(number, Token::Placeholder).into_argument(path));
+                    Ok(Some(Token::Argument(argument)))
                 } else {
-                    match match_token(&pattern[ndigits..]) {
-                        None | Some(Token::Number(_, _)) | Some(Token::Job) |
-                            Some(Token::JobTotal) | Some(Token::Slot) => None,
-                        Some(token) => Some(Token::Number(number, Box::new(token))),
+                    match try!(match_token(&pattern[ndigits..], path, nargs)) {
+                        None | Some(Token::Job) |  Some(Token::Slot) => Ok(None),
+                        Some(token) => {
+                            let argument = try!(Number::new(number, token).into_argument(path));
+                            Ok(Some(Token::Argument(argument)))
+                        },
                     }
                 }
             } else {
-                None
+                Ok(None)
             }
         }
     }
@@ -122,70 +168,63 @@ fn match_token(pattern: &str) -> Option<Token> {
 #[test]
 fn tokenizer_argument() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "foo");
+    let _ = tokenize(&mut tokens, "foo", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::Argument("foo".to_owned())]);
 }
 
 #[test]
 fn tokenizer_placeholder() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "{}");
+    let _ = tokenize(&mut tokens, "{}", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::Placeholder]);
 }
 
 #[test]
 fn tokenizer_remove_extension() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "{.}");
+    let _ = tokenize(&mut tokens, "{.}", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::RemoveExtension]);
 }
 
 #[test]
 fn tokenizer_basename() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "{/}");
+    let _ = tokenize(&mut tokens, "{/}", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::Basename]);
 }
 
 #[test]
 fn tokenizer_dirname() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "{//}");
+    let _ = tokenize(&mut tokens, "{//}", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::Dirname]);
 }
 
 #[test]
 fn tokenizer_base_and_ext() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "{/.}");
+    let _ = tokenize(&mut tokens, "{/.}", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::BaseAndExt]);
 }
 
 #[test]
 fn tokenizer_slot() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "{%}");
+    let _ = tokenize(&mut tokens, "{%}", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::Slot]);
 }
 
 #[test]
 fn tokenizer_job() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "{#}");
+    let _ = tokenize(&mut tokens, "{#}", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::Job]);
-}
-
-#[test]
-fn tokenizer_jobtotal() {
-    let mut tokens = Vec::new();
-    tokenize(&mut tokens, "{#^}");
-    assert_eq!(tokens, vec![Token::JobTotal]);
 }
 
 #[test]
 fn tokenizer_multiple() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "foo {} bar");
+    let _ = tokenize(&mut tokens, "foo {} bar", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::Argument("foo ".to_owned()), Token::Placeholder,
         Token::Argument(" bar".to_owned())]);
 }
@@ -193,7 +232,7 @@ fn tokenizer_multiple() {
 #[test]
 fn tokenizer_no_space() {
     let mut tokens = Vec::new();
-    tokenize(&mut tokens, "foo{}bar");
+    let _ = tokenize(&mut tokens, "foo{}bar", &Path::new("."), 1);
     assert_eq!(tokens, vec![Token::Argument("foo".to_owned()), Token::Placeholder,
         Token::Argument("bar".to_owned())]);
 }

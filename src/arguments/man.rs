@@ -1,5 +1,5 @@
 pub const MAN_PAGE: &'static str = r#"NAME
-    parallel - a command-line CPU load balancer written in Rust
+    parallel - a command-line CPU load balancer, aka a work-stealer, written in Rust
 
 SYNOPSIS
     parallel [OPTIONS...] 'COMMAND' <MODE INPUTS...>...
@@ -41,7 +41,7 @@ INPUT MODES
         Additionally, those arguments will be collected into a new list.
 
     :::+
-        Deontes that the input arguments that follow are input arguments.
+        Denotes that the input arguments that follow are input arguments.
         Additionally, those arguments will be added to the current list.
 
     ::::
@@ -122,7 +122,46 @@ EXAMPLES
     # Reading inputs from files and command arguments
     parallel 'echo {}' :::: list1 list2 ::: $(seq 1 10) :::: list3 list4
 
+HOW IT WORKS
+    The Parallel command consists of three phases: parsing, threading, and execution.
+
+    1. Parsing Phase
+        A. Arguments are read into a write-only in-memory disk buffer which
+           stores inputs into an unprocessed file when the disk buffer is full.
+
+        B. Flags are parsed from the command-line along with the command
+           argument.
+
+        C. The command argument is tokenized into primitives that serve as
+           placeholders for the input arguments.
+
+        D. An input iterator is created that buffers arguments from the
+           unprocessed file into an in-memory read-only disk buffer.
+
+    2. Threading Phase
+        A. An atomic reference-counted mutex of the input iterator is created
+           and shared among all of the threads.
+
+        B. Threads are created for each of the cores that will be processing.
+
+        C. Threads read from the input iterator as soon as they finish a task
+           and begin to process the next task.
+
+    3. Execution Phase
+        A. Each thread will generate commands by replacing command tokens with
+           the current input argument being processed.
+
+        B. Commands are then executed in a sub-process, with their standard
+           output and error piped to the main process.
+
+        C. Messages from processes are sorted and printed in the order that
+           inputs were given, as if each command was executed serially.
+
+        D. When processes complete, they are written to the processed file.
+
+        E. Once all processes have been completed, the program exits.
+
 AUTHOR
-    Written by Michael Aaron Murphy <mmstickman@gmail.com>
-    Inspired by Ole Tange's GNU Parallel.
+    Written by Michael Aaron Murphy <mmstickman@gmail.com> under the MIT license.
+    Inspired by Ole Tange's GNU Parallel, written in Perl.
 "#;

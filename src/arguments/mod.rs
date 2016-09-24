@@ -1,65 +1,33 @@
+/// Contains all functionality pertaining to parsing, tokenizing, and generating input arguments.
+
+mod disk_buffer;
+mod iterator;
+mod errors;
+mod jobs;
+mod man;
+pub mod token_matcher;
+pub mod tokenizer;     // Takes the command template that is provided and reduces it to digestible tokens.
+
 use std::env;
-use std::io::{self, BufRead, BufReader, Stderr, Stdout, Write};
+use std::fs;
+use std::io::{self, BufRead, BufReader};
+use std::path::Path;
 use std::process::exit;
-use tokenizer::{Token, tokenize};
+use self::tokenizer::{Token, tokenize};
 use permutate::Permutator;
 use num_cpus;
 
-mod jobs;
-mod man;
+use super::filepaths;
+use self::errors::ParseErr;
 
-use std::fs;
+// Re-export key items from internal modules.
+pub use self::iterator::InputIterator;
+pub use self::errors::{FileErr, InputIteratorErr};
+pub use self::disk_buffer::{DiskBuffer, DiskBufferTrait, DiskBufferWriter};
 
-/// The error type for the argument module.
-#[derive(Debug, PartialEq)]
-pub enum ParseErr {
-    /// An error occured opening an input file.
-    InputFileError(String, String),
-    /// The value supplied for `--jobs` is not a number.
-    JobsNaN(String),
-    /// No value was supplied for '--jobs'
-    JobsNoValue,
-    /// The argument supplied is not a valid argument.
-    InvalidArgument(String),
-    /// No arguments were given to the program.
-    NoArguments
-}
-
-impl ParseErr {
-    pub fn handle(self, stdout: Stdout, stderr: Stderr) -> ! {
-        // Always lock an output buffer before using it.
-        let mut stderr = stderr.lock();
-        let mut stdout = stdout.lock();
-        let _ = stderr.write(b"parallel: parsing error: ");
-        match self {
-            ParseErr::InputFileError(file, why) => {
-                let _ = write!(&mut stderr, "unable to open {}: {}\n", file, why);
-            },
-            ParseErr::JobsNaN(value) => {
-                let _ = write!(&mut stderr, "jobs parameter, '{}', is not a number.\n", value);
-            },
-            ParseErr::JobsNoValue => {
-                let _ = stderr.write(b"no jobs parameter was defined.\n");
-            },
-            ParseErr::InvalidArgument(argument) => {
-                let _ = write!(&mut stderr, "invalid argument: {}\n", argument);
-            },
-            ParseErr::NoArguments => {
-                let _ = write!(&mut stderr, "no input arguments were given.\n");
-            }
-        };
-        let _ = stdout.write(b"For help on command-line usage, execute `parallel -h`\n");
-        exit(1);
-    }
-}
 
 #[derive(PartialEq)]
-enum Mode {
-    Arguments,
-    Command,
-    Inputs,
-    Files
-}
+enum Mode { Arguments, Command, Inputs, Files }
 
 #[derive(Clone)]
 pub struct Flags {
@@ -89,7 +57,6 @@ pub struct Args {
     pub ncores:    usize,
     pub arguments: Vec<Token>,
     pub ninputs:   usize,
-    pub inputs:    Vec<String>
 }
 
 impl Args {
@@ -99,14 +66,23 @@ impl Args {
             flags: Flags::new(),
             arguments: Vec::new(),
             ninputs: 0,
-            inputs: Vec::new()
         }
     }
 
-    pub fn parse(&mut self) -> Result<(), ParseErr> {
-        let mut raw_args = env::args().skip(1).peekable();
-        let mut comm = String::with_capacity(128);
-        let mut lists: Vec<Vec<String>>= Vec::new();
+    pub fn parse(&mut self) -> Result<InputIterator, ParseErr> {
+        let unprocessed_path = match filepaths::unprocessed() {
+            Some(path) => path,
+            None => return Err(ParseErr::File(FileErr::Path))
+        };
+
+        // Create a write buffer that automatically writes data to the disk when the buffer is full.
+        let mut disk_buffer = try!(disk_buffer::DiskBuffer::new(&unprocessed_path).write()
+            .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.clone(), why))));
+
+        // Temporary stores for input arguments.
+        let mut raw_args                    = env::args().skip(1).peekable();
+        let mut comm                        = String::with_capacity(128);
+        let mut lists: Vec<Vec<String>>     = Vec::new();
         let mut current_inputs: Vec<String> = Vec::new();
 
         // The purpose of this is to set the initial parsing mode.
@@ -182,7 +158,7 @@ impl Args {
                                     "quiet" => self.flags.quiet = true,
                                     "verbose" => self.flags.verbose = true,
                                     "version" => {
-                                        println!("parallel 0.4.2\n\nCrate Dependencies:");
+                                        println!("parallel 0.5.0\n\nCrate Dependencies:");
                                         println!("    libc      0.2.16");
                                         println!("    num_cpus  1.0.0");
                                         println!("    permutate 0.1.3");
@@ -257,11 +233,11 @@ impl Args {
             }
         }
 
-        tokenize(&mut self.arguments, &comm);
-
         if !current_inputs.is_empty() {
             lists.push(current_inputs.clone());
         }
+
+        let mut number_of_arguments = 0;
 
         if lists.len() > 1 {
             // Convert the Vec<Vec<String>> into a Vec<Vec<&str>>
@@ -273,43 +249,70 @@ impl Args {
             let list_array: Vec<&[&str]> = tmp.iter().map(AsRef::as_ref).collect();
 
             // Create a `Permutator` with the &[&[&str]] as the input.
-            let permutator = Permutator::new(&list_array[..])
-                // Have the permutator produce space-delimited strings with the permutations.
-                .map(|permutation| {
-                    let mut iter = permutation.iter();
-                    let mut output = String::from(*iter.next().unwrap());
-                    for element in iter {
-                        output.push(' ');
-                        output.push_str(element);
-                    }
-                    output
-                });
+            let permutator = Permutator::new(&list_array[..]);
 
             for permutation in permutator {
-                self.inputs.push(permutation)
+                let mut iter = permutation.iter();
+                try!(disk_buffer.write(iter.next().unwrap().as_bytes())
+                    .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why))));
+                for element in iter {
+                    try!(disk_buffer.write_byte(b' ')
+                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why))));
+                    try!(disk_buffer.write(element.as_bytes())
+                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why))));
+                }
+                try!(disk_buffer.write_byte(b'\n')
+                    .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why))));
+                number_of_arguments += 1;
             }
         } else {
-            self.inputs = current_inputs;
+            for input in current_inputs {
+                try!(disk_buffer.write(input.as_bytes()).map_err(|why|
+                    ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
+                );
+                try!(disk_buffer.write_byte(b'\n').map_err(|why|
+                    ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
+                );
+                number_of_arguments += 1;
+            }
         }
 
         // If no inputs are provided, read from stdin instead.
-        if self.inputs.is_empty() {
+        if disk_buffer.is_empty() {
             let stdin = io::stdin();
             for line in stdin.lock().lines() {
-                if let Ok(line) = line { self.inputs.push(line) }
+                if let Ok(line) = line {
+                    try!(disk_buffer.write(line.as_bytes()).map_err(|why|
+                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
+                    );
+                    try!(disk_buffer.write_byte(b'\n').map_err(|why|
+                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
+                    );
+                    number_of_arguments += 1;
+                }
             }
         }
 
-        self.ninputs = self.inputs.len();
+        // Flush the contents of the buffer to the disk before tokenizing the command argument.
+        try!(disk_buffer.flush().map_err(|why|
+            ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
+        );
 
-        Ok(())
+        // Attempt to tokenize the command argument into simple primitive placeholders.
+        try!(tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments)
+            .map_err(ParseErr::Token));
+
+        // Return an `InputIterator` of the arguments contained within the unprocessed file.
+        let path = try!(filepaths::unprocessed().ok_or(ParseErr::File(FileErr::Path)));
+        Ok(try!(InputIterator::new(&path, number_of_arguments).map_err(ParseErr::File)))
     }
 }
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.
-fn file_parse(inputs: &mut Vec<String>, path: &str) -> Result<(), ParseErr> {
+fn file_parse<P: AsRef<Path>>(inputs: &mut Vec<String>, path: P) -> Result<(), ParseErr> {
+    let path = path.as_ref();
     let file = try!(fs::File::open(path)
-        .map_err(|err| ParseErr::InputFileError(path.to_owned(), err.to_string())));
+        .map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err))));
     for line in BufReader::new(file).lines() {
         if let Ok(line) = line { inputs.push(line); }
     }

@@ -1,77 +1,65 @@
 # Parallel: A Command-line CPU Load Balancer Written in Rust
-This is an attempt at recreating the functionality of [GNU Parallel](https://www.gnu.org/software/parallel/) in Rust under a MIT license. The end goal will be to support much of the functionality of `GNU Parallel` and then to extend the functionality further for the next generation of command-line utilities written in Rust.
+This is an attempt at recreating the functionality of [GNU Parallel](https://www.gnu.org/software/parallel/), a work-stealer for the command-line, in Rust under a MIT license. The end goal will be to support much of the functionality of `GNU Parallel` and then to extend the functionality further for the next generation of command-line utilities written in Rust. While functionality is important, with the application being developed in Rust, the goal is to also be as fast and efficient as possible.
+
+See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) for features and improvements that have yet to be done. If you want to contribute, pull requests are welcome. If you have an idea for improvement which isn't listed in the to-do list, feel free to [email me](mailto:mmstickman@gmail.com) and I will consider implementing that idea.
 
 ## Benchmark Comparison to GNU Parallel
 
-Here are some benchmarks from an i5-2410M laptop running Gentoo.
-
-```sh
-time parallel 'echo {#}: {}' ::: /usr/bin/* > /dev/null
+### GNU Parallel
+```
+~/D/parallel (master) $ seq 1 10000 | time -v parallel echo > /dev/null
+	Command being timed: "parallel echo"
+	User time (seconds): 97.04
+	System time (seconds): 29.17
+	Percent of CPU this job got: 232%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:54.17
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 66848
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 15070207
+	Voluntary context switches: 250452
+	Involuntary context switches: 113320
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
 ```
 
-### **GNU Parallel**:
-
-#### Default Options
+### Rust Parallel
 
 ```
-real	0m5.728s
-user	0m2.960s
-sys 	0m1.310s
-```
-
-#### Executed with the `--ungroup` Option
-
-```
-real	0m4.801s
-user	0m2.070s
-sys  	0m1.290s
-```
-
-### **Rust Parallel**:
-
-#### Default Options
-
-```sh
-time target/release/parallel 'echo {#}: {}' ::: /usr/bin/* > /dev/null
-```
-
-The default options are the slowest options, with all features enabled.
-
-```
-real	0m1.198s
-user	0m0.130s
-sys  	0m0.550s
-```
-
-#### Executed with the `--no-shell` option
-
-```sh
-time target/release/parallel --no-shell 'echo {#}: {}' ::: /usr/bin/* > /dev/null
-```
-
-A significant amount of overhead is caused by executing commands within the platform's preferred shell. On Unix
-systems, that shell is `sh`, whereas on Windows it is `cmd`. Disabling shell executing is a good idea if your
-command is simple and doesn't require chaining multiple commands.
-
-```
-real    0m0.559s
-user    0m0.084s
-sys     0m0.372s
-```
-
-#### Executed with the `--no-shell` and `--ungroup` Option
-
-```sh
-time target/release/parallel --no-shell --ungroup 'echo {#}: {}' ::: /usr/bin/* > /dev/null
-```
-
-This will achieve utmost optimization at the cost of not having the standard output and error printed in order.
-
-```
-real	0m0.575s
-user	0m0.060s
-sys	    0m0.4.1s
-
+~/D/parallel (master) $ seq 1 10000 | time -v target/release/parallel echo > /dev/null
+	Command being timed: "target/release/parallel echo"
+	User time (seconds): 0.48
+	System time (seconds): 2.48
+	Percent of CPU this job got: 59%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:04.93
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 12928
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 2198164
+	Voluntary context switches: 73174
+	Involuntary context switches: 36678
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
 ```
 
 ## Syntax Examples
@@ -83,6 +71,7 @@ parallel echo ::: *                               // If no placeholders are used
 parallel echo :::: list1 list2 list3              // Read newline-delimited arguments stored in files.
 parallel echo ::: arg1 ::::+ list :::+ arg2       // Interchangeably read arguments from the command line and files.
 parallel echo ::: 1 2 3 ::: A B C ::: D E F       // Permutate the inputs.
+parallel echo {} {1} {2} {3.} ::: 1 2 file.mkv    // {N} tokens are replaced by the Nth input argument
 parallel ::: "echo 1" "echo 2" "echo 3"           // If no command is supplied, the input arguments become commands.
 parallel 'cd {}; echo Directory: {}; echo - {}'   // Commands may be chained in the platform\'s shell.
 ls | parallel 'echo {}'                           // If no input arguments are supplied, stdin will be read.
@@ -125,7 +114,7 @@ input list will be permutated together into a single list.
 >    Additionally, those arguments will be collected into a new list.
 
 - **:::+**
->    Deontes that the input arguments that follow are input arguments.
+>    Denotes that the input arguments that follow are input arguments.
 >    Additionally, those arguments will be added to the current list.
 
 - **::::**
@@ -213,8 +202,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.4.2/parallel_0.4.2_amd64.tar.xz
-tar xf parallel_0.4.2.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.5.0/parallel_0.5.0_amd64.tar.xz
+tar xf parallel_0.5.0.tar.xz
 sudo install parallel /usr/local/bin
 ```
 

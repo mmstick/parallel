@@ -1,11 +1,18 @@
 use std::io;
 use std::ffi::OsStr;
 use std::process::{Child, Command, ExitStatus, Stdio};
-use tokenizer::Token;
+use super::arguments::tokenizer::Token;
+use super::arguments::token_matcher::*;
+use super::arguments::InputIteratorErr;
 
 pub enum CommandResult {
-    Grouped,
+    Grouped(Child),
     Status
+}
+
+pub enum CommandErr {
+    Input(InputIteratorErr),
+    IO(io::Error)
 }
 
 pub struct ParallelCommand<'a> {
@@ -17,12 +24,12 @@ pub struct ParallelCommand<'a> {
 }
 
 impl<'a> ParallelCommand<'a> {
-    pub fn exec(&self, grouped: bool, uses_shell: bool, quiet: bool, child: &mut Child,
-        jobs: &[String]) -> io::Result<CommandResult>
+    pub fn exec(&self, grouped: bool, uses_shell: bool, quiet: bool)
+        -> Result<CommandResult, CommandErr>
     {
         // First the arguments will be generated based on the tokens and input.
         let mut arguments = String::with_capacity(self.command_template.len() << 1);
-        self.build_arguments(&mut arguments, jobs);
+        try!(self.build_arguments(&mut arguments).map_err(CommandErr::Input));
 
         // Check to see if any placeholder tokens are in use.
         let placeholder_exists = self.command_template.iter().any(|x| {
@@ -38,73 +45,51 @@ impl<'a> ParallelCommand<'a> {
         }
 
         if grouped {
-            get_command_output(&arguments, uses_shell, quiet, child).map(|_| CommandResult::Grouped)
+            get_command_output(&arguments, uses_shell, quiet)
+                .map(CommandResult::Grouped).map_err(CommandErr::IO)
         } else {
-            get_command_status(&arguments, uses_shell, quiet).map(|_| CommandResult::Status)
+            get_command_status(&arguments, uses_shell, quiet)
+                .map(|_| CommandResult::Status).map_err(CommandErr::IO)
         }
     }
 
     /// Builds arguments using the `tokens` template with the current `input` value.
     /// The arguments will be stored within a `Vec<String>`
-    fn build_arguments(&self, arguments: &mut String, jobs: &[String]) {
+    fn build_arguments(&self, arguments: &mut String) -> Result<(), InputIteratorErr> {
         for arg in self.command_template {
-            match arg.clone() {
+            match *arg {
                 Token::Argument(ref arg)  => arguments.push_str(arg),
                 Token::Basename           => arguments.push_str(basename(self.input)),
                 Token::BaseAndExt         => arguments.push_str(basename(remove_extension(self.input))),
                 Token::Dirname            => arguments.push_str(dirname(self.input)),
                 Token::Job                => arguments.push_str(self.job_no),
-                Token::JobTotal           => arguments.push_str(self.job_total),
-                Token::Number(job, token) => {
-                    // The `token` is a pointer which needs to be unboxed.
-                    let raw_token = Box::into_raw(token);
-                    let input = &jobs[job-1];
-
-                    unsafe {
-                        // Match the associated token to be used with the job number.
-                        // Unreachable patterns are not possible combinations by the tokenizer.
-                        match *raw_token {
-                            Token::Argument(_)     => unreachable!(),
-                            Token::Basename        => arguments.push_str(basename(input)),
-                            Token::BaseAndExt      => arguments.push_str(basename(remove_extension(input))),
-                            Token::Dirname         => arguments.push_str(dirname(input)),
-                            Token::Job             => unreachable!(),
-                            Token::JobTotal        => unreachable!(),
-                            Token::Number(_, _)    => unreachable!(),
-                            Token::Placeholder     => arguments.push_str(input),
-                            Token::RemoveExtension => arguments.push_str(remove_extension(input)),
-                            Token::Slot            => unreachable!()
-                        }
-                    }
-                }
-                Token::Placeholder     => arguments.push_str(self.input),
-                Token::RemoveExtension => arguments.push_str(remove_extension(self.input)),
-                Token::Slot            => arguments.push_str(self.slot_no)
+                Token::Placeholder        => arguments.push_str(self.input),
+                Token::RemoveExtension    => arguments.push_str(remove_extension(self.input)),
+                Token::Slot               => arguments.push_str(self.slot_no)
             }
         }
+        Ok(())
     }
 }
 
-pub fn get_command_output(command: &str, uses_shell: bool, quiet: bool, child: &mut Child)
-    -> io::Result<()>
-{
+pub fn get_command_output(command: &str, uses_shell: bool, quiet: bool) -> io::Result<Child> {
     if uses_shell {
-        shell_output(command, child, quiet)
+        shell_output(command, quiet)
     } else {
         let arguments = split_into_args(command);
         match (arguments.len() == 1, quiet) {
             (true, true) => Command::new(&arguments[0])
                 .stdout(Stdio::null()).stderr(Stdio::piped())
-                .spawn().map(|process| { *child = process; () }),
+                .spawn(),
             (true, false) => Command::new(&arguments[0])
                 .stdout(Stdio::piped()).stderr(Stdio::piped())
-                .spawn().map(|process| { *child = process; () }),
+                .spawn(),
             (false, true) => Command::new(&arguments[0]).args(&arguments[1..])
                 .stdout(Stdio::null()).stderr(Stdio::piped())
-                .spawn().map(|process| { *child = process; () }),
+                .spawn(),
             (false, false) => Command::new(&arguments[0]).args(&arguments[1..])
                 .stdout(Stdio::piped()).stderr(Stdio::piped())
-                .spawn().map(|process| { *child = process; () })
+                .spawn()
         }
     }
 }
@@ -124,15 +109,15 @@ pub fn get_command_status(command: &str, uses_shell: bool, quiet: bool) -> io::R
 }
 
 #[cfg(windows)]
-fn shell_output<S: AsRef<OsStr>>(args: S, child: &mut Child, quiet: bool) -> io::Result<()> {
+fn shell_output<S: AsRef<OsStr>>(args: S, quiet: bool) -> io::Result<Child> {
     if quiet {
         Command::new("cmd").arg("/C").arg(args)
             .stdout(Stdio::null()).stderr(Stdio::piped())
-            .spawn().map(|process| { *child = process; () })
+            .spawn()
     } else {
         Command::new("cmd").arg("/C").arg(args)
             .stdout(Stdio::piped()).stderr(Stdio::piped())
-            .spawn().map(|process| { *child = process; () })
+            .spawn()
     }
 }
 
@@ -146,15 +131,15 @@ fn shell_status<S: AsRef<OsStr>>(args: S, quiet: bool) -> io::Result<ExitStatus>
 }
 
 #[cfg(not(windows))]
-fn shell_output<S: AsRef<OsStr>>(args: S, child: &mut Child, quiet: bool) -> io::Result<()> {
+fn shell_output<S: AsRef<OsStr>>(args: S, quiet: bool) -> io::Result<Child> {
     if quiet {
         Command::new("sh").arg("-c").arg(args)
             .stdout(Stdio::null()).stderr(Stdio::piped())
-            .spawn().map(|process| { *child = process; () })
+            .spawn()
     } else {
         Command::new("sh").arg("-c").arg(args)
             .stdout(Stdio::piped()).stderr(Stdio::piped())
-            .spawn().map(|process| { *child = process; () })
+            .spawn()
     }
 }
 
@@ -246,102 +231,6 @@ fn split_into_args(command: &str) -> Vec<String> {
 
     if !buffer.is_empty() { output.push(buffer); }
     output
-}
-
-/// Removes the extension of a given input
-fn remove_extension(input: &str) -> &str {
-    let mut dir_index = 0;
-    let mut ext_index = 0;
-
-    for (id, character) in input.chars().enumerate() {
-        if character == '/' { dir_index = id }
-        if character == '.' { ext_index = id; }
-    }
-
-    // Account for hidden files and directories
-    if ext_index == 0 || dir_index + 2 > ext_index { input } else { &input[0..ext_index] }
-}
-
-fn basename(input: &str) -> &str {
-    let mut index = 0;
-    for (id, character) in input.chars().enumerate() {
-        if character == '/' { index = id; }
-    }
-    if index == 0 { input } else { &input[index+1..] }
-}
-
-fn dirname(input: &str) -> &str {
-    let mut index = 0;
-    for (id, character) in input.chars().enumerate() {
-        if character == '/' { index = id; }
-    }
-    if index == 0 { "." } else { &input[0..index] }
-}
-
-#[test]
-fn path_remove_ext_simple() {
-    assert_eq!(remove_extension("foo.txt"), "foo");
-}
-
-#[test]
-fn path_remove_ext_dir() {
-    assert_eq!(remove_extension("dir/foo.txt"), "dir/foo");
-}
-
-#[test]
-fn path_remove_ext_empty() {
-    assert_eq!(remove_extension(""), "");
-}
-
-#[test]
-fn path_basename_simple() {
-    assert_eq!(basename("foo.txt"), "foo.txt");
-}
-
-#[test]
-fn path_basename_dir() {
-    assert_eq!(basename("dir/foo.txt"), "foo.txt");
-}
-
-#[test]
-fn path_basename_empty() {
-    assert_eq!(basename(""), "");
-}
-
-#[test]
-fn path_dirname_simple() {
-    assert_eq!(dirname("foo.txt"), ".");
-}
-
-#[test]
-fn path_dirname_dir() {
-    assert_eq!(dirname("dir/foo.txt"), "dir");
-}
-
-#[test]
-fn path_dirname_empty() {
-    assert_eq!(dirname(""), ".");
-}
-
-#[test]
-fn build_arguments_test() {
-    let tokens = vec![Token::Argument("-i ".to_owned()), Token::Placeholder,
-        Token::Argument(" ".to_owned()), Token::RemoveExtension,
-        Token::Argument(".mkv".to_owned())];
-
-    let command = ParallelCommand {
-        slot_no:   "1",
-        job_no:    "1",
-        job_total: "1",
-        input:     "applesauce.mp4",
-        command_template: &tokens,
-    };
-
-    let jobs = ["one".to_owned(), "two".to_owned(), "three".to_owned()];
-
-    let mut arguments = String::new();
-    command.build_arguments(&mut arguments, &jobs[..]);
-    assert_eq!(arguments, String::from("-i applesauce.mp4 applesauce.mkv"))
 }
 
 #[test]

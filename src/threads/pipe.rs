@@ -1,11 +1,12 @@
 use std::io::{BufRead, BufReader, Stdout, Stderr, Write};
 use std::process::Child;
 use std::sync::mpsc::Sender;
+use super::super::arguments::DiskBufferWriter;
 
 /// A `Pipe` may either be a stream from `Stdout` or `Stderr`.
 pub enum Pipe {
     Stdout(String),
-    Stderr(String)
+    Stderr(String, String)
 }
 
 /// When using grouped mode, the `State` will tell the program whether the program is still
@@ -14,7 +15,9 @@ pub enum State {
     /// If the program is still processing, this will contain the message received.
     Processing(JobOutput),
     /// The integer supplied with this signal tells the program which process has finished.
-    Completed(usize)
+    Completed(usize, String),
+    /// An error occurred, so the error will be marked.
+    Error(usize, String),
 }
 
 /// The `JobOutput` structure is utilized when grouping is enabled to transmit a command's
@@ -28,7 +31,9 @@ pub struct JobOutput {
 impl Pipe {
     /// When a piped message is received and it is to be printed next, print the message
     /// to it's respective buffer.
-    pub fn print_message(&self, stdout: &Stdout, stderr: &Stderr) {
+    pub fn print_message(&self, id: usize, error_file: &mut DiskBufferWriter, stdout: &Stdout,
+        stderr: &Stderr)
+    {
         let mut stdout = stdout.lock();
         let mut stderr = stderr.lock();
         match *self {
@@ -38,9 +43,19 @@ impl Pipe {
                 let _ = stdout.write(b"\n");
             },
             // The message is meant to be printed on standard error.
-            Pipe::Stderr(ref message) => {
+            Pipe::Stderr(ref name, ref message) => {
                 let _ = stderr.write(message.as_bytes());
                 let _ = stderr.write(b"\n");
+                if let Err(why) = error_file.write(id.to_string().as_bytes())
+                    .and_then(|_| error_file.write(b": "))
+                    .and_then(|_| error_file.write(name.as_bytes()))
+                    .and_then(|_| error_file.write(b": "))
+                    .and_then(|_| error_file.write(message.as_bytes()))
+                    .and_then(|_| error_file.write_byte(b'\n'))
+                {
+                    let _ = stderr.write(b"parallel: I/O error: ");
+                    let _ = stderr.write(why.to_string().as_bytes());
+                }
             }
         }
     }
@@ -48,23 +63,23 @@ impl Pipe {
 
 /// Sends messages received by a `Child` process's standard output and error and sends them
 /// to be handled by the grouped output channel.
-pub fn output(child: Child, job_id: usize, output_tx: &Sender<State>, quiet: bool) {
-    let stderr = child.stderr.expect("unable to open stderr of child");
+pub fn output(child: &mut Child, job_id: usize, name: String, output_tx: &Sender<State>, quiet: bool) {
+    let stderr = child.stderr.as_mut().expect("unable to open stderr of child");
     let mut stderr_buffer = BufReader::new(stderr).lines();
-
     if quiet {
+        // Only pipe messages from standard error when quiet mode is enabled.
         for stderr in stderr_buffer {
-            // If a message is received from standard error, it will be sent as a `Pipe::Stderr`.
-            let _ = stderr.map(|stderr| {
+            if let Ok(stderr) = stderr {
                 let _ = output_tx.send(State::Processing(JobOutput {
                     id:   job_id,
-                    pipe: Pipe::Stderr(stderr)
+                    pipe: Pipe::Stderr(name.clone(), stderr)
                 }));
-            });
+            } else {
+                break
+            }
         }
     } else {
-        // Simultaneously buffer lines from both `stdout` and `stderr`.
-        let stdout = child.stdout.expect("unable to open stdout of child");
+        let stdout = child.stdout.as_mut().expect("unable to open stdout of child");
         let mut stdout_buffer = BufReader::new(stdout).lines();
 
         // Attempt to read from stdout and stderr simultaneously until both are exhausted of messages.
@@ -81,12 +96,14 @@ pub fn output(child: Child, job_id: usize, output_tx: &Sender<State>, quiet: boo
                 }
             } else if let Some(stderr) = stderr_buffer.next() {
                 // If a message is received from standard error, it will be sent as a `Pipe::Stderr`.
-                let _ = stderr.map(|stderr| {
+                if let Ok(stderr) = stderr {
                     let _ = output_tx.send(State::Processing(JobOutput {
                         id:   job_id,
-                        pipe: Pipe::Stderr(stderr)
+                        pipe: Pipe::Stderr(name.clone(), stderr)
                     }));
-                });
+                } else {
+                    break
+                }
             } else {
                 break
             }
@@ -94,5 +111,5 @@ pub fn output(child: Child, job_id: usize, output_tx: &Sender<State>, quiet: boo
     }
 
     // Signal to the channel that the job has completed.
-    let _ = output_tx.send(State::Completed(job_id));
+    let _ = output_tx.send(State::Completed(job_id, name));
 }
