@@ -64,7 +64,7 @@ fn main() {
         threads.push(handle);
     }
 
-    if args.flags.grouped { threads::receive_messages(input_rx, args); }
+    threads::receive_messages(input_rx, args);
     for thread in threads.into_iter() { thread.join().unwrap(); }
 
     // If errors have occurred, re-print these errors at the end.

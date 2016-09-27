@@ -93,13 +93,12 @@ commands are supplied:
 
 3. If no INPUTS are provided, then standard input will be read for INPUTS.
 
-By default, Parallel groups the standard output and error of each child
-process so that outputs are printed in the order that they are given, as
-if the tasks were executed serially in a traditional for loop. In addition,
-commands are executed in the platform's preferred shell by default, which
-is `sh -c` on Unix systems, and `cmd /C` on Windows. These both come at a
-performance cost, so they can be disabled with the --ungroup and --no-shell
-options.
+Parallel groups the standard output and error of each child process so that
+outputs are printed in the order that they are given, as if the tasks were
+executed serially in a traditional for loop. In addition, commands are
+executed in the platform's preferred shell by default, which is `sh -c` on
+Unix systems, and `cmd /C` on Windows. This comes at a performance cost, so
+it can be disabled with the --no-shell option.
 
 ### INPUT MODES
 
@@ -155,7 +154,6 @@ operates:
 
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
-- **-u**, **--ungroup**: By default, stdout/stderr buffers are grouped in the order that they are received.
 - **-n**, **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
     - Double quotes and backslashes are used to allow spaces in inputs, similar to standard shells.
 - **-q**, **--quiet**: Disables printing the standard output of running processes.
@@ -193,6 +191,10 @@ that are available for download:
 ### Gentoo
 
 I have a [personal Gentoo layman overlay](https://github.com/mmstick/mmstick-overlay) that provides this application for installation.
+
+### Arch Linux
+
+A PKGBUILD is available for Arch Linux users from the [AUR](https://aur.archlinux.org/packages/parallel-rust/).
 
 ### Ubuntu
 

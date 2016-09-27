@@ -31,7 +31,6 @@ enum Mode { Arguments, Command, Inputs, Files }
 
 #[derive(Clone)]
 pub struct Flags {
-    pub grouped:             bool,
     pub inputs_are_commands: bool,
     pub uses_shell:          bool,
     pub quiet:               bool,
@@ -41,7 +40,6 @@ pub struct Flags {
 impl Flags {
     fn new() -> Flags {
         Flags {
-            grouped: true,
             uses_shell: true,
             quiet: false,
             verbose: false,
@@ -130,7 +128,6 @@ impl Args {
                                             exit(0);
                                         },
                                         'n' => self.flags.uses_shell = false,
-                                        'u' => self.flags.grouped = false,
                                         'q' => self.flags.quiet = true,
                                         'v' => self.flags.verbose = true,
                                         _ => {
@@ -149,7 +146,6 @@ impl Args {
                                         let val = &try!(raw_args.next().ok_or(ParseErr::JobsNoValue));
                                         self.ncores = try!(jobs::parse(val))
                                     },
-                                    "ungroup" => self.flags.grouped = false,
                                     "no-shell" => self.flags.uses_shell = false,
                                     "num-cpu-cores" => {
                                         println!("{}", num_cpus::get());

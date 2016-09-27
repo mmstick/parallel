@@ -52,12 +52,11 @@ pub fn command(slot: usize, num_inputs: usize, flags: Flags, arguments: Vec<Toke
             command_template: &arguments,
         };
 
-        match command.exec(flags.grouped, flags.uses_shell, flags.quiet) {
-            Ok(command::CommandResult::Grouped(mut child)) => {
+        match command.exec(flags.uses_shell, flags.quiet) {
+            Ok(mut child) => {
                 pipe::output(&mut child, job_id, input.clone(), &output_tx, flags.quiet);
                 let _ = child.wait();
             },
-            Ok(_) => (),
             Err(cmd_err) => {
                 let mut stderr = stderr.lock();
                 let _ = stderr.write(b"parallel: command error: ");
@@ -95,26 +94,18 @@ pub fn inputs(num_inputs: usize, flags: Flags, inputs: Arc<Mutex<InputIterator>>
             verbose::processing_task(&stdout, &job_id.to_string(), &job_total, &input);
         }
 
-        if flags.grouped {
-            match command::get_command_output(&input, flags.uses_shell, flags.quiet) {
-                Ok(mut child) => {
-                    pipe::output(&mut child, job_id, input.clone(), &output_tx, flags.quiet);
-                    let _ = child.wait();
-                },
-                Err(why) => {
-                    let mut stderr = stderr.lock();
-                    let _ = write!(&mut stderr, "parallel: command error: {}: {}\n",
-                        input, why);
-                    let message = format!("{}: {}: {}\n", job_id, input, why);
-                    let _ = output_tx.send(State::Error(job_id, message));
-                }
+        match command::get_command_output(&input, flags.uses_shell, flags.quiet) {
+            Ok(mut child) => {
+                pipe::output(&mut child, job_id, input.clone(), &output_tx, flags.quiet);
+                let _ = child.wait();
+            },
+            Err(why) => {
+                let mut stderr = stderr.lock();
+                let _ = write!(&mut stderr, "parallel: command error: {}: {}\n",
+                    input, why);
+                let message = format!("{}: {}: {}\n", job_id, input, why);
+                let _ = output_tx.send(State::Error(job_id, message));
             }
-        } else if let Err(why) = command::get_command_status(&input, flags.uses_shell, flags.quiet) {
-            let mut stderr = stderr.lock();
-            let _ = stderr.write(b"parallel: command error:");
-            let _ = write!(&mut stderr, "{}: {}\n", input, why);
-            let message = format!("{}: {}: {}\n", job_id, input, why);
-            let _ = output_tx.send(State::Error(job_id, message));
         }
 
         if flags.verbose {

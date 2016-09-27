@@ -21,13 +21,12 @@ DESCRIPTION
 
     3. If no INPUTS are provided, then standard input will be read for INPUTS.
 
-    By default, Parallel groups the standard output and error of each child
-    process so that outputs are printed in the order that they are given, as
-    if the tasks were executed serially in a traditional for loop. In addition,
-    commands are executed in the platform's preferred shell by default, which
-    is `sh -c` on Unix systems, and `cmd /C` on Windows. These both come at a
-    performance cost, so they can be disabled with the --ungroup and --no-shell
-    options.
+    Parallel groups the standard output and error of each child process so that
+    outputs are printed in the order that they are given, as if the tasks were
+    executed serially in a traditional for loop. In addition, commands are
+    executed in the platform's preferred shell by default, which is `sh -c` on
+    Unix systems, and `cmd /C` on Windows. This comes at a performance cost, so
+    it can be disabled with the --no-shell option.
 
 INPUT MODES
     Input modes are used to determine whether the following inputs are files
@@ -82,11 +81,6 @@ OPTIONS
         Defines the number of tasks to process in parallel.
         Values may be written as a number (12) or as a percent (150%).
         The default value is the number of CPU cores in the system.
-
-    -u, --ungroup:
-        Ungroups the standard output and error to boost the performance of the
-        load balancer. This will cause the outputs of each task to be mixed
-        together, which may or not matter for your use case.
 
     -n, --no-shell:
         Allow Parallel to act as the interpreter of the commands for a
