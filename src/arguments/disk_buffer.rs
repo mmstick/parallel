@@ -10,7 +10,7 @@ pub trait DiskBufferTrait {
     fn clear(&mut self);
 
     /// Obtain a slice of only the useful information.
-    fn obtain(&self) -> &[u8];
+    fn get_ref(&self) -> &[u8];
 
     /// Returns true if the buffer does not contain any contents.
     fn is_empty(&self) -> bool;
@@ -59,7 +59,7 @@ pub struct DiskBufferReader {
 
 impl DiskBufferTrait for DiskBufferReader {
     fn clear(&mut self) { self.capacity = 0; }
-    fn obtain(&self) -> &[u8] { &self.data[0..self.capacity] }
+    fn get_ref(&self) -> &[u8] { &self.data[0..self.capacity] }
     fn is_empty(&self) -> bool { self.capacity == 0 }
 }
 
@@ -91,7 +91,7 @@ pub struct DiskBufferWriter {
 
 impl DiskBufferTrait for DiskBufferWriter {
     fn clear(&mut self) { self.capacity = 0; }
-    fn obtain(&self) -> &[u8] { &self.data[0..self.capacity] }
+    fn get_ref(&self) -> &[u8] { &self.data[0..self.capacity] }
     fn is_empty(&self) -> bool { self.capacity == 0 }
 }
 
@@ -101,7 +101,7 @@ impl DiskBufferWriter {
         let cap = data.len();
         if cap + self.capacity > BUFFER_SIZE {
             try!(fs::OpenOptions::new().write(true).append(true).open(&self.path)
-                .and_then(|mut file| file.write(self.obtain())));
+                .and_then(|mut file| file.write(self.get_ref())));
             self.clear();
         }
         self.data[self.capacity..self.capacity + cap].clone_from_slice(data);
@@ -113,7 +113,7 @@ impl DiskBufferWriter {
     pub fn write_byte(&mut self, data: u8) -> Result<(), Error> {
         if self.capacity + 1 > BUFFER_SIZE {
             try!(fs::OpenOptions::new().write(true).append(true).open(&self.path)
-                .and_then(|mut file| file.write(self.obtain())));
+                .and_then(|mut file| file.write(self.get_ref())));
             self.clear();
         }
         self.data[self.capacity] = data;
@@ -125,7 +125,7 @@ impl DiskBufferWriter {
     pub fn flush(&mut self) -> Result<usize, Error> {
         if !self.is_empty() {
             return fs::OpenOptions::new().write(true).append(true).open(&self.path)
-                .and_then(|mut file| file.write(self.obtain()));
+                .and_then(|mut file| file.write(self.get_ref()));
         }
         self.capacity = 0;
         Ok(0)

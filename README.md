@@ -204,8 +204,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.5.0/parallel_0.5.0_amd64.tar.xz
-tar xf parallel_0.5.0.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.5.1/parallel_0.5.1_amd64.tar.xz
+tar xf parallel_0.5.1.tar.xz
 sudo install parallel /usr/local/bin
 ```
 

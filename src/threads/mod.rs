@@ -30,9 +30,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args) {
             State::Completed(job, name) => {
                 if job == counter {
                     counter += 1;
-                    if let Err(why) = processed_file.write(name.as_bytes())
-                        .and_then(|_| processed_file.write_byte(b'\n'))
-                    {
+                    if let Err(why) = processed_file.write(name.as_bytes()) {
                         let mut stderr = &mut stderr.lock();
                         let _ = write!(stderr, "parallel: I/O error: {}", why);
                     }
@@ -77,9 +75,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args) {
                             counter += 1;
                             drop.push(id);
                             changed = true;
-                            if let Err(why) = processed_file.write(name.as_bytes())
-                                .and_then(|_| processed_file.write_byte(b'\n'))
-                            {
+                            if let Err(why) = processed_file.write(name.as_bytes()) {
                                 let mut stderr = &mut stderr.lock();
                                 let _ = write!(stderr, "parallel: I/O error: {}", why);
                             }

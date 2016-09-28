@@ -44,7 +44,6 @@ impl Pipe {
             // The message is meant to be printed on standard error.
             Pipe::Stderr(ref name, ref message) => {
                 let _ = stderr.write(message.as_bytes());
-                let _ = stderr.write(b"\n");
                 if let Err(why) = error_file.write(id.to_string().as_bytes())
                     .and_then(|_| error_file.write(b": "))
                     .and_then(|_| error_file.write(name.as_bytes()))
@@ -89,11 +88,21 @@ pub fn output(child: &mut Child, job_id: usize, name: String, output_tx: &Sender
                         id:   job_id,
                         pipe: Pipe::Stdout(output.into_owned())
                     }));
-                } else {
-                    break
+                } else if let Ok(bytes_read) = stderr.read(&mut membuffer[..]) {
+                    if bytes_read != 0 {
+
+                        let output = String::from_utf8_lossy(&membuffer[0..bytes_read]);
+                        let _ = output_tx.send(State::Processing(JobOutput {
+                            id:   job_id,
+                            pipe: Pipe::Stderr(name.clone(), output.into_owned())
+                        }));
+                    } else {
+                        break
+                    }
                 }
-            } else if let Ok(bytes_read) = stdout.read(&mut membuffer[..]) {
+            } else if let Ok(bytes_read) = stderr.read(&mut membuffer[..]) {
                 if bytes_read != 0 {
+
                     let output = String::from_utf8_lossy(&membuffer[0..bytes_read]);
                     let _ = output_tx.send(State::Processing(JobOutput {
                         id:   job_id,

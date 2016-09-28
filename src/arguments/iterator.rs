@@ -106,15 +106,20 @@ impl InputBuffer {
     /// Counts the number of arguments that are stored in the buffer, marking the location of
     /// the indices and the actual capacity of the buffer's useful information.
     fn count_arguments(&mut self, bytes_read: usize) {
+        let mut newlines = 1;
         self.capacity = 0;
-        for (id, byte) in self.disk_buffer.data.iter().take(bytes_read).enumerate() {
-            if *byte == b'\n' {
-                self.indices[self.capacity + 1] = id;
-                self.capacity += 1;
-                self.end += 1;
-            }
+
+        let newline_indices = self.disk_buffer.data.iter().take(bytes_read).enumerate()
+            .filter(|&(_, &byte)| byte == b'\n').map(|(indice, _)| indice);
+
+        for id in newline_indices {
+            self.indices[newlines] = id;
+            newlines += 1;
         }
-        self.capacity = self.indices[self.capacity];
+        newlines -= 1;
+        self.capacity = self.indices[newlines];
+        self.end     += newlines;
+
     }
 }
 
