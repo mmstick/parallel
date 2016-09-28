@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader, Stdout, Stderr, Write};
+use std::io::{Read, Stdout, Stderr, Write};
 use std::process::Child;
 use std::sync::mpsc::Sender;
 use super::super::arguments::DiskBufferWriter;
@@ -40,7 +40,6 @@ impl Pipe {
             // The message is meant to be printed on standard output.
             Pipe::Stdout(ref message) => {
                 let _ = stdout.write(message.as_bytes());
-                let _ = stdout.write(b"\n");
             },
             // The message is meant to be printed on standard error.
             Pipe::Stderr(ref name, ref message) => {
@@ -51,7 +50,6 @@ impl Pipe {
                     .and_then(|_| error_file.write(name.as_bytes()))
                     .and_then(|_| error_file.write(b": "))
                     .and_then(|_| error_file.write(message.as_bytes()))
-                    .and_then(|_| error_file.write_byte(b'\n'))
                 {
                     let _ = stderr.write(b"parallel: I/O error: ");
                     let _ = stderr.write(why.to_string().as_bytes());
@@ -65,41 +63,41 @@ impl Pipe {
 /// to be handled by the grouped output channel.
 pub fn output(child: &mut Child, job_id: usize, name: String, output_tx: &Sender<State>, quiet: bool) {
     let stderr = child.stderr.as_mut().expect("unable to open stderr of child");
-    let mut stderr_buffer = BufReader::new(stderr).lines();
+    let mut membuffer = [0u8; 8 * 1024];
     if quiet {
         // Only pipe messages from standard error when quiet mode is enabled.
-        for stderr in stderr_buffer {
-            if let Ok(stderr) = stderr {
+        while let Ok(bytes_read) = stderr.read(&mut membuffer[..]) {
+            if bytes_read != 0 {
+                let output = String::from_utf8_lossy(&membuffer[0..bytes_read]);
                 let _ = output_tx.send(State::Processing(JobOutput {
                     id:   job_id,
-                    pipe: Pipe::Stderr(name.clone(), stderr)
+                    pipe: Pipe::Stderr(name.clone(), output.into_owned())
                 }));
             } else {
                 break
             }
         }
     } else {
-        let stdout = child.stdout.as_mut().expect("unable to open stdout of child");
-        let mut stdout_buffer = BufReader::new(stdout).lines();
+        let mut stdout = child.stdout.as_mut().expect("unable to open stdout of child");
 
         // Attempt to read from stdout and stderr simultaneously until both are exhausted of messages.
         loop {
-            if let Some(stdout) = stdout_buffer.next() {
-                // If a message is received from standard output, it will be sent as a `Pipe::Stdout`.
-                if let Ok(stdout) = stdout {
+            if let Ok(bytes_read) = stdout.read(&mut membuffer[..]) {
+                if bytes_read != 0 {
+                    let output = String::from_utf8_lossy(&membuffer[0..bytes_read]);
                     let _ = output_tx.send(State::Processing(JobOutput {
                         id:   job_id,
-                        pipe: Pipe::Stdout(stdout)
+                        pipe: Pipe::Stdout(output.into_owned())
                     }));
                 } else {
                     break
                 }
-            } else if let Some(stderr) = stderr_buffer.next() {
-                // If a message is received from standard error, it will be sent as a `Pipe::Stderr`.
-                if let Ok(stderr) = stderr {
+            } else if let Ok(bytes_read) = stdout.read(&mut membuffer[..]) {
+                if bytes_read != 0 {
+                    let output = String::from_utf8_lossy(&membuffer[0..bytes_read]);
                     let _ = output_tx.send(State::Processing(JobOutput {
                         id:   job_id,
-                        pipe: Pipe::Stderr(name.clone(), stderr)
+                        pipe: Pipe::Stderr(name.clone(), output.into_owned())
                     }));
                 } else {
                     break
