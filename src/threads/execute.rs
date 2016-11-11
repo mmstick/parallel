@@ -1,7 +1,8 @@
-use arguments::{Flags, InputIterator, InputIteratorErr};
+use arguments::{Flags, InputIteratorErr};
 use command::{self, CommandErr};
 use super::pipe::{self, State};
-use super::super::arguments::tokenizer::Token;
+use super::super::tokenizer::Token;
+use super::super::input_iterator::InputIterator;
 use verbose;
 
 use std::io::{self, Write, Stderr};
@@ -52,7 +53,7 @@ pub fn command(slot: usize, num_inputs: usize, flags: Flags, arguments: Vec<Toke
             command_template: &arguments,
         };
 
-        match command.exec(flags.uses_shell, flags.quiet) {
+        match command.exec(flags.pipe, flags.uses_shell, flags.quiet) {
             Ok(mut child) => {
                 pipe::output(&mut child, job_id, input.clone(), &output_tx, flags.quiet);
                 let _ = child.wait();
@@ -62,11 +63,6 @@ pub fn command(slot: usize, num_inputs: usize, flags: Flags, arguments: Vec<Toke
                 let _ = stderr.write(b"parallel: command error: ");
                 let message = match cmd_err {
                     CommandErr::IO(error) => format!("I/O error: {}\n", error),
-                    CommandErr::Input(error) => match error {
-                        InputIteratorErr::FileRead(path, why) => {
-                            format!("input file read error: {:?}: {}\n", path, why)
-                        },
-                    }
                 };
 
                 let _ = stderr.write(message.as_bytes());
@@ -94,15 +90,14 @@ pub fn inputs(num_inputs: usize, flags: Flags, inputs: Arc<Mutex<InputIterator>>
             verbose::processing_task(&stdout, &job_id.to_string(), &job_total, &input);
         }
 
-        match command::get_command_output(&input, flags.uses_shell, flags.quiet) {
+        match command::get_command_output(&input, flags.pipe, flags.uses_shell, flags.quiet) {
             Ok(mut child) => {
                 pipe::output(&mut child, job_id, input.clone(), &output_tx, flags.quiet);
                 let _ = child.wait();
             },
             Err(why) => {
                 let mut stderr = stderr.lock();
-                let _ = write!(&mut stderr, "parallel: command error: {}: {}\n",
-                    input, why);
+                let _ = write!(&mut stderr, "parallel: command error: {}: {}\n", input, why);
                 let message = format!("{}: {}: {}\n", job_id, input, why);
                 let _ = output_tx.send(State::Error(job_id, message));
             }

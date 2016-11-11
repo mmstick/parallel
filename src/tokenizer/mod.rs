@@ -1,5 +1,8 @@
+pub mod functions;
+
 use std::io;
 use std::path::Path;
+pub use self::functions::*;
 
 #[derive(Debug)]
 pub enum TokenErr {
@@ -41,10 +44,9 @@ impl Number {
     fn into_argument(self, path: &Path) -> Result<String, TokenErr> {
         use std::fs::File;
         use std::io::{BufRead, BufReader};
-        use super::token_matcher::*;
-        let file = try!(File::open(path).map_err(TokenErr::File));
-        let input = &try!(BufReader::new(file).lines().skip(self.id-1)
-            .next().unwrap().map_err(TokenErr::File));
+        let file = File::open(path).map_err(TokenErr::File)?;
+        let input = &BufReader::new(file).lines().nth(self.id-1)
+            .unwrap().map_err(TokenErr::File)?;
         let argument = match self.token {
             Token::Argument(_)     => unreachable!(),
             Token::Basename        => basename(input),
@@ -97,7 +99,7 @@ pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usi
                     tokens.push(Token::Placeholder);
                 } else {
                     // Supply the internal contents of the pattern to the token matcher.
-                    match try!(match_token(&template[pattern_start+1..id], path, nargs)) {
+                    match match_token(&template[pattern_start+1..id], path, nargs)? {
                         // If the token is a match, add the matched token.
                         Some(token) => tokens.push(token),
                         // If the token is not a match, add it as an argument.
@@ -140,20 +142,20 @@ fn match_token(pattern: &str, path: &Path, nargs: usize) -> Result<Option<Token>
         "#^" => Ok(Some(Token::Argument(nargs.to_string()))),
         _    => {
             let ndigits = pattern.chars().take_while(|&x| x.is_numeric()).count();
-            let nchars  = pattern.chars().count();
+            let nchars  = ndigits + pattern.chars().skip(ndigits).count();
             if ndigits != 0 {
                 let number = pattern[0..ndigits].parse::<usize>().unwrap();
                 if ndigits == nchars {
                     if number == 0 || number > nargs {
                         return Err(TokenErr::OutOfBounds);
                     }
-                    let argument = try!(Number::new(number, Token::Placeholder).into_argument(path));
+                    let argument = Number::new(number, Token::Placeholder).into_argument(path)?;
                     Ok(Some(Token::Argument(argument)))
                 } else {
-                    match try!(match_token(&pattern[ndigits..], path, nargs)) {
+                    match match_token(&pattern[ndigits..], path, nargs)? {
                         None | Some(Token::Job) |  Some(Token::Slot) => Ok(None),
                         Some(token) => {
-                            let argument = try!(Number::new(number, token).into_argument(path));
+                            let argument = Number::new(number, token).into_argument(path)?;
                             Ok(Some(Token::Argument(argument)))
                         },
                     }

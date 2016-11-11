@@ -1,29 +1,24 @@
 /// Contains all functionality pertaining to parsing, tokenizing, and generating input arguments.
-
-mod disk_buffer;
-mod iterator;
-mod errors;
+pub mod errors;
 mod jobs;
 mod man;
-pub mod token_matcher;
-pub mod tokenizer;     // Takes the command template that is provided and reduces it to digestible tokens.
 
 use std::env;
 use std::fs;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use std::process::exit;
-use self::tokenizer::{Token, tokenize};
 use permutate::Permutator;
 use num_cpus;
 
+use super::disk_buffer::{self, DiskBufferTrait};
 use super::filepaths;
+use super::input_iterator::InputIterator;
+use super::tokenizer::{Token, tokenize};
 use self::errors::ParseErr;
 
 // Re-export key items from internal modules.
-pub use self::iterator::InputIterator;
 pub use self::errors::{FileErr, InputIteratorErr};
-pub use self::disk_buffer::{DiskBuffer, DiskBufferTrait, DiskBufferWriter};
 
 
 #[derive(PartialEq)]
@@ -32,6 +27,7 @@ enum Mode { Arguments, Command, Inputs, Files }
 #[derive(Clone)]
 pub struct Flags {
     pub inputs_are_commands: bool,
+    pub pipe:                bool,
     pub uses_shell:          bool,
     pub quiet:               bool,
     pub verbose:             bool
@@ -44,6 +40,7 @@ impl Flags {
             quiet: false,
             verbose: false,
             inputs_are_commands: false,
+            pipe: false,
         }
     }
 }
@@ -51,19 +48,21 @@ impl Flags {
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
 pub struct Args {
-    pub flags:     Flags,
-    pub ncores:    usize,
-    pub arguments: Vec<Token>,
-    pub ninputs:   usize,
+    pub flags:        Flags,
+    pub ncores:       usize,
+    pub arguments:    Vec<Token>,
+    pub piped_values: Option<Vec<String>>,
+    pub ninputs:      usize,
 }
 
 impl Args {
     pub fn new() -> Args {
         Args {
-            ncores: num_cpus::get(),
-            flags: Flags::new(),
-            arguments: Vec::new(),
-            ninputs: 0,
+            ncores:       num_cpus::get(),
+            flags:        Flags::new(),
+            arguments:    Vec::new(),
+            piped_values: None,
+            ninputs:      0,
         }
     }
 
@@ -74,8 +73,8 @@ impl Args {
         };
 
         // Create a write buffer that automatically writes data to the disk when the buffer is full.
-        let mut disk_buffer = try!(disk_buffer::DiskBuffer::new(&unprocessed_path).write()
-            .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.clone(), why))));
+        let mut disk_buffer = disk_buffer::DiskBuffer::new(&unprocessed_path).write()
+            .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.clone(), why)))?;
 
         // Temporary stores for input arguments.
         let mut raw_args                    = env::args().skip(1).peekable();
@@ -84,7 +83,7 @@ impl Args {
         let mut current_inputs: Vec<String> = Vec::new();
 
         // The purpose of this is to set the initial parsing mode.
-        let mut mode = match try!(raw_args.peek().ok_or(ParseErr::NoArguments)).as_ref() {
+        let mut mode = match raw_args.peek().ok_or(ParseErr::NoArguments)?.as_ref() {
             ":::"  => Mode::Inputs,
             "::::" => Mode::Files,
             _      => Mode::Arguments
@@ -112,12 +111,12 @@ impl Args {
                                 self.ncores = if char_iter.peek().is_some() {
                                     // Each character that follows after `j` will be considered an
                                     // input value.
-                                    try!(jobs::parse(&argument[2..]))
+                                    jobs::parse(&argument[2..])?
                                 } else {
                                     // If there was no character after `j`, the following argument
                                     // must be the job value.
-                                    let val = &try!(raw_args.next().ok_or(ParseErr::JobsNoValue));
-                                    try!(jobs::parse(val))
+                                    let val = &raw_args.next().ok_or(ParseErr::JobsNoValue)?;
+                                    jobs::parse(val)?
                                 }
                             } else if character != '-' {
                                 // NOTE: Short mode versions of arguments
@@ -128,6 +127,7 @@ impl Args {
                                             exit(0);
                                         },
                                         'n' => self.flags.uses_shell = false,
+                                        'p' => self.flags.pipe = true,
                                         'q' => self.flags.quiet = true,
                                         'v' => self.flags.verbose = true,
                                         _ => {
@@ -143,19 +143,20 @@ impl Args {
                                         exit(0);
                                     },
                                     "jobs" => {
-                                        let val = &try!(raw_args.next().ok_or(ParseErr::JobsNoValue));
-                                        self.ncores = try!(jobs::parse(val))
+                                        let val = &raw_args.next().ok_or(ParseErr::JobsNoValue)?;
+                                        self.ncores = jobs::parse(val)?
                                     },
                                     "no-shell" => self.flags.uses_shell = false,
                                     "num-cpu-cores" => {
                                         println!("{}", num_cpus::get());
                                         exit(0);
                                     },
+                                    "pipe" => self.flags.pipe = true,
                                     "quiet" => self.flags.quiet = true,
                                     "verbose" => self.flags.verbose = true,
                                     "version" => {
-                                        println!("parallel 0.5.0\n\nCrate Dependencies:");
-                                        println!("    libc      0.2.16");
+                                        println!("parallel 0.6.0\n\nCrate Dependencies:");
+                                        println!("    libc      0.2.15");
                                         println!("    num_cpus  1.0.0");
                                         println!("    permutate 0.1.3");
                                         exit(0);
@@ -222,7 +223,7 @@ impl Args {
                     // All other arguments will be added to the current list.
                     _ => match mode {
                         Mode::Inputs => current_inputs.push(argument.to_owned()),
-                        Mode::Files => try!(file_parse(&mut current_inputs, argument)),
+                        Mode::Files => file_parse(&mut current_inputs, argument)?,
                         _ => unreachable!()
                     }
                 }
@@ -249,26 +250,24 @@ impl Args {
 
             for permutation in permutator {
                 let mut iter = permutation.iter();
-                try!(disk_buffer.write(iter.next().unwrap().as_bytes())
-                    .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why))));
+                disk_buffer.write(iter.next().unwrap().as_bytes())
+                    .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                 for element in iter {
-                    try!(disk_buffer.write_byte(b' ')
-                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why))));
-                    try!(disk_buffer.write(element.as_bytes())
-                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why))));
+                    disk_buffer.write_byte(b' ')
+                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                    disk_buffer.write(element.as_bytes())
+                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                 }
-                try!(disk_buffer.write_byte(b'\n')
-                    .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why))));
+                disk_buffer.write_byte(b'\n')
+                    .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                 number_of_arguments += 1;
             }
         } else {
             for input in current_inputs {
-                try!(disk_buffer.write(input.as_bytes()).map_err(|why|
-                    ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
-                );
-                try!(disk_buffer.write_byte(b'\n').map_err(|why|
-                    ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
-                );
+                disk_buffer.write(input.as_bytes()).map_err(|why|
+                    ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                disk_buffer.write_byte(b'\n').map_err(|why|
+                    ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                 number_of_arguments += 1;
             }
         }
@@ -278,37 +277,33 @@ impl Args {
             let stdin = io::stdin();
             for line in stdin.lock().lines() {
                 if let Ok(line) = line {
-                    try!(disk_buffer.write(line.as_bytes()).map_err(|why|
-                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
-                    );
-                    try!(disk_buffer.write_byte(b'\n').map_err(|why|
-                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
-                    );
+                    disk_buffer.write(line.as_bytes()).map_err(|why|
+                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                    disk_buffer.write_byte(b'\n').map_err(|why|
+                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                     number_of_arguments += 1;
                 }
             }
         }
 
         // Flush the contents of the buffer to the disk before tokenizing the command argument.
-        try!(disk_buffer.flush().map_err(|why|
-            ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))
-        );
+        disk_buffer.flush().map_err(|why|
+            ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
 
         // Attempt to tokenize the command argument into simple primitive placeholders.
-        try!(tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments)
-            .map_err(ParseErr::Token));
+        tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments)
+            .map_err(ParseErr::Token)?;
 
         // Return an `InputIterator` of the arguments contained within the unprocessed file.
-        let path = try!(filepaths::unprocessed().ok_or(ParseErr::File(FileErr::Path)));
-        Ok(try!(InputIterator::new(&path, number_of_arguments).map_err(ParseErr::File)))
+        let path = filepaths::unprocessed().ok_or(ParseErr::File(FileErr::Path))?;
+        Ok(InputIterator::new(&path, number_of_arguments).map_err(ParseErr::File)?)
     }
 }
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.
 fn file_parse<P: AsRef<Path>>(inputs: &mut Vec<String>, path: P) -> Result<(), ParseErr> {
     let path = path.as_ref();
-    let file = try!(fs::File::open(path)
-        .map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err))));
+    let file = fs::File::open(path).map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err)))?;
     for line in BufReader::new(file).lines() {
         if let Ok(line) = line { inputs.push(line); }
     }

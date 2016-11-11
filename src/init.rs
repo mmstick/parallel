@@ -1,35 +1,36 @@
 use std::fs::{read_dir, create_dir_all, remove_file, remove_dir, File};
 use std::io::{StderrLock, Write};
 
-use super::arguments::{FileErr, Args, InputIterator};
+use super::arguments::{FileErr, Args};
 use super::filepaths;
+use super::input_iterator::InputIterator;
 
 fn remove_preexisting_files() -> Result<(), FileErr> {
     // Initialize the base directories of the unprocessed and processed files.
-    let path = try!(filepaths::base().ok_or(FileErr::Path));
+    let path = filepaths::base().ok_or(FileErr::Path)?;
 
     // Create the directories that are required for storing input files.
-    try!(create_dir_all(&path).map_err(|why| FileErr::DirectoryCreate(path.clone(), why)));
+    create_dir_all(&path).map_err(|why| FileErr::DirectoryCreate(path.clone(), why))?;
 
     // Attempt to obtain a listing of all the directories and files within the base directory.
-    let directory = try!(read_dir(&path).map_err(|why| FileErr::DirectoryRead(path.clone(), why)));
+    let directory = read_dir(&path).map_err(|why| FileErr::DirectoryRead(path.clone(), why))?;
     for entry in directory {
-        let entry = try!(entry.map_err(|why| FileErr::DirectoryRead(path.clone(), why)));
+        let entry = entry.map_err(|why| FileErr::DirectoryRead(path.clone(), why))?;
         let entry_is_file = entry.file_type().ok().map_or(true, |x| !x.is_dir());
         if entry_is_file {
-            try!(remove_file(entry.path()).map_err(|why| FileErr::Remove(path.clone(), why)));
+            remove_file(entry.path()).map_err(|why| FileErr::Remove(path.clone(), why))?;
         } else {
-            try!(remove_dir(entry.path()).map_err(|why| FileErr::Remove(path.clone(), why)));
+            remove_dir(entry.path()).map_err(|why| FileErr::Remove(path.clone(), why))?;
         }
     }
 
-    // Create empty logs
-    let errors      = try!(filepaths::errors()     .ok_or(FileErr::Path));
-    let unprocessed = try!(filepaths::unprocessed().ok_or(FileErr::Path));
-    let processed   = try!(filepaths::processed()  .ok_or(FileErr::Path));
-    try!(File::create(&errors).map_err(|why| FileErr::Create(errors, why)));
-    try!(File::create(&unprocessed).map_err(|why| FileErr::Create(unprocessed, why)));
-    try!(File::create(&processed  ).map_err(|why| FileErr::Create(processed  , why)));
+    // Create empty logs ahead of time
+    let errors      = filepaths::errors().ok_or(FileErr::Path)?;
+    let unprocessed = filepaths::unprocessed().ok_or(FileErr::Path)?;
+    let processed   = filepaths::processed().ok_or(FileErr::Path)?;
+    File::create(&errors).map_err(|why| FileErr::Create(errors, why))?;
+    File::create(&unprocessed).map_err(|why| FileErr::Create(unprocessed, why))?;
+    File::create(&processed  ).map_err(|why| FileErr::Create(processed  , why))?;
 
     Ok(())
 }

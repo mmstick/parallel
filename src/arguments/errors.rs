@@ -1,7 +1,8 @@
 use std::io::{self, Write, stderr, stdout};
 use std::path::PathBuf;
 use std::process::exit;
-use super::tokenizer::TokenErr;
+
+use super::super::tokenizer::TokenErr;
 
 /// A list of all the possible errors that may happen when working with files.
 #[derive(Debug)]

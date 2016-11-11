@@ -75,6 +75,7 @@ parallel echo {} {1} {2} {3.} ::: 1 2 file.mkv    // {N} tokens are replaced by 
 parallel ::: "echo 1" "echo 2" "echo 3"           // If no command is supplied, the input arguments become commands.
 parallel 'cd {}; echo Directory: {}; echo - {}'   // Commands may be chained in the platform\'s shell.
 ls | parallel 'echo {}'                           // If no input arguments are supplied, stdin will be read.
+ls -1 | parallel --pipe cat                       // Piping arguments to the standard input of the given command.
 ```
 
 ## Manual
@@ -156,6 +157,8 @@ operates:
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
 - **-n**, **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
     - Double quotes and backslashes are used to allow spaces in inputs, similar to standard shells.
+- **-p**, **--pipe**: Instead of supplying arguments as arguments to child processes,
+        instead supply the arguments directly to the standard input of each child process.
 - **-q**, **--quiet**: Disables printing the standard output of running processes.
 - **-v**, **--verbose**: Prints information about running processes.
 - **--version**: Prints the current version of the application and it's dependencies.
@@ -204,8 +207,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.5.1/parallel_0.5.1_amd64.tar.xz
-tar xf parallel_0.5.1.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.6.0/parallel_0.6.0_amd64.tar.xz
+tar xf parallel_0.6.0.tar.xz
 sudo install parallel /usr/local/bin
 ```
 

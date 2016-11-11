@@ -87,6 +87,11 @@ OPTIONS
         significant performance boost. The downside to this is that you
         can only execute one command at a time.
 
+    -p, --pipe:
+        Instead of supplying arguments as arguments to child processes,
+        instead supply the arguments directly to the standard input of each
+        child process.
+
     -q, --quiet:
         Disables printing the standard output of running processes.
 

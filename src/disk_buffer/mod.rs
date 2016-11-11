@@ -29,7 +29,7 @@ impl DiskBuffer {
 
     /// Transform the `DiskBuffer` into a `DiskBufferWriter`.
     pub fn write(self) -> Result<DiskBufferWriter, Error> {
-        try!(fs::OpenOptions::new().create(true).write(true).open(&self.path));
+        fs::OpenOptions::new().create(true).write(true).open(&self.path)?;
         Ok(DiskBufferWriter {
             data:     [b'\0'; BUFFER_SIZE],
             capacity: 0,
@@ -39,7 +39,7 @@ impl DiskBuffer {
 
     /// Transform the `DiskBuffer` into a `DiskBufferReader`
     pub fn read(self) -> Result<DiskBufferReader, Error> {
-        let file = try!(fs::OpenOptions::new().read(true).open(&self.path));
+        let file = fs::OpenOptions::new().read(true).open(&self.path)?;
         Ok(DiskBufferReader {
             data:     [b'\0'; BUFFER_SIZE],
             capacity: 0,
@@ -69,13 +69,13 @@ impl DiskBufferReader {
     /// and then buffer into the adjacent bytes.
     pub fn buffer(&mut self, bytes_used: usize) -> Result<(), Error> {
         if bytes_used == 0 {
-            self.capacity = try!(self.file.read(&mut self.data));
+            self.capacity = self.file.read(&mut self.data)?;
         } else {
             let bytes_unused = self.capacity - bytes_used;
             for (left, right) in (0..bytes_unused).zip(bytes_used + 1..bytes_used + bytes_unused) {
                 self.data[left] = self.data[right];
             }
-            self.capacity = try!(self.file.read(&mut self.data[bytes_unused-1..]))
+            self.capacity = self.file.read(&mut self.data[bytes_unused-1..])?
                 + bytes_unused - 1;
         }
         Ok(())
@@ -100,8 +100,8 @@ impl DiskBufferWriter {
     pub fn write(&mut self, data: &[u8]) -> Result<(), Error> {
         let cap = data.len();
         if cap + self.capacity > BUFFER_SIZE {
-            try!(fs::OpenOptions::new().write(true).append(true).open(&self.path)
-                .and_then(|mut file| file.write(self.get_ref())));
+            fs::OpenOptions::new().write(true).append(true).open(&self.path)
+                .and_then(|mut file| file.write(self.get_ref()))?;
             self.clear();
         }
         self.data[self.capacity..self.capacity + cap].clone_from_slice(data);
@@ -112,8 +112,8 @@ impl DiskBufferWriter {
     /// Append an individual byte to the buffer, typically a space or newline.
     pub fn write_byte(&mut self, data: u8) -> Result<(), Error> {
         if self.capacity + 1 > BUFFER_SIZE {
-            try!(fs::OpenOptions::new().write(true).append(true).open(&self.path)
-                .and_then(|mut file| file.write(self.get_ref())));
+            fs::OpenOptions::new().write(true).append(true).open(&self.path)
+                .and_then(|mut file| file.write(self.get_ref()))?;
             self.clear();
         }
         self.data[self.capacity] = data;

@@ -2,9 +2,12 @@ extern crate num_cpus;
 extern crate permutate;
 mod arguments;
 mod command;
+mod disk_buffer;
 mod filepaths;
 mod init;
+mod input_iterator;
 mod threads;
+mod tokenizer;
 mod verbose;
 
 use std::fs::File;
@@ -65,7 +68,7 @@ fn main() {
     }
 
     threads::receive_messages(input_rx, args);
-    for thread in threads.into_iter() { thread.join().unwrap(); }
+    for thread in threads { thread.join().unwrap(); }
 
     // If errors have occurred, re-print these errors at the end.
     if let Some(path) = filepaths::errors() {

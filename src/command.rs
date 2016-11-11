@@ -1,12 +1,10 @@
-use std::io;
+use std::env;
 use std::ffi::OsStr;
+use std::io::{self, Write};
 use std::process::{Child, Command, Stdio};
-use super::arguments::tokenizer::Token;
-use super::arguments::token_matcher::*;
-use super::arguments::InputIteratorErr;
+use super::tokenizer::*;
 
 pub enum CommandErr {
-    Input(InputIteratorErr),
     IO(io::Error)
 }
 
@@ -19,90 +17,124 @@ pub struct ParallelCommand<'a> {
 }
 
 impl<'a> ParallelCommand<'a> {
-    pub fn exec(&self, uses_shell: bool, quiet: bool) -> Result<Child, CommandErr> {
+    pub fn exec(&self, pipe: bool, uses_shell: bool, quiet: bool) -> Result<Child, CommandErr> {
         // First the arguments will be generated based on the tokens and input.
         let mut arguments = String::with_capacity(self.command_template.len() << 1);
-        try!(self.build_arguments(&mut arguments).map_err(CommandErr::Input));
+        self.build_arguments(&mut arguments, pipe);
 
-        // Check to see if any placeholder tokens are in use.
-        let placeholder_exists = self.command_template.iter().any(|x| {
-            x == &Token::BaseAndExt || x == &Token::Basename || x == &Token::Dirname ||
-            x == &Token::Job || x == &Token::Placeholder || x == &Token::RemoveExtension ||
-            x == &Token::Slot
-        });
+        if !pipe {
+            // Check to see if any placeholder tokens are in use.
+            let placeholder_exists = self.command_template.iter().any(|x| {
+                x == &Token::BaseAndExt || x == &Token::Basename || x == &Token::Dirname ||
+                x == &Token::Job || x == &Token::Placeholder || x == &Token::RemoveExtension ||
+                x == &Token::Slot
+            });
 
-        // If no placeholder tokens are in use, the user probably wants to infer one.
-        if !placeholder_exists {
-            arguments.push(' ');
-            arguments.push_str(self.input);
+            // If no placeholder tokens are in use, the user probably wants to infer one.
+            if !placeholder_exists {
+                arguments.push(' ');
+                arguments.push_str(self.input);
+            }
+
+            get_command_output(&arguments, pipe, uses_shell, quiet).map_err(CommandErr::IO)
+        } else {
+            let mut child = get_command_output(&arguments, pipe, uses_shell, quiet).map_err(CommandErr::IO)?;
+
+            {   // Grab a handle to the child's stdin and write the input argument to the child's stdin.
+                let stdin = child.stdin.as_mut().unwrap();
+                stdin.write(self.input.as_bytes()).map_err(CommandErr::IO)?;
+                stdin.write(b"\n").map_err(CommandErr::IO)?;
+            }
+
+            // Drop the stdin of the child process to avoid having the application hang waiting for user input.
+            drop(child.stdin.take());
+
+            Ok(child)
         }
-
-        get_command_output(&arguments, uses_shell, quiet) .map_err(CommandErr::IO)
     }
 
     /// Builds arguments using the `tokens` template with the current `input` value.
     /// The arguments will be stored within a `Vec<String>`
-    fn build_arguments(&self, arguments: &mut String) -> Result<(), InputIteratorErr> {
-        for arg in self.command_template {
-            match *arg {
-                Token::Argument(ref arg)  => arguments.push_str(arg),
-                Token::Basename           => arguments.push_str(basename(self.input)),
-                Token::BaseAndExt         => arguments.push_str(basename(remove_extension(self.input))),
-                Token::Dirname            => arguments.push_str(dirname(self.input)),
-                Token::Job                => arguments.push_str(self.job_no),
-                Token::Placeholder        => arguments.push_str(self.input),
-                Token::RemoveExtension    => arguments.push_str(remove_extension(self.input)),
-                Token::Slot               => arguments.push_str(self.slot_no)
+    fn build_arguments(&self, arguments: &mut String, pipe: bool) {
+        if pipe {
+            for arg in self.command_template {
+                match *arg {
+                    Token::Argument(ref arg) => arguments.push_str(arg),
+                    Token::Job               => arguments.push_str(self.job_no),
+                    Token::Slot              => arguments.push_str(self.slot_no),
+                    _ => ()
+                }
+            }
+        } else {
+            for arg in self.command_template {
+                match *arg {
+                    Token::Argument(ref arg)  => arguments.push_str(arg),
+                    Token::Basename           => arguments.push_str(basename(self.input)),
+                    Token::BaseAndExt         => arguments.push_str(basename(remove_extension(self.input))),
+                    Token::Dirname            => arguments.push_str(dirname(self.input)),
+                    Token::Job                => arguments.push_str(self.job_no),
+                    Token::Placeholder        => arguments.push_str(self.input),
+                    Token::RemoveExtension    => arguments.push_str(remove_extension(self.input)),
+                    Token::Slot               => arguments.push_str(self.slot_no)
+                }
             }
         }
-        Ok(())
     }
 }
 
-pub fn get_command_output(command: &str, uses_shell: bool, quiet: bool) -> io::Result<Child> {
-    if uses_shell {
-        shell_output(command, quiet)
+pub fn get_command_output(command: &str, pipe: bool, uses_shell: bool, quiet: bool) -> io::Result<Child> {
+    if uses_shell && !pipe {
+        shell_output(command, quiet, pipe)
     } else {
         let arguments = split_into_args(command);
-        match (arguments.len() == 1, quiet) {
-            (true, true) => Command::new(&arguments[0])
+        match (arguments.len() == 1, quiet, pipe) {
+            (true, true, false) => Command::new(&arguments[0])
                 .stdout(Stdio::null()).stderr(Stdio::piped())
                 .spawn(),
-            (true, false) => Command::new(&arguments[0])
+            (true, true, true) => Command::new(&arguments[0])
+                .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped())
+                .spawn(),
+            (true, false, false) => Command::new(&arguments[0])
                 .stdout(Stdio::piped()).stderr(Stdio::piped())
                 .spawn(),
-            (false, true) => Command::new(&arguments[0]).args(&arguments[1..])
+            (true, false, true) => Command::new(&arguments[0])
+                .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
+                .spawn(),
+            (false, true, false) => Command::new(&arguments[0]).args(&arguments[1..])
                 .stdout(Stdio::null()).stderr(Stdio::piped())
                 .spawn(),
-            (false, false) => Command::new(&arguments[0]).args(&arguments[1..])
+            (false, true, true) => Command::new(&arguments[0]).args(&arguments[1..])
+                .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped())
+                .spawn(),
+            (false, false, false) => Command::new(&arguments[0]).args(&arguments[1..])
                 .stdout(Stdio::piped()).stderr(Stdio::piped())
-                .spawn()
+                .spawn(),
+            (false, false, true) => Command::new(&arguments[0]).args(&arguments[1..])
+                .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
+                .spawn(),
         }
     }
 }
 
-#[cfg(windows)]
-fn shell_output<S: AsRef<OsStr>>(args: S, quiet: bool) -> io::Result<Child> {
-    if quiet {
-        Command::new("cmd").arg("/C").arg(args)
-            .stdout(Stdio::null()).stderr(Stdio::piped())
-            .spawn()
+fn shell_output<S: AsRef<OsStr>>(args: S, quiet: bool, pipe: bool) -> io::Result<Child> {
+    let (cmd, flag) = if cfg!(windows) {
+        ("cmd".to_owned(), "/C")
     } else {
-        Command::new("cmd").arg("/C").arg(args)
-            .stdout(Stdio::piped()).stderr(Stdio::piped())
-            .spawn()
-    }
-}
+        (env::var("SHELL").unwrap_or("sh".to_owned()), "-c")
+    };
 
-#[cfg(not(windows))]
-fn shell_output<S: AsRef<OsStr>>(args: S, quiet: bool) -> io::Result<Child> {
-    if quiet {
-        Command::new("sh").arg("-c").arg(args)
+    match (quiet, pipe) {
+        (true, false) => Command::new(cmd).arg(flag).arg(args)
             .stdout(Stdio::null()).stderr(Stdio::piped())
-            .spawn()
-    } else {
-        Command::new("sh").arg("-c").arg(args)
+            .spawn(),
+        (true, true) => Command::new(cmd).arg(flag).arg(args)
+            .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped())
+            .spawn(),
+        (false, false) => Command::new(cmd).arg(flag).arg(args)
             .stdout(Stdio::piped()).stderr(Stdio::piped())
+            .spawn(),
+        (false, true) => Command::new(cmd).arg(flag).arg(args)
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
             .spawn()
     }
 }

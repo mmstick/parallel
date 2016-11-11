@@ -4,7 +4,8 @@ pub mod pipe;
 use std::io::{stderr, stdout, Write};
 use std::sync::mpsc::Receiver;
 
-use super::arguments::{Args, DiskBuffer };
+use super::arguments::Args;
+use super::disk_buffer::DiskBuffer;
 use super::filepaths;
 use self::pipe::State;
 
@@ -22,7 +23,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args) {
     let mut processed_file = DiskBuffer::new(&filepaths::processed().unwrap()).write().unwrap();
     let mut error_file     = DiskBuffer::new(&filepaths::errors().unwrap()).write().unwrap();
 
-    // The loop will only quit once all inputs have been received. I guarantee it.
+    // The loop will only quit once all inputs have been received.
     while counter < args.ninputs {
         // Block and wait until a new buffer is received.
         match input_rx.recv().unwrap() {

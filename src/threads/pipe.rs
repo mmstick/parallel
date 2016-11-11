@@ -1,7 +1,7 @@
 use std::io::{Read, Stdout, Stderr, Write};
 use std::process::Child;
 use std::sync::mpsc::Sender;
-use super::super::arguments::DiskBufferWriter;
+use super::super::disk_buffer::DiskBufferWriter;
 
 /// A `Pipe` may either be a stream from `Stdout` or `Stderr`.
 pub enum Pipe {
@@ -49,6 +49,7 @@ impl Pipe {
                     .and_then(|_| error_file.write(name.as_bytes()))
                     .and_then(|_| error_file.write(b": "))
                     .and_then(|_| error_file.write(message.as_bytes()))
+                    .and_then(|_| error_file.write(b"\n"))
                 {
                     let _ = stderr.write(b"parallel: I/O error: ");
                     let _ = stderr.write(why.to_string().as_bytes());

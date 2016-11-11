@@ -1,5 +1,5 @@
 use super::disk_buffer::*;
-use super::errors::{FileErr, InputIteratorErr};
+use super::arguments::errors::{FileErr, InputIteratorErr};
 use std::path::{Path, PathBuf};
 
 /// The `InputIterator` tracks the total number of arguments, the current argument counter, and
@@ -14,28 +14,28 @@ pub struct InputIterator {
 impl InputIterator {
     pub fn new(path: &Path, args: usize) -> Result<InputIterator, FileErr> {
         // Create an `InputBuffer` from the unprocessed file.
-        let disk_buffer = try!(DiskBuffer::new(path).read()
-            .map_err(|why| FileErr::Open(PathBuf::from(path), why)));
-        let input_buffer = try!(InputBuffer::new(disk_buffer));
+        let disk_buffer = DiskBuffer::new(path).read()
+            .map_err(|why| FileErr::Open(PathBuf::from(path), why))?;
+        let input_buffer = InputBuffer::new(disk_buffer)?;
 
         Ok(InputIterator {
-            total_arguments:   args,
-            curr_argument:     0,
-            input_buffer:      input_buffer,
+            total_arguments: args,
+            curr_argument:   0,
+            input_buffer:    input_buffer,
         })
     }
 
     fn buffer(&mut self) -> Result<(), InputIteratorErr> {
         // Read the next set of arguments from the unprocessed file, but only read as many bytes
         // as the buffer can hold without overwriting the unused bytes that was shifted to the left.
-        try!(self.input_buffer.disk_buffer.buffer(self.input_buffer.capacity).map_err(|why| {
+        self.input_buffer.disk_buffer.buffer(self.input_buffer.capacity).map_err(|why| {
             InputIteratorErr::FileRead(PathBuf::from(self.input_buffer.disk_buffer.path.clone()), why)
-        }));
+        })?;
         let bytes_read = self.input_buffer.disk_buffer.capacity;
 
         // Update the recorded number of arguments and indices.
         self.input_buffer.start = self.input_buffer.end + 1;
-        self.input_buffer.count_arguments(bytes_read);
+        count_arguments(&mut self.input_buffer, bytes_read);
         self.input_buffer.index = 0;
         Ok(())
     }
@@ -63,7 +63,7 @@ impl Iterator for InputIterator {
         };
 
         // Increment the iterator's state.
-        self.curr_argument += 1;
+        self.curr_argument       += 1;
         self.input_buffer.index  += 1;
 
         // Copy the input from the buffer into a `String` and return it
@@ -87,7 +87,7 @@ impl InputBuffer {
     /// Takes ownership of a `DiskBufferReader` and transforms it into a higher level
     /// `InputBuffer` which will track additional information about the disk buffer.
     fn new(mut unprocessed: DiskBufferReader) -> Result<InputBuffer, FileErr> {
-        try!(unprocessed.buffer(0).map_err(|why| FileErr::Read(unprocessed.path.clone(), why)));
+        unprocessed.buffer(0).map_err(|why| FileErr::Read(unprocessed.path.clone(), why))?;
         let bytes_read = unprocessed.capacity;
 
         let mut temp = InputBuffer {
@@ -99,28 +99,29 @@ impl InputBuffer {
             indices:     [0usize; BUFFER_SIZE / 2]
         };
 
-        temp.count_arguments(bytes_read);
+        count_arguments(&mut temp, bytes_read);
         Ok(temp)
     }
 
-    /// Counts the number of arguments that are stored in the buffer, marking the location of
-    /// the indices and the actual capacity of the buffer's useful information.
-    fn count_arguments(&mut self, bytes_read: usize) {
-        let mut newlines = 1;
-        self.capacity = 0;
 
-        let newline_indices = self.disk_buffer.data.iter().take(bytes_read).enumerate()
-            .filter(|&(_, &byte)| byte == b'\n').map(|(indice, _)| indice);
+}
 
-        for id in newline_indices {
-            self.indices[newlines] = id;
+/// Counts the number of arguments that are stored in the buffer, marking the location of
+/// the indices and the actual capacity of the buffer's useful information.
+fn count_arguments(buffer: &mut InputBuffer, bytes_read: usize) {
+    let mut newlines = 1;
+    buffer.capacity  = 0;
+
+    for indice in 0..bytes_read {
+        if buffer.disk_buffer.data[indice] == b'\n' {
+            buffer.indices[newlines] = indice;
             newlines += 1;
         }
-        newlines -= 1;
-        self.capacity = self.indices[newlines];
-        self.end     += newlines;
-
     }
+
+    newlines -= 1;
+    buffer.capacity = buffer.indices[newlines];
+    buffer.end += newlines;
 }
 
 #[test]
