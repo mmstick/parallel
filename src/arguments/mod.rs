@@ -36,10 +36,10 @@ pub struct Flags {
 impl Flags {
     fn new() -> Flags {
         Flags {
+            inputs_are_commands: false,
             uses_shell: true,
             quiet: false,
             verbose: false,
-            inputs_are_commands: false,
             pipe: false,
         }
     }
@@ -71,6 +71,8 @@ impl Args {
             Some(path) => path,
             None => return Err(ParseErr::File(FileErr::Path))
         };
+
+        let mut quote = false;
 
         // Create a write buffer that automatically writes data to the disk when the buffer is full.
         let mut disk_buffer = disk_buffer::DiskBuffer::new(&unprocessed_path).write()
@@ -128,7 +130,8 @@ impl Args {
                                         },
                                         'n' => self.flags.uses_shell = false,
                                         'p' => self.flags.pipe = true,
-                                        'q' => self.flags.quiet = true,
+                                        'q' => quote = true,
+                                        's' => self.flags.quiet = true,
                                         'v' => self.flags.verbose = true,
                                         _ => {
                                             return Err(ParseErr::InvalidArgument(argument.to_owned()))
@@ -152,10 +155,11 @@ impl Args {
                                         exit(0);
                                     },
                                     "pipe" => self.flags.pipe = true,
-                                    "quiet" => self.flags.quiet = true,
+                                    "quiet" | "silent" => self.flags.quiet = true,
+                                    "quote" => quote = true,
                                     "verbose" => self.flags.verbose = true,
                                     "version" => {
-                                        println!("parallel 0.6.0\n\nCrate Dependencies:");
+                                        println!("parallel 0.6.1\n\nCrate Dependencies:");
                                         println!("    libc      0.2.15");
                                         println!("    num_cpus  1.0.0");
                                         println!("    permutate 0.1.3");
@@ -290,6 +294,9 @@ impl Args {
         disk_buffer.flush().map_err(|why|
             ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
 
+        // Expand the command if quoting is enabled
+        if quote { comm = quote_command(comm); }
+
         // Attempt to tokenize the command argument into simple primitive placeholders.
         tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments)
             .map_err(ParseErr::Token)?;
@@ -298,6 +305,20 @@ impl Args {
         let path = filepaths::unprocessed().ok_or(ParseErr::File(FileErr::Path))?;
         Ok(InputIterator::new(&path, number_of_arguments).map_err(ParseErr::File)?)
     }
+}
+
+fn quote_command(command: String) -> String {
+    let mut output = String::with_capacity(command.len() << 1);
+    for character in command.chars() {
+        match character {
+            '\\' => {
+                output.push('\\');
+                output.push(character);
+            },
+            _ => output.push(character)
+        }
+    }
+    output
 }
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.

@@ -159,7 +159,8 @@ operates:
     - Double quotes and backslashes are used to allow spaces in inputs, similar to standard shells.
 - **-p**, **--pipe**: Instead of supplying arguments as arguments to child processes,
         instead supply the arguments directly to the standard input of each child process.
-- **-q**, **--quiet**: Disables printing the standard output of running processes.
+- **-q**, **--quote**: Retains backslashes that are supplied as the command input.
+- **-s**, **--silent**, **--quiet**: Disables printing the standard output of running processes.
 - **-v**, **--verbose**: Prints information about running processes.
 - **--version**: Prints the current version of the application and it's dependencies.
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
@@ -207,8 +208,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.6.0/parallel_0.6.0_amd64.tar.xz
-tar xf parallel_0.6.0.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.6.1/parallel_0.6.1_amd64.tar.xz
+tar xf parallel_0.6.1.tar.xz
 sudo install parallel /usr/local/bin
 ```
 

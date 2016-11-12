@@ -92,7 +92,10 @@ OPTIONS
         instead supply the arguments directly to the standard input of each
         child process.
 
-    -q, --quiet:
+    -q, --quote:
+        Retains backslashes that are supplied as the command input.
+
+    -s, --silent, --quiet:
         Disables printing the standard output of running processes.
 
     -v, --verbose:
