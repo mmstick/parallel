@@ -161,6 +161,7 @@ operates:
         instead supply the arguments directly to the standard input of each child process.
 - **-q**, **--quote**: Retains backslashes that are supplied as the command input.
 - **-s**, **--silent**, **--quiet**: Disables printing the standard output of running processes.
+- **--shellquote**: Expands upon quote mode by escaping a wide variety of special characters.
 - **-v**, **--verbose**: Prints information about running processes.
 - **--version**: Prints the current version of the application and it's dependencies.
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
@@ -208,8 +209,8 @@ If a release is not available, it's because I haven't built it yet with cargo de
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.6.1/parallel_0.6.1_amd64.tar.xz
-tar xf parallel_0.6.1.tar.xz
+wget https://github.com/mmstick/parallel/releases/download/0.6.2/parallel_0.6.2_amd64.tar.xz
+tar xf parallel_0.6.2.tar.xz
 sudo install parallel /usr/local/bin
 ```
 

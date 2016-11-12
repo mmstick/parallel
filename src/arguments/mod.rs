@@ -73,6 +73,7 @@ impl Args {
         };
 
         let mut quote = false;
+        let mut shellquote = false;
 
         // Create a write buffer that automatically writes data to the disk when the buffer is full.
         let mut disk_buffer = disk_buffer::DiskBuffer::new(&unprocessed_path).write()
@@ -157,9 +158,10 @@ impl Args {
                                     "pipe" => self.flags.pipe = true,
                                     "quiet" | "silent" => self.flags.quiet = true,
                                     "quote" => quote = true,
+                                    "shellquote" => shellquote = true,
                                     "verbose" => self.flags.verbose = true,
                                     "version" => {
-                                        println!("parallel 0.6.1\n\nCrate Dependencies:");
+                                        println!("parallel 0.6.2\n\nCrate Dependencies:");
                                         println!("    libc      0.2.15");
                                         println!("    num_cpus  1.0.0");
                                         println!("    permutate 0.1.3");
@@ -295,7 +297,7 @@ impl Args {
             ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
 
         // Expand the command if quoting is enabled
-        if quote { comm = quote_command(comm); }
+        if shellquote { comm = shellquote_command(comm); } else if quote { comm = quote_command(comm); }
 
         // Attempt to tokenize the command argument into simple primitive placeholders.
         tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments)
@@ -317,6 +319,23 @@ fn quote_command(command: String) -> String {
             },
             _ => output.push(character)
         }
+    }
+    output
+}
+
+fn shellquote_command(command: String) -> String {
+    let mut command_found = false;
+    let mut output = String::with_capacity(command.len() << 1);
+    for character in command.chars() {
+        match character {
+            ' ' if !command_found => {
+                command_found = true;
+            }
+            '$' | ' ' | '\\' | '>' | '<' | '^' | '&' | '#' | '!' | '*' | '\'' | '\"' | '`' | '~' | '{' | '}' | '[' |
+            ']' | '(' | ')' | ';' | '|' | '?' => output.push('\\'),
+            _ => ()
+        }
+        output.push(character);
     }
     output
 }

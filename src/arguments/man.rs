@@ -98,6 +98,9 @@ OPTIONS
     -s, --silent, --quiet:
         Disables printing the standard output of running processes.
 
+    --shellquote:
+        Expands upon quote mode by escaping a wide variety of special characters.
+
     -v, --verbose:
         Print information about running processes.
 
