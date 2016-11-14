@@ -9,8 +9,8 @@ keywords = ["cli", "parallel", "cpu", "load", "balancer"]
 readme = "README.md"
 
 [dependencies]
-num_cpus = { path = "deps/num_cpus", version = "1.0.0" }
-permutate = { path = "deps/permutate", version = "0.1.3" }
+num_cpus = "1"
+permutate = "0.1"
 
 [profile.release]
 lto = true

@@ -78,8 +78,7 @@ pub fn command(slot: usize, num_inputs: usize, flags: Flags, arguments: Vec<Toke
 }
 
 /// Executes inputs as commands
-pub fn inputs(num_inputs: usize, flags: Flags, inputs: Arc<Mutex<InputIterator>>,
-    output_tx: Sender<State>) {
+pub fn inputs(num_inputs: usize, flags: Flags, inputs: Arc<Mutex<InputIterator>>, output_tx: Sender<State>) {
     let stdout = io::stdout();
     let stderr = io::stderr();
 

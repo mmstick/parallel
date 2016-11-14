@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::fs;
 use std::io::{Error, Read, Write};
 
-// Controls the size of the buffers for reading/writing to files.
+/// Controls the size of the buffers for reading/writing to files.
 pub const BUFFER_SIZE: usize = 8 * 1024; // 8K seems to be the best buffer size.
 
 pub trait DiskBufferTrait {

@@ -1,3 +1,6 @@
+#![feature(alloc_system)]
+extern crate alloc_system;
+
 extern crate num_cpus;
 extern crate permutate;
 mod arguments;
@@ -44,27 +47,37 @@ fn main() {
     }
 
     // The `slot` variable is required by the {%} token.
-    for slot in 1..args.ncores+1 {
-        let num_inputs = args.ninputs;
-        let inputs     = shared_input.clone();
-        let flags      = args.flags.clone();
-        let output_tx  = output_tx.clone();
+    if args.flags.inputs_are_commands {
+        for _ in 0..args.ncores {
+            let num_inputs = args.ninputs;
+            let inputs     = shared_input.clone();
+            let flags      = args.flags.clone();
+            let output_tx  = output_tx.clone();
 
-        // Execute the corresponding thread based on input flags.
-        let handle: JoinHandle<()> = if flags.inputs_are_commands {
-            thread::spawn(move || {
+            // Each input will be treated as a command
+            let handle: JoinHandle<()> = thread::spawn(move || {
                 threads::execute::inputs(num_inputs, flags, inputs, output_tx)
-            })
-        } else {
-            let arguments = args.arguments.clone();
-            thread::spawn(move || {
-                threads::execute::command(slot, num_inputs, flags, arguments, inputs,
-                    output_tx)
-            })
-        };
+            });
 
-        // Add the thread handle to the `threads` vector to know when to quit the program.
-        threads.push(handle);
+            // Add the thread handle to the `threads` vector to know when to quit the program.
+            threads.push(handle);
+        }
+    } else {
+        for slot in 1..args.ncores+1 {
+            let num_inputs = args.ninputs;
+            let inputs     = shared_input.clone();
+            let flags      = args.flags.clone();
+            let output_tx  = output_tx.clone();
+            let arguments = args.arguments.clone();
+
+            // The command will be built from the arguments, and inputs will be transferred to the command.
+            let handle: JoinHandle<()> = thread::spawn(move || {
+                threads::execute::command(slot, num_inputs, flags, arguments, inputs, output_tx)
+            });
+
+            // Add the thread handle to the `threads` vector to know when to quit the program.
+            threads.push(handle);
+        }
     }
 
     threads::receive_messages(input_rx, args);

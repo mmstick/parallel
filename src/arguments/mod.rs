@@ -2,6 +2,7 @@
 pub mod errors;
 mod jobs;
 mod man;
+mod quote;
 
 use std::env;
 use std::fs;
@@ -45,6 +46,9 @@ impl Flags {
     }
 }
 
+/// Defines what quoting mode to use when expanding the command.
+enum Quoting { None, Basic, Shell }
+
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
 pub struct Args {
@@ -72,8 +76,7 @@ impl Args {
             None => return Err(ParseErr::File(FileErr::Path))
         };
 
-        let mut quote = false;
-        let mut shellquote = false;
+        let mut quote = Quoting::None;
 
         // Create a write buffer that automatically writes data to the disk when the buffer is full.
         let mut disk_buffer = disk_buffer::DiskBuffer::new(&unprocessed_path).write()
@@ -131,7 +134,7 @@ impl Args {
                                         },
                                         'n' => self.flags.uses_shell = false,
                                         'p' => self.flags.pipe = true,
-                                        'q' => quote = true,
+                                        'q' => quote = Quoting::Basic,
                                         's' => self.flags.quiet = true,
                                         'v' => self.flags.verbose = true,
                                         _ => {
@@ -157,8 +160,8 @@ impl Args {
                                     },
                                     "pipe" => self.flags.pipe = true,
                                     "quiet" | "silent" => self.flags.quiet = true,
-                                    "quote" => quote = true,
-                                    "shellquote" => shellquote = true,
+                                    "quote" => quote = Quoting::Basic,
+                                    "shellquote" => quote = Quoting::Shell,
                                     "verbose" => self.flags.verbose = true,
                                     "version" => {
                                         println!("parallel 0.6.2\n\nCrate Dependencies:");
@@ -293,11 +296,14 @@ impl Args {
         }
 
         // Flush the contents of the buffer to the disk before tokenizing the command argument.
-        disk_buffer.flush().map_err(|why|
-            ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+        disk_buffer.flush().map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
 
         // Expand the command if quoting is enabled
-        if shellquote { comm = shellquote_command(comm); } else if quote { comm = quote_command(comm); }
+        match quote {
+            Quoting::None  => (),
+            Quoting::Basic => comm = quote::basic(comm),
+            Quoting::Shell => comm = quote::shell(comm),
+        }
 
         // Attempt to tokenize the command argument into simple primitive placeholders.
         tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments)
@@ -307,37 +313,6 @@ impl Args {
         let path = filepaths::unprocessed().ok_or(ParseErr::File(FileErr::Path))?;
         Ok(InputIterator::new(&path, number_of_arguments).map_err(ParseErr::File)?)
     }
-}
-
-fn quote_command(command: String) -> String {
-    let mut output = String::with_capacity(command.len() << 1);
-    for character in command.chars() {
-        match character {
-            '\\' => {
-                output.push('\\');
-                output.push(character);
-            },
-            _ => output.push(character)
-        }
-    }
-    output
-}
-
-fn shellquote_command(command: String) -> String {
-    let mut command_found = false;
-    let mut output = String::with_capacity(command.len() << 1);
-    for character in command.chars() {
-        match character {
-            ' ' if !command_found => {
-                command_found = true;
-            }
-            '$' | ' ' | '\\' | '>' | '<' | '^' | '&' | '#' | '!' | '*' | '\'' | '\"' | '`' | '~' | '{' | '}' | '[' |
-            ']' | '(' | ')' | ';' | '|' | '?' => output.push('\\'),
-            _ => ()
-        }
-        output.push(character);
-    }
-    output
 }
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.
