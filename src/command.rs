@@ -8,6 +8,22 @@ pub enum CommandErr {
     IO(io::Error)
 }
 
+/// If no placeholder tokens are in use, then the input will be appended at the end of the the command.
+fn append_argument(arguments: &mut String, command_template: &[Token], input: &str) {
+    // Check to see if any placeholder tokens are in use.
+    let placeholder_exists = command_template.iter().any(|x| {
+        x == &Token::BaseAndExt || x == &Token::Basename || x == &Token::Dirname ||
+        x == &Token::Job || x == &Token::Placeholder || x == &Token::RemoveExtension ||
+        x == &Token::Slot
+    });
+
+    // If no placeholder tokens are in use, the user probably wants to infer one.
+    if !placeholder_exists {
+        arguments.push(' ');
+        arguments.push_str(input);
+    }
+}
+
 pub struct ParallelCommand<'a> {
     pub slot_no:          &'a str,
     pub job_no:           &'a str,
@@ -23,19 +39,7 @@ impl<'a> ParallelCommand<'a> {
         self.build_arguments(&mut arguments, pipe);
 
         if !pipe {
-            // Check to see if any placeholder tokens are in use.
-            let placeholder_exists = self.command_template.iter().any(|x| {
-                x == &Token::BaseAndExt || x == &Token::Basename || x == &Token::Dirname ||
-                x == &Token::Job || x == &Token::Placeholder || x == &Token::RemoveExtension ||
-                x == &Token::Slot
-            });
-
-            // If no placeholder tokens are in use, the user probably wants to infer one.
-            if !placeholder_exists {
-                arguments.push(' ');
-                arguments.push_str(self.input);
-            }
-
+            append_argument(&mut arguments, self.command_template, self.input);
             get_command_output(&arguments, pipe, uses_shell, quiet).map_err(CommandErr::IO)
         } else {
             let mut child = get_command_output(&arguments, pipe, uses_shell, quiet).map_err(CommandErr::IO)?;
@@ -68,14 +72,14 @@ impl<'a> ParallelCommand<'a> {
         } else {
             for arg in self.command_template {
                 match *arg {
-                    Token::Argument(ref arg)  => arguments.push_str(arg),
-                    Token::Basename           => arguments.push_str(basename(self.input)),
-                    Token::BaseAndExt         => arguments.push_str(basename(remove_extension(self.input))),
-                    Token::Dirname            => arguments.push_str(dirname(self.input)),
-                    Token::Job                => arguments.push_str(self.job_no),
-                    Token::Placeholder        => arguments.push_str(self.input),
-                    Token::RemoveExtension    => arguments.push_str(remove_extension(self.input)),
-                    Token::Slot               => arguments.push_str(self.slot_no)
+                    Token::Argument(ref arg) => arguments.push_str(arg),
+                    Token::Basename          => arguments.push_str(basename(self.input)),
+                    Token::BaseAndExt        => arguments.push_str(basename(remove_extension(self.input))),
+                    Token::Dirname           => arguments.push_str(dirname(self.input)),
+                    Token::Job               => arguments.push_str(self.job_no),
+                    Token::Placeholder       => arguments.push_str(self.input),
+                    Token::RemoveExtension   => arguments.push_str(remove_extension(self.input)),
+                    Token::Slot              => arguments.push_str(self.slot_no)
                 }
             }
         }
@@ -217,6 +221,7 @@ fn split_into_args(command: &str) -> Vec<String> {
     }
 
     if !buffer.is_empty() { output.push(buffer); }
+    output.shrink_to_fit();
     output
 }
 

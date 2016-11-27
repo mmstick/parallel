@@ -75,8 +75,7 @@ impl DiskBufferReader {
             for (left, right) in (0..bytes_unused).zip(bytes_used + 1..bytes_used + bytes_unused) {
                 self.data[left] = self.data[right];
             }
-            self.capacity = self.file.read(&mut self.data[bytes_unused-1..])?
-                + bytes_unused - 1;
+            self.capacity = self.file.read(&mut self.data[bytes_unused-1..])? + bytes_unused - 1;
         }
         Ok(())
     }

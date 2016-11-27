@@ -306,8 +306,7 @@ impl Args {
         }
 
         // Attempt to tokenize the command argument into simple primitive placeholders.
-        tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments)
-            .map_err(ParseErr::Token)?;
+        tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments).map_err(ParseErr::Token)?;
 
         // Return an `InputIterator` of the arguments contained within the unprocessed file.
         let path = filepaths::unprocessed().ok_or(ParseErr::File(FileErr::Path))?;

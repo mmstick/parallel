@@ -9,7 +9,7 @@ keywords = ["cli", "parallel", "cpu", "load", "balancer"]
 readme = "README.md"
 
 [dependencies]
-num_cpus = "1"
+num_cpus  = "1.0"
 permutate = "0.1"
 
 [profile.release]

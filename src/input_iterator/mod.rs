@@ -112,11 +112,9 @@ fn count_arguments(buffer: &mut InputBuffer, bytes_read: usize) {
     let mut newlines = 1;
     buffer.capacity  = 0;
 
-    for indice in 0..bytes_read {
-        if buffer.disk_buffer.data[indice] == b'\n' {
-            buffer.indices[newlines] = indice;
-            newlines += 1;
-        }
+    for (indice, _) in buffer.disk_buffer.data.iter().take(bytes_read).enumerate().filter(|&(_, byte)| *byte == b'\n') {
+        buffer.indices[newlines] = indice;
+        newlines += 1;
     }
 
     newlines -= 1;

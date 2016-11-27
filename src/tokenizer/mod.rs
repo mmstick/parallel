@@ -45,8 +45,7 @@ impl Number {
         use std::fs::File;
         use std::io::{BufRead, BufReader};
         let file = File::open(path).map_err(TokenErr::File)?;
-        let input = &BufReader::new(file).lines().nth(self.id-1)
-            .unwrap().map_err(TokenErr::File)?;
+        let input = &BufReader::new(file).lines().nth(self.id-1).unwrap().map_err(TokenErr::File)?;
         let argument = match self.token {
             Token::Argument(_)     => unreachable!(),
             Token::Basename        => basename(input),
@@ -63,9 +62,7 @@ impl Number {
 
 /// Takes the command arguments as the input and reduces it into tokens,
 /// which allows for easier management of string manipulation later on.
-pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usize)
-    -> Result<(), TokenErr>
-{
+pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usize) -> Result<(), TokenErr> {
     // When set to true, the characters following will be collected into `pattern`.
     let mut pattern_matching = false;
     // Mark the index where the pattern's first character begins.
@@ -103,9 +100,7 @@ pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usi
                         // If the token is a match, add the matched token.
                         Some(token) => tokens.push(token),
                         // If the token is not a match, add it as an argument.
-                        None => {
-                            tokens.push(Token::Argument(template[pattern_start..id+1].to_owned()))
-                        }
+                        None => tokens.push(Token::Argument(template[pattern_start..id+1].to_owned()))
                     }
                 }
             },
@@ -127,6 +122,7 @@ pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usi
         tokens.push(Token::Argument(template[argument_start..].to_owned()));
     }
 
+    tokens.shrink_to_fit();
     Ok(())
 }
 
@@ -146,9 +142,7 @@ fn match_token(pattern: &str, path: &Path, nargs: usize) -> Result<Option<Token>
             if ndigits != 0 {
                 let number = pattern[0..ndigits].parse::<usize>().unwrap();
                 if ndigits == nchars {
-                    if number == 0 || number > nargs {
-                        return Err(TokenErr::OutOfBounds);
-                    }
+                    if number == 0 || number > nargs { return Err(TokenErr::OutOfBounds); }
                     let argument = Number::new(number, Token::Placeholder).into_argument(path)?;
                     Ok(Some(Token::Argument(argument)))
                 } else {

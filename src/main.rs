@@ -1,8 +1,8 @@
 #![feature(alloc_system)]
 extern crate alloc_system;
-
 extern crate num_cpus;
 extern crate permutate;
+
 mod arguments;
 mod command;
 mod disk_buffer;
@@ -86,18 +86,16 @@ fn main() {
     // If errors have occurred, re-print these errors at the end.
     if let Some(path) = filepaths::errors() {
         if let Ok(file) = File::open(path) {
-            if let Ok(metadata) = file.metadata() {
-                if metadata.len() > 0 {
-                    let stderr = &mut stderr.lock();
-                    let _ = stderr.write(b"parallel: encountered errors during processing:\n");
-                    for line in BufReader::new(file).lines() {
-                        if let Ok(line) = line {
-                            let _ = stderr.write(line.as_bytes());
-                            let _ = stderr.write(b"\n");
-                        }
+            if file.metadata().ok().map_or(0, |metadata| metadata.len()) > 0 {
+                let stderr = &mut stderr.lock();
+                let _ = stderr.write(b"parallel: encountered errors during processing:\n");
+                for line in BufReader::new(file).lines() {
+                    if let Ok(line) = line {
+                        let _ = stderr.write(line.as_bytes());
+                        let _ = stderr.write(b"\n");
                     }
-                    exit(1);
                 }
+                exit(1);
             }
         }
     }

@@ -91,7 +91,6 @@ pub fn output(child: &mut Child, job_id: usize, name: String, output_tx: &Sender
                     }));
                 } else if let Ok(bytes_read) = stderr.read(&mut membuffer[..]) {
                     if bytes_read != 0 {
-
                         let output = String::from_utf8_lossy(&membuffer[0..bytes_read]);
                         let _ = output_tx.send(State::Processing(JobOutput {
                             id:   job_id,
@@ -103,7 +102,6 @@ pub fn output(child: &mut Child, job_id: usize, name: String, output_tx: &Sender
                 }
             } else if let Ok(bytes_read) = stderr.read(&mut membuffer[..]) {
                 if bytes_read != 0 {
-
                     let output = String::from_utf8_lossy(&membuffer[0..bytes_read]);
                     let _ = output_tx.send(State::Processing(JobOutput {
                         id:   job_id,
