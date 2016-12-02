@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::io::{self, Write};
 use std::process::{Child, Command, Stdio};
 use super::tokenizer::*;
+use super::arguments;
 
 pub enum CommandErr {
     IO(io::Error)
@@ -33,16 +34,16 @@ pub struct ParallelCommand<'a> {
 }
 
 impl<'a> ParallelCommand<'a> {
-    pub fn exec(&self, pipe: bool, uses_shell: bool, quiet: bool) -> Result<Child, CommandErr> {
+    pub fn exec(&self, flags: u8) -> Result<Child, CommandErr> {
         // First the arguments will be generated based on the tokens and input.
         let mut arguments = String::with_capacity(self.command_template.len() << 1);
-        self.build_arguments(&mut arguments, pipe);
+        self.build_arguments(&mut arguments, flags & arguments::PIPE_IS_ENABLED != 0);
 
-        if !pipe {
+        if flags & arguments::PIPE_IS_ENABLED == 0 {
             append_argument(&mut arguments, self.command_template, self.input);
-            get_command_output(&arguments, pipe, uses_shell, quiet).map_err(CommandErr::IO)
+            get_command_output(&arguments, flags).map_err(CommandErr::IO)
         } else {
-            let mut child = get_command_output(&arguments, pipe, uses_shell, quiet).map_err(CommandErr::IO)?;
+            let mut child = get_command_output(&arguments, flags).map_err(CommandErr::IO)?;
 
             {   // Grab a handle to the child's stdin and write the input argument to the child's stdin.
                 let stdin = child.stdin.as_mut().unwrap();
@@ -86,12 +87,12 @@ impl<'a> ParallelCommand<'a> {
     }
 }
 
-pub fn get_command_output(command: &str, pipe: bool, uses_shell: bool, quiet: bool) -> io::Result<Child> {
-    if uses_shell && !pipe {
-        shell_output(command, quiet, pipe)
+pub fn get_command_output(command: &str, flags: u8) -> io::Result<Child> {
+    if flags & arguments::SHELL_ENABLED != 0 && flags & arguments::PIPE_IS_ENABLED == 0 {
+        shell_output(command, flags)
     } else {
         let arguments = split_into_args(command);
-        match (arguments.len() == 1, quiet, pipe) {
+        match (arguments.len() == 1, flags & arguments::QUIET_MODE != 0, flags & arguments::PIPE_IS_ENABLED != 0) {
             (true, true, false) => Command::new(&arguments[0])
                 .stdout(Stdio::null()).stderr(Stdio::piped())
                 .spawn(),
@@ -120,14 +121,14 @@ pub fn get_command_output(command: &str, pipe: bool, uses_shell: bool, quiet: bo
     }
 }
 
-fn shell_output<S: AsRef<OsStr>>(args: S, quiet: bool, pipe: bool) -> io::Result<Child> {
+fn shell_output<S: AsRef<OsStr>>(args: S, flags: u8) -> io::Result<Child> {
     let (cmd, flag) = if cfg!(windows) {
         ("cmd".to_owned(), "/C")
     } else {
         (env::var("SHELL").unwrap_or("sh".to_owned()), "-c")
     };
 
-    match (quiet, pipe) {
+    match (flags & arguments::QUIET_MODE != 0, flags & arguments::PIPE_IS_ENABLED != 0) {
         (true, false) => Command::new(cmd).arg(flag).arg(args)
             .stdout(Stdio::null()).stderr(Stdio::piped())
             .spawn(),

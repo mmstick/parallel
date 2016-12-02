@@ -1,4 +1,4 @@
-use arguments::{Flags, InputIteratorErr};
+use arguments::{self, InputIteratorErr};
 use command::{self, CommandErr};
 use super::pipe::{self, State};
 use super::super::tokenizer::Token;
@@ -31,7 +31,7 @@ fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr) -> Option<(
 }
 
 /// Builds and executes commands based on a provided template and associated inputs.
-pub fn command(slot: usize, num_inputs: usize, flags: Flags, arguments: Vec<Token>,
+pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: Vec<Token>,
     inputs: Arc<Mutex<InputIterator>>, output_tx: Sender<State>)
 {
     let stdout = io::stdout();
@@ -41,7 +41,7 @@ pub fn command(slot: usize, num_inputs: usize, flags: Flags, arguments: Vec<Toke
     let job_total = num_inputs.to_string();
 
     while let Some((input, job_id)) = attempt_next(&inputs, &stderr) {
-        if flags.verbose {
+        if flags & arguments::VERBOSE_MODE != 0  {
             verbose::processing_task(&stdout, &job_id.to_string(), &job_total, &input);
         }
 
@@ -53,9 +53,9 @@ pub fn command(slot: usize, num_inputs: usize, flags: Flags, arguments: Vec<Toke
             command_template: &arguments,
         };
 
-        match command.exec(flags.pipe, flags.uses_shell, flags.quiet) {
+        match command.exec(flags) {
             Ok(mut child) => {
-                pipe::output(&mut child, job_id, input.clone(), &output_tx, flags.quiet);
+                pipe::output(&mut child, job_id, input.clone(), &output_tx, flags & arguments::QUIET_MODE != 0);
                 let _ = child.wait();
             },
             Err(cmd_err) => {
@@ -71,27 +71,27 @@ pub fn command(slot: usize, num_inputs: usize, flags: Flags, arguments: Vec<Toke
             }
         }
 
-        if flags.verbose {
+        if flags & arguments::VERBOSE_MODE != 0 {
             verbose::task_complete(&stdout, &job_id.to_string(), &job_total, &input);
         }
     }
 }
 
 /// Executes inputs as commands
-pub fn inputs(num_inputs: usize, flags: Flags, inputs: Arc<Mutex<InputIterator>>, output_tx: Sender<State>) {
+pub fn inputs(num_inputs: usize, flags: u8, inputs: Arc<Mutex<InputIterator>>, output_tx: Sender<State>) {
     let stdout = io::stdout();
     let stderr = io::stderr();
 
     let job_total = num_inputs.to_string();
 
     while let Some((input, job_id)) = attempt_next(&inputs, &stderr) {
-        if flags.verbose {
+        if flags & arguments::VERBOSE_MODE != 0 {
             verbose::processing_task(&stdout, &job_id.to_string(), &job_total, &input);
         }
 
-        match command::get_command_output(&input, flags.pipe, flags.uses_shell, flags.quiet) {
+        match command::get_command_output(&input, flags) {
             Ok(mut child) => {
-                pipe::output(&mut child, job_id, input.clone(), &output_tx, flags.quiet);
+                pipe::output(&mut child, job_id, input.clone(), &output_tx, flags & arguments::QUIET_MODE != 0);
                 let _ = child.wait();
             },
             Err(why) => {
@@ -102,7 +102,7 @@ pub fn inputs(num_inputs: usize, flags: Flags, inputs: Arc<Mutex<InputIterator>>
             }
         }
 
-        if flags.verbose {
+        if flags & arguments::VERBOSE_MODE != 0 {
             verbose::task_complete(&stdout, &job_id.to_string(), &job_total, &input);
         }
     }

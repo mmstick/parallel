@@ -42,12 +42,12 @@ fn main() {
     // Will contain handles to the upcoming threads to know when the threads are finished.
     let mut threads = Vec::with_capacity(args.ncores);
 
-    if args.flags.verbose {
+    if args.flags & arguments::VERBOSE_MODE != 0 {
         verbose::total_inputs(&stdout, args.ncores, args.ninputs);
     }
 
     // The `slot` variable is required by the {%} token.
-    if args.flags.inputs_are_commands {
+    if args.flags & arguments::INPUTS_ARE_COMMANDS != 0 {
         for _ in 0..args.ncores {
             let num_inputs = args.ninputs;
             let inputs     = shared_input.clone();

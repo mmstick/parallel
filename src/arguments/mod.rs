@@ -25,26 +25,11 @@ pub use self::errors::{FileErr, InputIteratorErr};
 #[derive(PartialEq)]
 enum Mode { Arguments, Command, Inputs, Files }
 
-#[derive(Clone)]
-pub struct Flags {
-    pub inputs_are_commands: bool,
-    pub pipe:                bool,
-    pub uses_shell:          bool,
-    pub quiet:               bool,
-    pub verbose:             bool
-}
-
-impl Flags {
-    fn new() -> Flags {
-        Flags {
-            inputs_are_commands: false,
-            uses_shell: true,
-            quiet: false,
-            verbose: false,
-            pipe: false,
-        }
-    }
-}
+pub const INPUTS_ARE_COMMANDS: u8 = 1;
+pub const PIPE_IS_ENABLED:     u8 = 2;
+pub const SHELL_ENABLED:       u8 = 4;
+pub const QUIET_MODE:          u8 = 8;
+pub const VERBOSE_MODE:        u8 = 16;
 
 /// Defines what quoting mode to use when expanding the command.
 enum Quoting { None, Basic, Shell }
@@ -52,7 +37,7 @@ enum Quoting { None, Basic, Shell }
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
 pub struct Args {
-    pub flags:        Flags,
+    pub flags:        u8,
     pub ncores:       usize,
     pub arguments:    Vec<Token>,
     pub piped_values: Option<Vec<String>>,
@@ -63,7 +48,7 @@ impl Args {
     pub fn new() -> Args {
         Args {
             ncores:       num_cpus::get(),
-            flags:        Flags::new(),
+            flags:        SHELL_ENABLED,
             arguments:    Vec::new(),
             piped_values: None,
             ninputs:      0,
@@ -98,7 +83,11 @@ impl Args {
             };
 
             // If there are no arguments to be parsed, then the inputs are commands.
-            self.flags.inputs_are_commands = mode == Mode::Inputs || mode == Mode::Files;
+            if mode == Mode::Inputs || mode == Mode::Files {
+                self.flags |= INPUTS_ARE_COMMANDS;
+            } else {
+                self.flags &= 255 * INPUTS_ARE_COMMANDS;
+            }
 
             // Parse each and every input argument supplied to the program.
             while let Some(argument) = raw_args.next() {
@@ -134,11 +123,11 @@ impl Args {
                                                 println!("{}", man::MAN_PAGE);
                                                 exit(0);
                                             },
-                                            'n' => self.flags.uses_shell = false,
-                                            'p' => self.flags.pipe = true,
+                                            'n' => self.flags &= 255 ^ SHELL_ENABLED,
+                                            'p' => self.flags |= PIPE_IS_ENABLED,
                                             'q' => quote = Quoting::Basic,
-                                            's' => self.flags.quiet = true,
-                                            'v' => self.flags.verbose = true,
+                                            's' => self.flags |= QUIET_MODE,
+                                            'v' => self.flags |= VERBOSE_MODE,
                                             _ => {
                                                 return Err(ParseErr::InvalidArgument(argument.to_owned()))
                                             }
@@ -155,16 +144,16 @@ impl Args {
                                             let val = &raw_args.next().ok_or(ParseErr::JobsNoValue)?;
                                             self.ncores = jobs::parse(val)?
                                         },
-                                        "no-shell" => self.flags.uses_shell = false,
+                                        "no-shell" => self.flags &= 255 ^ SHELL_ENABLED,
                                         "num-cpu-cores" => {
                                             println!("{}", num_cpus::get());
                                             exit(0);
                                         },
-                                        "pipe" => self.flags.pipe = true,
-                                        "quiet" | "silent" => self.flags.quiet = true,
+                                        "pipe" => self.flags |= PIPE_IS_ENABLED,
+                                        "quiet" | "silent" => self.flags |= QUIET_MODE,
                                         "quote" => quote = Quoting::Basic,
                                         "shellquote" => quote = Quoting::Shell,
-                                        "verbose" => self.flags.verbose = true,
+                                        "verbose" => self.flags |= VERBOSE_MODE,
                                         "version" => {
                                             println!("parallel 0.6.2\n\nCrate Dependencies:");
                                             println!("    libc      0.2.15");
@@ -185,11 +174,11 @@ impl Args {
                             match argument {
                                 ":::" => {
                                     mode = Mode::Inputs;
-                                    self.flags.inputs_are_commands = true;
+                                    self.flags |= INPUTS_ARE_COMMANDS;
                                 },
                                 "::::" => {
                                     mode = Mode::Files;
-                                    self.flags.inputs_are_commands = true;
+                                    self.flags |= INPUTS_ARE_COMMANDS;
                                 }
                                 _ => {
                                     // The command has been supplied, and argument parsing is over.
