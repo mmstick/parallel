@@ -1,4 +1,3 @@
-use std::env;
 use std::ffi::OsStr;
 use std::io::{self, Write};
 use std::process::{Child, Command, Stdio};
@@ -124,8 +123,10 @@ pub fn get_command_output(command: &str, flags: u8) -> io::Result<Child> {
 fn shell_output<S: AsRef<OsStr>>(args: S, flags: u8) -> io::Result<Child> {
     let (cmd, flag) = if cfg!(windows) {
         ("cmd".to_owned(), "/C")
+    } else if flags & arguments::DASH_EXISTS != 0  {
+        ("dash".to_owned(), "-c")
     } else {
-        (env::var("SHELL").unwrap_or("sh".to_owned()), "-c")
+        ("sh".to_owned(), "-c")
     };
 
     match (flags & arguments::QUIET_MODE != 0, flags & arguments::PIPE_IS_ENABLED != 0) {

@@ -1,5 +1,3 @@
-#![feature(alloc_system)]
-extern crate alloc_system;
 extern crate num_cpus;
 extern crate permutate;
 
@@ -51,7 +49,7 @@ fn main() {
         for _ in 0..args.ncores {
             let num_inputs = args.ninputs;
             let inputs     = shared_input.clone();
-            let flags      = args.flags.clone();
+            let flags      = args.flags;
             let output_tx  = output_tx.clone();
 
             // Each input will be treated as a command
@@ -66,7 +64,7 @@ fn main() {
         for slot in 1..args.ncores+1 {
             let num_inputs = args.ninputs;
             let inputs     = shared_input.clone();
-            let flags      = args.flags.clone();
+            let flags      = args.flags;
             let output_tx  = output_tx.clone();
             let arguments = args.arguments.clone();
 

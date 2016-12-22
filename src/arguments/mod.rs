@@ -5,6 +5,7 @@ mod man;
 mod quote;
 
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
@@ -30,6 +31,7 @@ pub const PIPE_IS_ENABLED:     u8 = 2;
 pub const SHELL_ENABLED:       u8 = 4;
 pub const QUIET_MODE:          u8 = 8;
 pub const VERBOSE_MODE:        u8 = 16;
+pub const DASH_EXISTS:         u8 = 32;
 
 /// Defines what quoting mode to use when expanding the command.
 enum Quoting { None, Basic, Shell }
@@ -300,10 +302,33 @@ impl Args {
         // Attempt to tokenize the command argument into simple primitive placeholders.
         tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments).map_err(ParseErr::Token)?;
 
+        if dash_exists() {
+            self.flags |= DASH_EXISTS;
+        }
+        if self.arguments.len() == 1 {
+            self.flags &= 255 ^ SHELL_ENABLED;
+        }
+
         // Return an `InputIterator` of the arguments contained within the unprocessed file.
         let path = filepaths::unprocessed().ok_or(ParseErr::File(FileErr::Path))?;
         Ok(InputIterator::new(&path, number_of_arguments).map_err(ParseErr::File)?)
     }
+}
+
+fn dash_exists() -> bool {
+    if let Ok(path) = env::var("PATH") {
+        for path in path.split(':') {
+            if let Ok(directory) = fs::read_dir(path) {
+                for entry in directory {
+                    if let Ok(entry) = entry {
+                        let path = entry.path();
+                        if path.is_file() && path.file_name() == Some(OsStr::new("dash")) { return true; }
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.

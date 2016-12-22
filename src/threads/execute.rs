@@ -4,7 +4,6 @@ use super::pipe::{self, State};
 use super::super::tokenizer::Token;
 use super::super::input_iterator::InputIterator;
 use verbose;
-
 use std::io::{self, Write, Stderr};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;

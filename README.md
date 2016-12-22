@@ -1,5 +1,10 @@
-# Parallel: A Command-line CPU Load Balancer Written in Rust
+# Parallel: A Command-line CPU Load Balancer Written in Rust [![](https://tokei.rs/b1/github/mmstick/parallel)](https://github.com/mmstick/parallel)
 This is an attempt at recreating the functionality of [GNU Parallel](https://www.gnu.org/software/parallel/), a work-stealer for the command-line, in Rust under a MIT license. The end goal will be to support much of the functionality of `GNU Parallel` and then to extend the functionality further for the next generation of command-line utilities written in Rust. While functionality is important, with the application being developed in Rust, the goal is to also be as fast and efficient as possible.
+
+## Note
+It's a good idea to install the `dash` shell as this implementation of Parallel will try to use it by default.
+Dash is basically a superior implementation of `sh` that's many times faster and more secure.
+If `dash` cannot be found, it will default to `sh`. Although on Windows it will default to `cmd`.
 
 See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) for features and improvements that have yet to be done. If you want to contribute, pull requests are welcome. If you have an idea for improvement which isn't listed in the to-do list, feel free to [email me](mailto:mmstickman@gmail.com) and I will consider implementing that idea.
 
@@ -37,24 +42,24 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
 
 ```
 ~/D/parallel (master) $ seq 1 10000 | time -v target/release/parallel echo > /dev/null
-	Command being timed: "target/release/parallel echo"
-	User time (seconds): 0.48
-	System time (seconds): 2.48
-	Percent of CPU this job got: 59%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:04.93
+Command being timed: "target/release/parallel echo"
+	User time (seconds): 0.94
+	System time (seconds): 6.30
+	Percent of CPU this job got: 102%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:07.05
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 12928
+	Maximum resident set size (kbytes): 7248
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 0
-	Minor (reclaiming a frame) page faults: 2198164
-	Voluntary context switches: 73174
-	Involuntary context switches: 36678
+	Minor (reclaiming a frame) page faults: 1530855
+	Voluntary context switches: 81806
+	Involuntary context switches: 50685
 	Swaps: 0
 	File system inputs: 0
-	File system outputs: 0
+	File system outputs: 240
 	Socket messages sent: 0
 	Socket messages received: 0
 	Signals delivered: 0

@@ -129,4 +129,5 @@ fn drop_used_values(buffer: &mut Vec<State>, drop: &mut Vec<usize>) {
     for id in drop.drain(0..).rev() {
         let _ = buffer.remove(id);
     }
+    buffer.shrink_to_fit()
 }
