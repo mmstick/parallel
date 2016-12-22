@@ -305,7 +305,8 @@ impl Args {
         if dash_exists() {
             self.flags |= DASH_EXISTS;
         }
-        if self.arguments.len() == 1 {
+
+        if !shell_required(&self.arguments) {
             self.flags &= 255 ^ SHELL_ENABLED;
         }
 
@@ -313,6 +314,17 @@ impl Args {
         let path = filepaths::unprocessed().ok_or(ParseErr::File(FileErr::Path))?;
         Ok(InputIterator::new(&path, number_of_arguments).map_err(ParseErr::File)?)
     }
+}
+
+fn shell_required(arguments: &[Token]) -> bool {
+    for token in arguments {
+        if let &Token::Argument(ref arg) = token {
+            if arg.contains(';') || arg.contains('&') {
+                return true
+            }
+        }
+    }
+    false
 }
 
 fn dash_exists() -> bool {
