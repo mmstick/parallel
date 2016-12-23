@@ -313,7 +313,7 @@ impl<'a> Args<'a> {
 fn shell_required(arguments: &[Token]) -> bool {
     for token in arguments {
         if let &Token::Argument(ref arg) = token {
-            if arg.contains(';') || arg.contains('&') {
+            if arg.contains(';') || arg.contains('&') || arg.contains('|') {
                 return true
             }
         }
