@@ -30,7 +30,7 @@ fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr) -> Option<(
 }
 
 /// Builds and executes commands based on a provided template and associated inputs.
-pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: Vec<Token>,
+pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: &[Token],
     inputs: Arc<Mutex<InputIterator>>, output_tx: Sender<State>)
 {
     let stdout = io::stdout();
