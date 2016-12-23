@@ -16,7 +16,9 @@ mod threads;
 mod tokenizer;
 mod verbose;
 
-use std::fs::File;
+use std::env;
+use std::ffi::OsStr;
+use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Write};
 use std::mem;
 use std::process::exit;
@@ -26,7 +28,7 @@ use std::sync::mpsc::channel;
 
 use arguments::Args;
 use threads::pipe::State;
-use tokenizer::{TokenErr, tokenize};
+use tokenizer::{Token, TokenErr, tokenize};
 
 /// Coercing the `command` `String` into a `&'static str` is required to share it among all threads.
 /// The command string needs to be available in memory for the entirety of the application, so this
@@ -35,6 +37,35 @@ unsafe fn leak_command(comm: String) -> &'static str {
     let static_comm = mem::transmute(&comm as &str);
     mem::forget(comm);
     static_comm
+}
+
+/// Determines if a shell is required or not for execution
+fn shell_required(arguments: &[Token]) -> bool {
+    for token in arguments {
+        if let &Token::Argument(ref arg) = token {
+            if arg.contains(';') || arg.contains('&') || arg.contains('|') {
+                return true
+            }
+        }
+    }
+    false
+}
+
+/// Returns `true` if the Dash shell was found within the `PATH` environment variable.
+fn dash_exists() -> bool {
+    if let Ok(path) = env::var("PATH") {
+        for path in path.split(':') {
+            if let Ok(directory) = fs::read_dir(path) {
+                for entry in directory {
+                    if let Ok(entry) = entry {
+                        let path = entry.path();
+                        if path.is_file() && path.file_name() == Some(OsStr::new("dash")) { return true; }
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 fn main() {
@@ -67,6 +98,13 @@ fn main() {
             }
         }
         exit(1)
+    }
+
+    // Determines if a shell is required or not
+    if !shell_required(&args.arguments) {
+        args.flags &= 255 ^ arguments::SHELL_ENABLED;
+    } else {
+        if dash_exists() { args.flags |= arguments::DASH_EXISTS; }
     }
 
     let shared_input = Arc::new(Mutex::new(inputs));

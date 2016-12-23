@@ -5,7 +5,6 @@ mod man;
 mod quote;
 
 use std::env;
-use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
@@ -291,50 +290,10 @@ impl<'a> Args<'a> {
             Quoting::Shell => quote::shell(comm),
         }
 
-        if dash_exists() {
-            self.flags |= DASH_EXISTS;
-        }
-
-        if !shell_required(&self.arguments) {
-            self.flags &= 255 ^ SHELL_ENABLED;
-            if self.flags & SHELL_ENABLED == 1 {
-                println!("Shell enabled");
-            } else {
-                println!("Shell disabled");
-            }
-        }
-
         // Return an `InputIterator` of the arguments contained within the unprocessed file.
         let inputs = InputIterator::new(unprocessed_path, number_of_arguments).map_err(ParseErr::File)?;
         Ok(inputs)
     }
-}
-
-fn shell_required(arguments: &[Token]) -> bool {
-    for token in arguments {
-        if let &Token::Argument(ref arg) = token {
-            if arg.contains(';') || arg.contains('&') || arg.contains('|') {
-                return true
-            }
-        }
-    }
-    false
-}
-
-fn dash_exists() -> bool {
-    if let Ok(path) = env::var("PATH") {
-        for path in path.split(':') {
-            if let Ok(directory) = fs::read_dir(path) {
-                for entry in directory {
-                    if let Ok(entry) = entry {
-                        let path = entry.path();
-                        if path.is_file() && path.file_name() == Some(OsStr::new("dash")) { return true; }
-                    }
-                }
-            }
-        }
-    }
-    false
 }
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.
