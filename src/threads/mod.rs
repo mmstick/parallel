@@ -66,35 +66,28 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
             // Keep track of any changes that have been made in this iteration.
             let mut changed = false;
 
+            macro_rules! check_state {
+                ($id:ident, $job:ident, $message:ident, $file:ident) => {{
+                    if $job == counter {
+                        counter += 1;
+                        drop.push($id);
+                        changed = true;
+                        if let Err(why) = $file.write($message.as_bytes()) {
+                            let mut stderr = &mut stderr.lock();
+                            let _ = write!(stderr, "parallel: I/O error: {}", why);
+                        }
+                        break
+                    }
+                }}
+            }
+
             // Loop through the list of buffers and print buffers with the next ID in line.
             // If a match was found, `changed` will be set to true and the job added to the
             // drop list. If no change was found, the outer loop will quit.
             for (id, output) in buffer.iter().enumerate() {
                 match *output {
-                    State::Completed(job, ref name) => {
-                        if job == counter {
-                            counter += 1;
-                            drop.push(id);
-                            changed = true;
-                            if let Err(why) = processed_file.write(name.as_bytes()) {
-                                let mut stderr = &mut stderr.lock();
-                                let _ = write!(stderr, "parallel: I/O error: {}", why);
-                            }
-                            break
-                        }
-                    },
-                    State::Error(job, ref message) => {
-                        if job == counter {
-                            counter += 1;
-                            drop.push(id);
-                            changed = true;
-                            if let Err(why) = error_file.write(message.as_bytes()) {
-                                let mut stderr = &mut stderr.lock();
-                                let _ = write!(stderr, "parallel: I/O error: {}", why);
-                            }
-                            break
-                        }
-                    }
+                    State::Completed(job, ref name) => check_state!(id, job, name, processed_file),
+                    State::Error(job, ref message) => check_state!(id, job, message, error_file),
                     State::Processing(ref output) => {
                         if output.id == counter {
                             output.pipe.print_message(output.id, &mut error_file, &stdout, &stderr);
