@@ -88,7 +88,7 @@ impl Args {
             if mode == Mode::Inputs || mode == Mode::Files {
                 self.flags |= INPUTS_ARE_COMMANDS;
             } else {
-                self.flags &= 255 * INPUTS_ARE_COMMANDS;
+                self.flags &= 255 ^ INPUTS_ARE_COMMANDS;
             }
 
             // Parse each and every input argument supplied to the program.
