@@ -2,14 +2,14 @@ pub mod execute;
 pub mod pipe;
 
 use std::io::{stderr, stdout, Write};
+use std::path::Path;
 use std::sync::mpsc::Receiver;
 
 use super::arguments::Args;
 use super::disk_buffer::DiskBuffer;
-use super::filepaths;
 use self::pipe::State;
 
-pub fn receive_messages(input_rx: Receiver<State>, args: Args) {
+pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &Path, errors_path: &Path) {
     let stdout = stdout();
     let stderr = stderr();
 
@@ -20,8 +20,8 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args) {
     // Store a list of indexes we need to drop from `buffer` after a match has been found.
     let mut drop = Vec::with_capacity(args.ncores);
     // Store a list of completed inputs in the event that the user may need to resume processing.
-    let mut processed_file = DiskBuffer::new(&filepaths::processed().unwrap()).write().unwrap();
-    let mut error_file     = DiskBuffer::new(&filepaths::errors().unwrap()).write().unwrap();
+    let mut processed_file = DiskBuffer::new(processed_path).write().unwrap();
+    let mut error_file     = DiskBuffer::new(errors_path).write().unwrap();
 
     // The loop will only quit once all inputs have been received.
     while counter < args.ninputs {

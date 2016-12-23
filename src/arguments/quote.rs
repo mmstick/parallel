@@ -1,4 +1,4 @@
-pub fn basic(command: String) -> String {
+pub fn basic(command: &mut String) {
     let mut output = String::with_capacity(command.len() << 1);
     for character in command.chars() {
         match character {
@@ -9,27 +9,29 @@ pub fn basic(command: String) -> String {
             _ => output.push(character)
         }
     }
-    output
+    *command = output
 }
 
-pub fn shell(command: String) -> String {
+pub fn shell(command: &mut String) {
     let mut output = String::with_capacity(command.len() << 1);
-    let mut char_iter = command.chars();
+    {
+        let mut char_iter = command.chars();
 
-    // Do not escape the command
-    while let Some(character) = char_iter.next() {
-        output.push(character);
-        if character == ' ' { break }
-    }
+        // Do not escape the command
+        while let Some(character) = char_iter.next() {
+            output.push(character);
+            if character == ' ' { break }
+        }
 
-    // Escape all following arguments
-    for character in char_iter {
-        match character {
-            '$' | ' ' | '\\' | '>' | '<' | '^' | '&' | '#' | '!' | '*' | '\'' | '\"' | '`' | '~' | '{' | '}' | '[' |
-            ']' | '(' | ')' | ';' | '|' | '?' => output.push('\\'),
-            _ => ()
+        // Escape all following arguments
+        for character in char_iter {
+            match character {
+                '$' | ' ' | '\\' | '>' | '<' | '^' | '&' | '#' | '!' | '*' | '\'' | '\"' | '`' | '~' | '{' | '}' | '[' |
+                ']' | '(' | ')' | ';' | '|' | '?' => output.push('\\'),
+                _ => ()
+            }
         }
     }
 
-    output
+    *command = output
 }

@@ -1,7 +1,9 @@
 pub mod functions;
 
+use arrayvec::ArrayVec;
 use std::io;
 use std::path::Path;
+use std::borrow::Cow;
 pub use self::functions::*;
 
 #[derive(Debug)]
@@ -12,9 +14,9 @@ pub enum TokenErr {
 
 #[derive(Clone, PartialEq, Debug)]
 /// A token is a placeholder for the operation to be performed on the input value.
-pub enum Token {
+pub enum Token<'a> {
     /// An argument is simply a collection of characters that are not placeholders.
-    Argument(String),
+    Argument(Cow<'a, str>),
     /// Takes the basename (file name) of the input with the extension removed.
     BaseAndExt,
     /// Takes the basename (file name) of the input with the directory path removed.
@@ -31,13 +33,13 @@ pub enum Token {
     Slot
 }
 
-struct Number {
+struct Number<'a> {
     id: usize,
-    token: Token,
+    token: Token<'a>,
 }
 
-impl Number {
-    fn new(id: usize, token: Token) -> Number {
+impl<'a> Number<'a> {
+    fn new(id: usize, token: Token<'a>) -> Number<'a> {
         Number{ id: id, token: token }
     }
 
@@ -62,7 +64,9 @@ impl Number {
 
 /// Takes the command arguments as the input and reduces it into tokens,
 /// which allows for easier management of string manipulation later on.
-pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usize) -> Result<(), TokenErr> {
+pub fn tokenize<'a>(tokens: &mut ArrayVec<[Token<'a>; 128]>, template: &'a str, path: &Path, nargs: usize)
+    -> Result<(), TokenErr>
+{
     // When set to true, the characters following will be collected into `pattern`.
     let mut pattern_matching = false;
     // Mark the index where the pattern's first character begins.
@@ -84,7 +88,7 @@ pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usi
                 // this will append the argument to the token list and disable argument matching.
                 if argument_matching {
                     argument_matching = false;
-                    let argument      = template[argument_start..id].to_owned();
+                    let argument      = Cow::Borrowed(&template[argument_start..id]);
                     tokens.push(Token::Argument(argument));
                 }
             },
@@ -98,9 +102,9 @@ pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usi
                     // Supply the internal contents of the pattern to the token matcher.
                     match match_token(&template[pattern_start+1..id], path, nargs)? {
                         // If the token is a match, add the matched token.
-                        Some(token) => tokens.push(token),
+                        Some(token) => { tokens.push(token).unwrap(); },
                         // If the token is not a match, add it as an argument.
-                        None => tokens.push(Token::Argument(template[pattern_start..id+1].to_owned()))
+                        None => { tokens.push(Token::Argument(Cow::Borrowed(&template[pattern_start..id+1]))); }
                     }
                 }
             },
@@ -117,17 +121,16 @@ pub fn tokenize(tokens: &mut Vec<Token>, template: &str, path: &Path, nargs: usi
     // In the event that there is leftover data that was not matched, this will add the final
     // string to the token list.
     if pattern_matching {
-        tokens.push(Token::Argument(template[pattern_start..].to_owned()));
+        tokens.push(Token::Argument(Cow::Borrowed(&template[pattern_start..])));
     } else if argument_matching {
-        tokens.push(Token::Argument(template[argument_start..].to_owned()));
+        tokens.push(Token::Argument(Cow::Borrowed(&template[argument_start..])));
     }
 
-    tokens.shrink_to_fit();
     Ok(())
 }
 
 /// Matches a pattern to it's associated token.
-fn match_token(pattern: &str, path: &Path, nargs: usize) -> Result<Option<Token>, TokenErr> {
+fn match_token<'a>(pattern: &'a str, path: &Path, nargs: usize) -> Result<Option<Token<'a>>, TokenErr> {
     match pattern {
         "."  => Ok(Some(Token::RemoveExtension)),
         "#"  => Ok(Some(Token::Job)),
@@ -135,7 +138,7 @@ fn match_token(pattern: &str, path: &Path, nargs: usize) -> Result<Option<Token>
         "/"  => Ok(Some(Token::Basename)),
         "//" => Ok(Some(Token::Dirname)),
         "/." => Ok(Some(Token::BaseAndExt)),
-        "#^" => Ok(Some(Token::Argument(nargs.to_string()))),
+        "#^" => Ok(Some(Token::Argument(Cow::Owned(nargs.to_string())))),
         _    => {
             let ndigits = pattern.chars().take_while(|&x| x.is_numeric()).count();
             let nchars  = ndigits + pattern.chars().skip(ndigits).count();
@@ -144,13 +147,13 @@ fn match_token(pattern: &str, path: &Path, nargs: usize) -> Result<Option<Token>
                 if ndigits == nchars {
                     if number == 0 || number > nargs { return Err(TokenErr::OutOfBounds); }
                     let argument = Number::new(number, Token::Placeholder).into_argument(path)?;
-                    Ok(Some(Token::Argument(argument)))
+                    Ok(Some(Token::Argument(Cow::Owned(argument))))
                 } else {
                     match match_token(&pattern[ndigits..], path, nargs)? {
                         None | Some(Token::Job) |  Some(Token::Slot) => Ok(None),
                         Some(token) => {
                             let argument = Number::new(number, token).into_argument(path)?;
-                            Ok(Some(Token::Argument(argument)))
+                            Ok(Some(Token::Argument(Cow::Owned(argument))))
                         },
                     }
                 }

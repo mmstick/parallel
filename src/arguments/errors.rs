@@ -2,8 +2,6 @@ use std::io::{self, Write, stderr, stdout};
 use std::path::PathBuf;
 use std::process::exit;
 
-use super::super::tokenizer::TokenErr;
-
 /// A list of all the possible errors that may happen when working with files.
 #[derive(Debug)]
 pub enum FileErr {
@@ -36,8 +34,6 @@ pub enum ParseErr {
     InvalidArgument(String),
     /// No arguments were given, so no action can be taken.
     NoArguments,
-    /// There was an error with parsing tokens with the tokenizer.
-    Token(TokenErr),
 }
 
 impl ParseErr {
@@ -86,14 +82,6 @@ impl ParseErr {
             },
             ParseErr::NoArguments => {
                 let _ = write!(stderr, "no input arguments were given.\n");
-            },
-            ParseErr::Token(token_err) => match token_err {
-                TokenErr::File(why) => {
-                    let _ = write!(stderr, "unable to obtain Nth input: {}\n", why);
-                },
-                TokenErr::OutOfBounds => {
-                    let _ = write!(stderr, "input token out of bounds\n");
-                },
             }
         };
         let _ = stdout.write(b"For help on command-line usage, execute `parallel -h`\n");

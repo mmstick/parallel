@@ -29,7 +29,7 @@ pub struct ParallelCommand<'a> {
     pub job_no:           &'a str,
     pub job_total:        &'a str,
     pub input:            &'a str,
-    pub command_template: &'a [Token],
+    pub command_template: &'a [Token<'a>],
 }
 
 impl<'a> ParallelCommand<'a> {

@@ -1,11 +1,13 @@
 use std::fs::{read_dir, create_dir_all, remove_file, remove_dir, File};
 use std::io::{StderrLock, Write};
+use std::path::{Path, PathBuf};
+use std::process::exit;
 
 use super::arguments::{FileErr, Args};
 use super::filepaths;
 use super::input_iterator::InputIterator;
 
-fn remove_preexisting_files() -> Result<(), FileErr> {
+fn remove_preexisting_files() -> Result<(PathBuf, PathBuf, PathBuf), FileErr> {
     // Initialize the base directories of the unprocessed and processed files.
     let path = filepaths::base().ok_or(FileErr::Path)?;
 
@@ -28,36 +30,40 @@ fn remove_preexisting_files() -> Result<(), FileErr> {
     let errors      = filepaths::errors().ok_or(FileErr::Path)?;
     let unprocessed = filepaths::unprocessed().ok_or(FileErr::Path)?;
     let processed   = filepaths::processed().ok_or(FileErr::Path)?;
-    File::create(&errors).map_err(|why| FileErr::Create(errors, why))?;
-    File::create(&unprocessed).map_err(|why| FileErr::Create(unprocessed, why))?;
-    File::create(&processed  ).map_err(|why| FileErr::Create(processed  , why))?;
+    File::create(&errors).map_err(|why| FileErr::Create(errors.clone(), why))?;
+    File::create(&unprocessed).map_err(|why| FileErr::Create(unprocessed.clone(), why))?;
+    File::create(&processed).map_err(|why| FileErr::Create(processed.clone(), why))?;
 
-    Ok(())
+    Ok((unprocessed, processed, errors))
 }
 
-pub fn cleanup(stderr: &mut StderrLock) {
-    if let Err(why) = remove_preexisting_files() {
-        let _ = stderr.write(b"parallel: initialization error: I/O error: ");
-        match why {
-            FileErr::Create(path, why) => {
-                let _ = write!(stderr, "unable to create file: {:?}: {}", path, why);
+pub fn cleanup(stderr: &mut StderrLock) -> (PathBuf, PathBuf, PathBuf) {
+    match remove_preexisting_files() {
+        Ok(values) => values,
+        Err(why) => {
+            let _ = stderr.write(b"parallel: initialization error: I/O error: ");
+            match why {
+                FileErr::Create(path, why) => {
+                    let _ = write!(stderr, "unable to create file: {:?}: {}", path, why);
+                }
+                FileErr::DirectoryCreate(path, why) => {
+                    let _ = write!(stderr, "unable to create directory: {:?}: {}", path, why);
+                },
+                FileErr::DirectoryRead(path, why) => {
+                    let _ = write!(stderr, "unable to read directory: {:?}: {}", path, why);
+                }
+                FileErr::Remove(path, why) => {
+                    let _ = write!(stderr, "unable to remove file: {:?}: {}", path, why);
+                },
+                _ => unreachable!()
             }
-            FileErr::DirectoryCreate(path, why) => {
-                let _ = write!(stderr, "unable to create directory: {:?}: {}", path, why);
-            },
-            FileErr::DirectoryRead(path, why) => {
-                let _ = write!(stderr, "unable to read directory: {:?}: {}", path, why);
-            }
-            FileErr::Remove(path, why) => {
-                let _ = write!(stderr, "unable to remove file: {:?}: {}", path, why);
-            },
-            _ => unreachable!()
+            exit(1)
         }
     }
 }
 
-pub fn parse(args: &mut Args) -> InputIterator {
-    match args.parse() {
+pub fn parse(args: &mut Args, comm: &mut String, unprocessed: &Path) -> InputIterator {
+    match args.parse(comm, unprocessed) {
         Ok(inputs) => {
             args.ninputs = inputs.total_arguments;
             inputs

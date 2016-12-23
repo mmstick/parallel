@@ -49,7 +49,7 @@ pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: &[Token],
             job_no:           &job_id.to_string(),
             job_total:        &job_total,
             input:            &input,
-            command_template: &arguments,
+            command_template: arguments,
         };
 
         match command.exec(flags) {

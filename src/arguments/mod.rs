@@ -10,13 +10,13 @@ use std::fs;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use std::process::exit;
+use arrayvec::ArrayVec;
 use permutate::Permutator;
 use num_cpus;
 
 use super::disk_buffer::{self, DiskBufferTrait};
-use super::filepaths;
 use super::input_iterator::InputIterator;
-use super::tokenizer::{Token, tokenize};
+use super::tokenizer::Token;
 use self::errors::ParseErr;
 
 // Re-export key items from internal modules.
@@ -38,42 +38,34 @@ enum Quoting { None, Basic, Shell }
 
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
-pub struct Args {
+pub struct Args<'a> {
     pub flags:        u8,
     pub ncores:       usize,
-    pub arguments:    Vec<Token>,
-    pub piped_values: Option<Vec<String>>,
+    pub arguments:    ArrayVec<[Token<'a>; 128]>,
     pub ninputs:      usize,
 }
 
-impl Args {
-    pub fn new() -> Args {
+impl<'a> Args<'a> {
+    pub fn new() -> Args<'a> {
         Args {
             ncores:       num_cpus::get(),
             flags:        SHELL_ENABLED,
-            arguments:    Vec::new(),
-            piped_values: None,
+            arguments:    ArrayVec::new(),
             ninputs:      0,
         }
     }
 
-    pub fn parse(&mut self) -> Result<InputIterator, ParseErr> {
-        let unprocessed_path = match filepaths::unprocessed() {
-            Some(path) => path,
-            None => return Err(ParseErr::File(FileErr::Path))
-        };
-
+    pub fn parse(&mut self, comm: &mut String, unprocessed_path: &Path) -> Result<InputIterator, ParseErr> {
         let mut quote = Quoting::None;
 
         // Create a write buffer that automatically writes data to the disk when the buffer is full.
-        let mut disk_buffer = disk_buffer::DiskBuffer::new(&unprocessed_path).write()
-            .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.clone(), why)))?;
+        let mut disk_buffer = disk_buffer::DiskBuffer::new(unprocessed_path).write()
+            .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.to_owned(), why)))?;
 
         // Temporary stores for input arguments.
         let mut raw_args                    = env::args().skip(1).peekable();
-        let mut comm                        = String::with_capacity(128);
         let mut lists: Vec<Vec<String>>     = Vec::new();
-        let mut current_inputs: Vec<String> = Vec::new();
+        let mut current_inputs: Vec<String> = Vec::with_capacity(1024);
         let mut number_of_arguments = 0;
 
         if env::args().len() > 1 {
@@ -295,12 +287,9 @@ impl Args {
         // Expand the command if quoting is enabled
         match quote {
             Quoting::None  => (),
-            Quoting::Basic => comm = quote::basic(comm),
-            Quoting::Shell => comm = quote::shell(comm),
+            Quoting::Basic => quote::basic(comm),
+            Quoting::Shell => quote::shell(comm),
         }
-
-        // Attempt to tokenize the command argument into simple primitive placeholders.
-        tokenize(&mut self.arguments, &comm, &unprocessed_path, number_of_arguments).map_err(ParseErr::Token)?;
 
         if dash_exists() {
             self.flags |= DASH_EXISTS;
@@ -308,11 +297,16 @@ impl Args {
 
         if !shell_required(&self.arguments) {
             self.flags &= 255 ^ SHELL_ENABLED;
+            if self.flags & SHELL_ENABLED == 1 {
+                println!("Shell enabled");
+            } else {
+                println!("Shell disabled");
+            }
         }
 
         // Return an `InputIterator` of the arguments contained within the unprocessed file.
-        let path = filepaths::unprocessed().ok_or(ParseErr::File(FileErr::Path))?;
-        Ok(InputIterator::new(&path, number_of_arguments).map_err(ParseErr::File)?)
+        let inputs = InputIterator::new(unprocessed_path, number_of_arguments).map_err(ParseErr::File)?;
+        Ok(inputs)
     }
 }
 
