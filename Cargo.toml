@@ -10,7 +10,7 @@ readme = "README.md"
 
 [dependencies]
 num_cpus  = "1.0"
-permutate = "0.1"
+permutate = "0.2"
 arrayvec  = "0.3"
 
 [profile.release]

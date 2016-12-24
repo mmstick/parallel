@@ -237,10 +237,28 @@ impl<'a> Args<'a> {
                 let list_array: Vec<&[&str]> = tmp.iter().map(AsRef::as_ref).collect();
 
                 // Create a `Permutator` with the &[&[&str]] as the input.
-                let permutator = Permutator::new(&list_array[..]);
+                let mut permutator = Permutator::new(&list_array[..]);
 
-                for permutation in permutator {
-                    let mut iter = permutation.iter();
+                // Generate the first permutation's buffer
+                let mut permutation_buffer = permutator.next().unwrap();
+                {
+                    let mut iter = permutation_buffer.iter();
+                    disk_buffer.write(iter.next().unwrap().as_bytes())
+                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                    for element in iter {
+                        disk_buffer.write_byte(b' ')
+                            .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                        disk_buffer.write(element.as_bytes())
+                            .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                    }
+                    disk_buffer.write_byte(b'\n')
+                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                    number_of_arguments += 1;
+                }
+
+                // Reuse that buffer for each successive permutation
+                while let Ok(true) = permutator.next_with_buffer(&mut permutation_buffer) {
+                    let mut iter = permutation_buffer.iter();
                     disk_buffer.write(iter.next().unwrap().as_bytes())
                         .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                     for element in iter {
