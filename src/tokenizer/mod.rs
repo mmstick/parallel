@@ -102,7 +102,7 @@ pub fn tokenize<'a>(tokens: &mut ArrayVec<[Token<'a>; 128]>, template: &'a str, 
                     // Supply the internal contents of the pattern to the token matcher.
                     match match_token(&template[pattern_start+1..id], path, nargs)? {
                         // If the token is a match, add the matched token.
-                        Some(token) => { tokens.push(token).unwrap(); },
+                        Some(token) => { tokens.push(token); },
                         // If the token is not a match, add it as an argument.
                         None => { tokens.push(Token::Argument(Cow::Borrowed(&template[pattern_start..id+1]))); }
                     }
