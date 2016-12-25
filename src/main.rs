@@ -42,7 +42,7 @@ unsafe fn leak_command(comm: String) -> &'static str {
 /// Determines if a shell is required or not for execution
 fn shell_required(arguments: &[Token]) -> bool {
     for token in arguments {
-        if let &Token::Argument(ref arg) = token {
+        if let Token::Argument(ref arg) = *token {
             if arg.contains(';') || arg.contains('&') || arg.contains('|') {
                 return true
             }
@@ -103,8 +103,8 @@ fn main() {
     // Determines if a shell is required or not
     if !shell_required(&args.arguments) {
         args.flags &= 255 ^ arguments::SHELL_ENABLED;
-    } else {
-        if dash_exists() { args.flags |= arguments::DASH_EXISTS; }
+    } else if dash_exists() {
+        args.flags |= arguments::DASH_EXISTS;
     }
 
     let shared_input = Arc::new(Mutex::new(inputs));

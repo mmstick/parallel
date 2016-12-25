@@ -1,3 +1,4 @@
+use std::convert::AsRef;
 use std::ffi::OsStr;
 use std::io::{self, Write};
 use std::process::{Child, Command, Stdio};
@@ -33,16 +34,15 @@ pub struct ParallelCommand<'a> {
 }
 
 impl<'a> ParallelCommand<'a> {
-    pub fn exec(&self, flags: u8) -> Result<Child, CommandErr> {
+    pub fn exec(&self, arguments: &mut String, flags: u8) -> Result<Child, CommandErr> {
         // First the arguments will be generated based on the tokens and input.
-        let mut arguments = String::with_capacity(self.command_template.len() << 1);
-        self.build_arguments(&mut arguments, flags & arguments::PIPE_IS_ENABLED != 0);
+        self.build_arguments(arguments, flags & arguments::PIPE_IS_ENABLED != 0);
 
         if flags & arguments::PIPE_IS_ENABLED == 0 {
-            append_argument(&mut arguments, self.command_template, self.input);
-            get_command_output(&arguments, flags).map_err(CommandErr::IO)
+            append_argument(arguments, self.command_template, self.input);
+            get_command_output(arguments.as_str(), flags).map_err(CommandErr::IO)
         } else {
-            let mut child = get_command_output(&arguments, flags).map_err(CommandErr::IO)?;
+            let mut child = get_command_output(arguments.as_str(), flags).map_err(CommandErr::IO)?;
 
             {   // Grab a handle to the child's stdin and write the input argument to the child's stdin.
                 let stdin = child.stdin.as_mut().unwrap();
@@ -90,7 +90,7 @@ pub fn get_command_output(command: &str, flags: u8) -> io::Result<Child> {
     if flags & arguments::SHELL_ENABLED != 0 && flags & arguments::PIPE_IS_ENABLED == 0 {
         shell_output(command, flags)
     } else {
-        let arguments = split_into_args(command);
+        let arguments = ArgumentSplitter::new(command).collect::<Vec<String>>();
         match (arguments.len() == 1, flags & arguments::QUIET_MODE != 0, flags & arguments::PIPE_IS_ENABLED != 0) {
             (true, true, false) => Command::new(&arguments[0])
                 .stdout(Stdio::null()).stderr(Stdio::piped())
@@ -145,95 +145,66 @@ fn shell_output<S: AsRef<OsStr>>(args: S, flags: u8) -> io::Result<Child> {
     }
 }
 
-/// Handles quoting of arguments to prevent arguments with spaces as being read as
-/// multiple separate arguments. This is only executed when `--no-shell` is in use.
-fn split_into_args(command: &str) -> Vec<String> {
-    let mut output = Vec::new();
-    let mut buffer = String::new();
-    let mut quoted = false;
-    let mut prev_char_was_a_backslash = false;
-    for character in command.chars() {
-        if quoted {
-            match character {
-                '\\' => {
-                    if prev_char_was_a_backslash {
-                        buffer.push('\\');
-                        prev_char_was_a_backslash = false;
-                    } else {
-                        prev_char_was_a_backslash = true;
-                    }
-                },
-                '"' => {
-                    if prev_char_was_a_backslash {
-                        buffer.push('\\');
-                        prev_char_was_a_backslash = false;
-                    } else {
-                        if !buffer.is_empty() {
-                            output.push(buffer.clone());
-                            buffer.clear();
-                        }
-                        quoted = false;
-                    }
-                },
-                _ => {
-                    if prev_char_was_a_backslash {
-                        buffer.push('\\');
-                        prev_char_was_a_backslash = false;
-                    }
-                    buffer.push(character);
-                }
-            }
-        } else {
-            match character {
-                ' ' => {
-                    if prev_char_was_a_backslash {
-                        buffer.push(' ');
-                        prev_char_was_a_backslash = false;
-                    } else if !buffer.is_empty() {
-                        output.push(buffer.clone());
-                        buffer.clear();
-                    }
-                },
-                '\\' => {
-                    if prev_char_was_a_backslash {
-                        buffer.push('\\');
-                        prev_char_was_a_backslash = false;
-                    } else {
-                        prev_char_was_a_backslash = true;
-                    }
-                },
-                '"' => {
-                    if prev_char_was_a_backslash {
-                        buffer.push('"');
-                        prev_char_was_a_backslash = false;
-                    } else {
-                        quoted = true;
-                    }
-                },
-                _ => {
-                    if prev_char_was_a_backslash {
-                        buffer.push('\\');
-                        prev_char_was_a_backslash = false;
-                    } else {
-                        buffer.push(character);
-                    }
-                }
-            }
+const DOUBLE: u8 = 1;
+const SINGLE: u8 = 2;
+const BACK:   u8 = 4;
+
+struct ArgumentSplitter<'a> {
+    buffer:       String,
+    data:         &'a str,
+    read:         usize,
+    flags:        u8,
+}
+
+impl<'a> ArgumentSplitter<'a> {
+    fn new(data: &'a str) -> ArgumentSplitter<'a> {
+        ArgumentSplitter {
+            buffer:       String::with_capacity(32),
+            data:         data,
+            read:         0,
+            flags:        0,
         }
     }
+}
 
-    if !buffer.is_empty() { output.push(buffer); }
-    output.shrink_to_fit();
-    output
+impl<'a> Iterator for ArgumentSplitter<'a> {
+    type Item = String;
+    
+    fn next(&mut self) -> Option<String> {
+        for character in self.data.chars().skip(self.read) {
+            self.read += 1;
+            match character {
+                _ if self.flags & BACK != 0 => {
+                    self.buffer.push(character);
+                    self.flags ^= BACK;
+                },
+                '"'  if self.flags & SINGLE == 0 => self.flags ^= DOUBLE,
+                '\'' if self.flags & DOUBLE == 0 => self.flags ^= SINGLE,
+                ' '  if !self.buffer.is_empty() & (self.flags & (SINGLE + DOUBLE) == 0) => break,
+                '\\' if (self.flags & (SINGLE + DOUBLE) == 0) => self.flags ^= BACK,
+                _ => self.buffer.push(character)
+            }
+        }
+        
+        if self.buffer.is_empty() {
+            None
+        } else {
+            let mut output = self.buffer.clone();
+            output.shrink_to_fit();
+            self.buffer.clear();
+            Some(output)
+        }
+    }
 }
 
 #[test]
 fn test_split_args() {
-    let argument = "ffmpeg -i \"file with spaces\" \"output with spaces\"";
+    let argument = ArgumentSplitter::new("ffmpeg -i \"file with spaces\" \"output with spaces\"");
     let expected = vec!["ffmpeg", "-i", "file with spaces", "output with spaces"];
-    assert_eq!(split_into_args(argument), expected);
+    assert_eq!(argument.collect::<Vec<String>>(), expected);
 
-    let argument = "one\\ two\\\\ three";
+    let argument = ArgumentSplitter::new("one\\ two\\\\ three");
     let expected = vec!["one two\\", "three"];
-    assert_eq!(split_into_args(argument), expected);
+    assert_eq!(argument.collect::<Vec<String>>(), expected);
 }
+

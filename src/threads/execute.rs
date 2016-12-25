@@ -13,9 +13,9 @@ use std::sync::mpsc::Sender;
 fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr) -> Option<(String, usize)> {
     let mut inputs = inputs.lock().unwrap();
     let job_id = inputs.curr_argument;
-    let input: String = match inputs.next() {
-        None            => return None,
-        Some(Ok(input)) => input,
+    match inputs.next() {
+        None            => None,
+        Some(Ok(input)) => Some((input, job_id)),
         Some(Err(why))  => {
             let stderr = &mut stderr.lock();
             match why {
@@ -23,10 +23,9 @@ fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr) -> Option<(
                     let _ = write!(stderr, "parallel: input file read error: {:?}: {}\n", path, why);
                 },
             }
-            return None;
+            None
         }
-    };
-    Some((input, job_id))
+    }
 }
 
 /// Builds and executes commands based on a provided template and associated inputs.
@@ -36,23 +35,25 @@ pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: &[Token],
     let stdout = io::stdout();
     let stderr = io::stderr();
 
-    let slot = slot.to_string();
-    let job_total = num_inputs.to_string();
+    let slot      = &slot.to_string();
+    let job_total = &num_inputs.to_string();
+    let mut command_buffer = &mut String::with_capacity(64);
 
     while let Some((input, job_id)) = attempt_next(&inputs, &stderr) {
         if flags & arguments::VERBOSE_MODE != 0  {
-            verbose::processing_task(&stdout, &job_id.to_string(), &job_total, &input);
+            verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
         }
 
         let command = command::ParallelCommand {
-            slot_no:          &slot,
+            slot_no:          slot,
             job_no:           &job_id.to_string(),
-            job_total:        &job_total,
+            job_total:        job_total,
             input:            &input,
             command_template: arguments,
         };
 
-        match command.exec(flags) {
+        command_buffer.clear();
+        match command.exec(command_buffer, flags) {
             Ok(mut child) => {
                 pipe::output(&mut child, job_id, input.clone(), &output_tx, flags & arguments::QUIET_MODE != 0);
                 let _ = child.wait();
@@ -71,7 +72,7 @@ pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: &[Token],
         }
 
         if flags & arguments::VERBOSE_MODE != 0 {
-            verbose::task_complete(&stdout, &job_id.to_string(), &job_total, &input);
+            verbose::task_complete(&stdout, &job_id.to_string(), job_total, &input);
         }
     }
 }
@@ -81,11 +82,11 @@ pub fn inputs(num_inputs: usize, flags: u8, inputs: Arc<Mutex<InputIterator>>, o
     let stdout = io::stdout();
     let stderr = io::stderr();
 
-    let job_total = num_inputs.to_string();
+    let job_total = &num_inputs.to_string();
 
     while let Some((input, job_id)) = attempt_next(&inputs, &stderr) {
         if flags & arguments::VERBOSE_MODE != 0 {
-            verbose::processing_task(&stdout, &job_id.to_string(), &job_total, &input);
+            verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
         }
 
         match command::get_command_output(&input, flags) {
@@ -102,7 +103,7 @@ pub fn inputs(num_inputs: usize, flags: u8, inputs: Arc<Mutex<InputIterator>>, o
         }
 
         if flags & arguments::VERBOSE_MODE != 0 {
-            verbose::task_complete(&stdout, &job_id.to_string(), &job_total, &input);
+            verbose::task_complete(&stdout, &job_id.to_string(), job_total, &input);
         }
     }
 }

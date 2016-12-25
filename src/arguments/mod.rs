@@ -246,9 +246,7 @@ impl<'a> Args<'a> {
                     disk_buffer.write(iter.next().unwrap().as_bytes())
                         .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                     for element in iter {
-                        disk_buffer.write_byte(b' ')
-                            .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
-                        disk_buffer.write(element.as_bytes())
+                        disk_buffer.write_byte(b' ').and_then(|_| disk_buffer.write(element.as_bytes()))
                             .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                     }
                     disk_buffer.write_byte(b'\n')
@@ -262,9 +260,7 @@ impl<'a> Args<'a> {
                     disk_buffer.write(iter.next().unwrap().as_bytes())
                         .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                     for element in iter {
-                        disk_buffer.write_byte(b' ')
-                            .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
-                        disk_buffer.write(element.as_bytes())
+                        disk_buffer.write_byte(b' ').and_then(|_| disk_buffer.write(element.as_bytes()))
                             .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                     }
                     disk_buffer.write_byte(b'\n')
@@ -273,10 +269,9 @@ impl<'a> Args<'a> {
                 }
             } else {
                 for input in current_inputs {
-                    disk_buffer.write(input.as_bytes()).map_err(|why|
-                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
-                    disk_buffer.write_byte(b'\n').map_err(|why|
-                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                    disk_buffer.write(input.as_bytes())
+                        .and_then(|_| disk_buffer.write_byte(b'\n'))
+                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                     number_of_arguments += 1;
                 }
             }
@@ -287,10 +282,8 @@ impl<'a> Args<'a> {
             let stdin = io::stdin();
             for line in stdin.lock().lines() {
                 if let Ok(line) = line {
-                    disk_buffer.write(line.as_bytes()).map_err(|why|
-                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
-                    disk_buffer.write_byte(b'\n').map_err(|why|
-                        ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                    disk_buffer.write(line.as_bytes()).and_then(|_| disk_buffer.write_byte(b'\n'))
+                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
                     number_of_arguments += 1;
                 }
             }
