@@ -66,7 +66,6 @@ pub fn errors() -> Option<PathBuf> {
     })
 }
 
-#[cfg(not(windows))]
 pub fn outputs_path() -> PathBuf {
     PathBuf::from("/tmp/parallel/")
 }
