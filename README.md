@@ -12,30 +12,56 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
 
 ### GNU Parallel
 ```
-~/D/parallel (master) $ seq 1 10000 | time -v parallel echo > /dev/null
-	Command being timed: "parallel echo"
-	User time (seconds): 97.04
-	System time (seconds): 29.17
-	Percent of CPU this job got: 232%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:54.17
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 66848
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 0
-	Minor (reclaiming a frame) page faults: 15070207
-	Voluntary context switches: 250452
-	Involuntary context switches: 113320
-	Swaps: 0
-	File system inputs: 0
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
+~/D/parallel (master) $ seq 1 10000 | time -v /usr/bin/parallel echo > /dev/null
+    Command being timed: "/usr/bin/parallel echo"
+    User time (seconds): 194.73
+    System time (seconds): 66.49
+    Percent of CPU this job got: 230%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 1:53.08
+    Average shared text size (kbytes): 0
+    Average unshared data size (kbytes): 0
+    Average stack size (kbytes): 0
+    Average total size (kbytes): 0
+    Maximum resident set size (kbytes): 16140
+    Average resident set size (kbytes): 0
+    Major (requiring I/O) page faults: 0
+    Minor (reclaiming a frame) page faults: 10329017
+    Voluntary context switches: 102095
+    Involuntary context switches: 229910
+    Swaps: 0
+    File system inputs: 0
+    File system outputs: 0
+    Socket messages sent: 0
+    Socket messages received: 0
+    Signals delivered: 0
+    Page size (bytes): 4096
+    Exit status: 0
+```
+
+```
+~/D/parallel (master) $ time -v /usr/bin/parallel cat ::: /usr/bin/* > /dev/null
+    User time (seconds): 71.71
+    System time (seconds): 27.67
+    Percent of CPU this job got: 222%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:44.62
+    Average shared text size (kbytes): 0
+    Average unshared data size (kbytes): 0
+    Average stack size (kbytes): 0
+    Average total size (kbytes): 0
+    Maximum resident set size (kbytes): 17576
+    Average resident set size (kbytes): 0
+    Major (requiring I/O) page faults: 8
+    Minor (reclaiming a frame) page faults: 4112045
+    Voluntary context switches: 51331
+    Involuntary context switches: 101494
+    Swaps: 0
+    File system inputs: 1512
+    File system outputs: 0
+    Socket messages sent: 0
+    Socket messages received: 0
+    Signals delivered: 0
+    Page size (bytes): 4096
+    Exit status: 5
 ```
 
 ### Rust Parallel (Built with MUSL target)
@@ -44,29 +70,55 @@ It's highly recommend to compile Parallel with MUSL instead of glibc, as this re
 
 ```
 ~/D/parallel (master) $ seq 1 10000 | time -v target/release/x86_64-unknown-linux-musl/parallel echo > /dev/null
-Command being timed: "./parallel echo"
-	User time (seconds): 0.39
-	System time (seconds): 2.18
-	Percent of CPU this job got: 91%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:02.82
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 1768
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 0
-	Minor (reclaiming a frame) page faults: 828343
-	Voluntary context switches: 91062
-	Involuntary context switches: 69057
-	Swaps: 0
-	File system inputs: 0
-	File system outputs: 304
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
+    Command being timed: "target/x86_64-unknown-linux-musl/release/parallel echo"
+    User time (seconds): 0.55
+    System time (seconds): 3.45
+    Percent of CPU this job got: 65%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:06.14
+    Average shared text size (kbytes): 0
+    Average unshared data size (kbytes): 0
+    Average stack size (kbytes): 0
+    Average total size (kbytes): 0
+    Maximum resident set size (kbytes): 1768
+    Average resident set size (kbytes): 0
+    Major (requiring I/O) page faults: 1
+    Minor (reclaiming a frame) page faults: 815825
+    Voluntary context switches: 72504
+    Involuntary context switches: 54392
+    Swaps: 0
+    File system inputs: 8
+    File system outputs: 352
+    Socket messages sent: 0
+    Socket messages received: 0
+    Signals delivered: 0
+    Page size (bytes): 4096
+    Exit status: 0
+```
+
+```
+~/D/parallel (master) $ time -v target/release/x86_64-unknown-linux-musl/release/parallel cat ::: /usr/bin/* > /dev/null
+    User time (seconds): 1.27
+    System time (seconds): 5.07
+    Percent of CPU this job got: 138%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:04.58
+    Average shared text size (kbytes): 0
+    Average unshared data size (kbytes): 0
+    Average stack size (kbytes): 0
+    Average total size (kbytes): 0
+    Maximum resident set size (kbytes): 1844
+    Average resident set size (kbytes): 0
+    Major (requiring I/O) page faults: 0
+    Minor (reclaiming a frame) page faults: 350701
+    Voluntary context switches: 67739
+    Involuntary context switches: 44271
+    Swaps: 0
+    File system inputs: 0
+    File system outputs: 480
+    Socket messages sent: 0
+    Socket messages received: 0
+    Signals delivered: 0
+    Page size (bytes): 4096
+    Exit status: 0
 ```
 
 ## Syntax Examples
@@ -208,47 +260,13 @@ I have a [personal Gentoo layman overlay](https://github.com/mmstick/mmstick-ove
 
 A PKGBUILD is available for Arch Linux users from the [AUR](https://aur.archlinux.org/packages/parallel-rust/).
 
-### Ubuntu
-
-Debian packages are provided on the [releases page](https://github.com/mmstick/parallel/releases).
-If a release is not available, it's because I haven't built it yet with cargo deb.  
-
 ### Everyone Else
 
 ```sh
-wget https://github.com/mmstick/parallel/releases/download/0.6.2/parallel_0.6.2_amd64.tar.xz
-tar xf parallel_0.6.2.tar.xz
-sudo install parallel /usr/local/bin
-```
-
-## Compiling From Source
-
-All of the dependencies are vendored locally, so it is possible to build the packages without Internet access.
-
-#### First Method
-
-If you would like to install the latest release directly to `~/.cargo/bin` using the official method.
-
-```sh
-cargo install parallel
-```
-
-#### Second Method
-
-If you would like to install the latest git release:
-
-```sh
-cargo install --git https://github.com/mmstick/parallel parallel
-```
-
-#### Third Method
-
-If you would like to install it system-wide.
-
-```sh
+rustup component add x86_64-unknown-linux-musl
 wget https://github.com/mmstick/parallel/archive/master.zip
 unzip master.zip
 cd parallel-master
-cargo build --release
-sudo install target/release/parallel /usr/local/bin
+cargo build --release --target x86_64-unknown-linux-musl
+sudo install target/x86_64-unknown-linux-musl/release/parallel /usr/local/bin/parallel
 ```

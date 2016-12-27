@@ -1,118 +1,192 @@
 pub mod execute;
 pub mod pipe;
 
-use std::io::{stderr, stdout, Write};
+use std::fs::{self, File};
+use std::io::{self, Write, Read};
 use std::path::Path;
 use std::sync::mpsc::Receiver;
+use std::thread;
+use std::time::Duration;
 
 use super::arguments::Args;
 use super::disk_buffer::DiskBuffer;
-use self::pipe::State;
+use super::filepaths;
+use self::pipe::disk::State;
 
+macro_rules! read_outputs {
+    ($stdout:ident, $stderr:ident, $buffer:ident, $stdout_out:ident, $stderr_out:ident) => {
+        let mut bytes_read = $stdout.read(&mut $buffer).unwrap_or(0);
+        while bytes_read != 0 {
+            if let Err(why) = $stdout_out.write(&$buffer[0..bytes_read]) {
+                let _ = write!($stderr_out, "parallel: I/O error: unable to write to standard output: {}\n", why);
+            }
+            bytes_read = $stdout.read(&mut $buffer).unwrap_or(0);
+        }
+
+        bytes_read = $stderr.read(&mut $buffer).unwrap_or(0);
+        while bytes_read != 0 {
+            if let Err(why) = $stderr_out.write(&$buffer[0..bytes_read]) {
+                let _ = write!($stderr_out, "parallel: I/O error: unable to write to standard error: {}\n", why);
+            }
+            bytes_read = $stderr.read(&mut $buffer).unwrap_or(0);
+        }
+    }
+}
+
+macro_rules! remove_job_files {
+    ($stdout_path:ident, $stderr_path:ident, $stderr:ident) => {{
+        if let Err(why) = fs::remove_file($stdout_path).and_then(|_| fs::remove_file($stderr_path)) {
+            let _ = write!($stderr, "parallel: I/O error: unable to remove job files: {}\n", why);
+        }
+    }}
+}
+
+macro_rules! open_job_files {
+    ($stdout_path:ident, $stderr_path:ident) => {{
+        let stdout_file = loop {
+            if let Ok(file) = File::open(&$stdout_path) { break file }
+            thread::sleep(Duration::from_millis(1));
+        };
+
+        let stderr_file = loop {
+            if let Ok(file) = File::open(&$stderr_path) { break file }
+            thread::sleep(Duration::from_millis(1));
+        };
+
+        (stdout_file, stderr_file)
+    }}
+}
+
+macro_rules! append_to_processed {
+    ($processed:ident, $input:ident, $stderr:ident) => {{
+        if let Err(why) = $processed.write($input.as_bytes()).and_then(|_| $processed.write(b"\n")) {
+            let _ = write!($stderr, "parallel: I/O error: unable to append to processed: {}\n", why);
+        }
+    }}
+}
+
+#[allow(cyclomatic_complexity)]
 pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &Path, errors_path: &Path) {
-    let stdout = stdout();
-    let stderr = stderr();
+    let stdout = io::stdout();
+    let stderr = io::stderr();
+    let mut stdout = stdout.lock();
+    let mut stderr = stderr.lock();
 
     // Keeps track of which job is currently allowed to print to standard output/error.
     let mut counter = 0;
     // Messages received that are not to be printed will be stored for later use.
-    let mut buffer = Vec::new();
+    let mut buffer = Vec::with_capacity(64);
     // Store a list of indexes we need to drop from `buffer` after a match has been found.
     let mut drop = Vec::with_capacity(args.ncores);
     // Store a list of completed inputs in the event that the user may need to resume processing.
     let mut processed_file = DiskBuffer::new(processed_path).write().unwrap();
     let mut error_file     = DiskBuffer::new(errors_path).write().unwrap();
+    // A buffer for buffering the outputs of temporary files on disk.
+    let mut read_buffer = [0u8; 8192];
 
-    // The loop will only quit once all inputs have been received.
+    // The loop will only quit once all inpulet mut stdout = stdout.lock();
     while counter < args.ninputs {
-        // Block and wait until a new buffer is received.
+        let mut tail_next = false;
+
         match input_rx.recv().unwrap() {
-            // Signals that the job has completed processing
-            State::Completed(job, name) => {
-                if job == counter {
+            State::Completed(id, name) => {
+                if id == counter {
+                    let (stdout_path, stderr_path) = filepaths::job(counter);
+                    let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
+                    append_to_processed!(processed_file, name, stderr);
+                    read_outputs!(stdout_file, stderr_file, read_buffer, stdout, stderr);
+                    remove_job_files!(stdout_path, stderr_path, stderr);
                     counter += 1;
-                    if let Err(why) = processed_file.write(name.as_bytes()) {
-                        let mut stderr = &mut stderr.lock();
-                        let _ = write!(stderr, "parallel: I/O error: {}", why);
-                    }
                 } else {
-                    buffer.push(State::Completed(job, name));
+                    buffer.push(State::Completed(id, name));
+                    tail_next = true;
                 }
             },
-            // Signals that an error occurred.
             State::Error(id, message) => {
                 if id == counter {
                     counter += 1;
                     if let Err(why) = error_file.write(message.as_bytes()) {
-                        let mut stderr = &mut stderr.lock();
                         let _ = write!(stderr, "parallel: I/O error: {}", why);
                     }
                 } else {
                     buffer.push(State::Error(id, message));
                 }
             }
-            // If the received message is a processing signal, there is a message to print.
-            State::Processing(output) => {
-                if output.id == counter {
-                    output.pipe.print_message(output.id, &mut error_file, &stdout, &stderr);
-                } else {
-                    buffer.push(State::Processing(output));
+        }
+
+        if tail_next {
+            let (stdout_path, stderr_path) = filepaths::job(counter);
+            let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
+
+            loop {
+                match input_rx.try_recv() {
+                    Ok(State::Completed(id, name)) => {
+                        if id == counter {
+                            append_to_processed!(processed_file, name, stderr);
+                            read_outputs!(stdout_file, stderr_file, read_buffer, stdout, stderr);
+                            remove_job_files!(stdout_path, stderr_path, stderr);
+                            counter += 1;
+                            break
+                        } else {
+                            buffer.push(State::Completed(id, name));
+                        }
+                    },
+                    Ok(State::Error(id, message)) => {
+                        if id == counter {
+                            counter += 1;
+                            if let Err(why) = error_file.write(message.as_bytes()) {
+                                let _ = write!(stderr, "parallel: I/O error: {}", why);
+                            }
+                        } else {
+                            buffer.push(State::Error(id, message));
+                        }
+                    },
+                    _ => {
+                        let mut bytes_read = stdout_file.read(&mut read_buffer).unwrap();
+                        if bytes_read != 0 { stdout.write(&read_buffer[0..bytes_read]).unwrap(); }
+
+                        bytes_read = stderr_file.read(&mut read_buffer).unwrap();
+                        if bytes_read != 0 { stderr.write(&read_buffer[0..bytes_read]).unwrap(); }
+                        thread::sleep(Duration::from_millis(1));
+                    }
                 }
             }
         }
 
-        // Check to see if there are any stored buffers that can now be printed.
-        'outer: loop {
-            // Keep track of any changes that have been made in this iteration.
-            let mut changed = false;
-
-            macro_rules! check_state {
-                ($id:ident, $job:ident, $message:ident, $file:ident) => {{
-                    if $job == counter {
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for (index, state) in buffer.iter().enumerate() {
+                match *state {
+                    State::Completed(id, ref name) if id == counter => {
+                        let (stdout_path, stderr_path) = filepaths::job(counter);
+                        let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
+                        append_to_processed!(processed_file, name, stderr);
+                        read_outputs!(stdout_file, stderr_file, read_buffer, stdout, stderr);
+                        remove_job_files!(stdout_path, stderr_path, stderr);
                         counter += 1;
-                        drop.push($id);
                         changed = true;
-                        if let Err(why) = $file.write($message.as_bytes()) {
-                            let mut stderr = &mut stderr.lock();
+                        drop.push(index);
+                    },
+                    State::Error(id, ref message) if id == counter => {
+                        counter += 1;
+                        if let Err(why) = error_file.write(message.as_bytes()) {
                             let _ = write!(stderr, "parallel: I/O error: {}", why);
                         }
-                        break
-                    }
-                }}
-            }
-
-            // Loop through the list of buffers and print buffers with the next ID in line.
-            // If a match was found, `changed` will be set to true and the job added to the
-            // drop list. If no change was found, the outer loop will quit.
-            for (id, output) in buffer.iter().enumerate() {
-                match *output {
-                    State::Completed(job, ref name) => check_state!(id, job, name, processed_file),
-                    State::Error(job, ref message) => check_state!(id, job, message, error_file),
-                    State::Processing(ref output) => {
-                        if output.id == counter {
-                            output.pipe.print_message(output.id, &mut error_file, &stdout, &stderr);
-                            changed = true;
-                            drop.push(id);
-                        }
-                    }
+                    },
+                    _ => ()
                 }
             }
-
-            // Drop the buffers that were used.
-            if !drop.is_empty() { drop_used_values(&mut buffer, &mut drop); }
-
-            // If no change is made during a loop, it's time to give up searching.
-            if !changed { break 'outer }
         }
+
+        drop_used_values(&mut buffer, &mut drop);
     }
 
     if let Err(why) = processed_file.flush() {
-        let mut stderr = &mut stderr.lock();
         let _ = write!(stderr, "parallel: I/O error: {}", why);
     }
 
     if let Err(why) = error_file.flush() {
-        let mut stderr = &mut stderr.lock();
         let _ = write!(stderr, "parallel: I/O error: {}", why);
     }
 }
@@ -122,5 +196,4 @@ fn drop_used_values(buffer: &mut Vec<State>, drop: &mut Vec<usize>) {
     for id in drop.drain(0..).rev() {
         let _ = buffer.remove(id);
     }
-    buffer.shrink_to_fit()
 }

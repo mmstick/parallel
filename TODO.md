@@ -1,22 +1,22 @@
 # Parallel Todo List
 The list is actively updated with each successful pull request.
 
-## Tests
-- Create tests for all functions.
-
-## Speed
-- Investigate starting execution early if {#^} is not in use.
-
-## Improvements
-- Rewrite parser to write data into list files instead of vectors.
-- Also support writing to the processed file in ungrouped mode, or remove support for ungrouped.
-
-## Features
-- Colorize the error messages
-- Investigate supporting processing nodes via SSH and PowerShell
-- Monitor memory consumption and defer execution of arguments if exceeded.
-- Monitor CPU consumption and defer execution of arguments if exceeded.
-- Support setting nicety of processes
-- Support setting core affinity of processes (default 15)
-- Offer retry option to retry failed inputs
-- Create own shell syntax to replace the need for a platform shell.
+- Implement `disable-temp-files`
+    - Re-integrate the original memory-buffered implementation
+- Implement `retries`, `resume`, `resume-failed`, and `retry-failed`
+    - Will require comparing the processed and unprocessed files
+    - Generate a new unprocessed file and remove the originals
+- Implement `delay` and `timeout`
+    - Add a delay timer between commands and a timeout timer to kill applications that run too long
+- Implement `compress`
+    - Compress the outputs of a file if the file exceeds a certain length
+- Implement `eta` and `progress`
+    - Estimate how long it will take for the commands to complete and show a progress bar
+- Implement `memfree`
+    - Only execute a task if memory consumption is below a certain threshold.
+- Implement `skip-first-line` and `shebang`
+    - Basically, enale the ability to use parallel in a shebang line
+- Implement `workdir` and `tempdir`
+    - Allow the ability to change the default location of the temp and work directories
+- Implement `dry-run`
+    - Print a list of all commands that would be run

@@ -1,6 +1,7 @@
 use arguments::{self, InputIteratorErr};
 use command::{self, CommandErr};
-use super::pipe::{self, State};
+use super::pipe::disk::output as pipe_output;
+use super::pipe::disk::State;
 use super::super::tokenizer::Token;
 use super::super::input_iterator::InputIterator;
 use verbose;
@@ -55,7 +56,7 @@ pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: &[Token],
         command_buffer.clear();
         match command.exec(command_buffer, flags) {
             Ok(mut child) => {
-                pipe::output(&mut child, job_id, input.clone(), &output_tx, flags & arguments::QUIET_MODE != 0);
+                pipe_output(&mut child, job_id, input.clone(), &output_tx, flags & arguments::QUIET_MODE != 0);
                 let _ = child.wait();
             },
             Err(cmd_err) => {
@@ -91,7 +92,7 @@ pub fn inputs(num_inputs: usize, flags: u8, inputs: Arc<Mutex<InputIterator>>, o
 
         match command::get_command_output(&input, flags) {
             Ok(mut child) => {
-                pipe::output(&mut child, job_id, input.clone(), &output_tx, flags & arguments::QUIET_MODE != 0);
+                pipe_output(&mut child, job_id, input.clone(), &output_tx, flags & arguments::QUIET_MODE != 0);
                 let _ = child.wait();
             },
             Err(why) => {

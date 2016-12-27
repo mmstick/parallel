@@ -13,6 +13,10 @@ fn remove_preexisting_files() -> Result<(PathBuf, PathBuf, PathBuf), FileErr> {
 
     // Create the directories that are required for storing input files.
     create_dir_all(&path).map_err(|why| FileErr::DirectoryCreate(path.clone(), why))?;
+    if cfg!(not(windows)) {
+        let outputs_path = filepaths::outputs_path();
+        create_dir_all(&outputs_path).map_err(|why| FileErr::DirectoryCreate(outputs_path, why))?;
+    }
 
     // Attempt to obtain a listing of all the directories and files within the base directory.
     let directory = read_dir(&path).map_err(|why| FileErr::DirectoryRead(path.clone(), why))?;

@@ -1,5 +1,7 @@
 #![deny(dead_code)]
 #![deny(unused_imports)]
+#![allow(unknown_lints)]
+#![feature(loop_break_value)]
 #![feature(alloc_system)]
 extern crate alloc_system;
 extern crate arrayvec;
@@ -27,7 +29,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 
 use arguments::Args;
-use threads::pipe::State;
+use threads::pipe::disk::State;
 use tokenizer::{Token, TokenErr, tokenize};
 
 /// Coercing the `command` `String` into a `&'static str` is required to share it among all threads.
@@ -80,7 +82,7 @@ fn main() {
     let mut args = Args::new();
     let mut comm = String::with_capacity(128);
     let inputs = init::parse(&mut args, &mut comm, &unprocessed_path);
-    
+
     // Coerce the `comm` `String` into a `&'static str` so that it may be shared by all threads.
     // This is safe because the original `comm` may no longer be modified due to shadowing rules.
     // It is also safe because `comm` lives to the end of the program.

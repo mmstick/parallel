@@ -1,6 +1,6 @@
 [package]
 name = "parallel"
-version = "0.6.5"
+version = "0.7.0"
 authors = ["Michael Aaron Murphy <mmstickman@gmail.com>"]
 license = "MIT"
 description = "Command-line CPU load balancer for executing jobs in parallel"
@@ -9,7 +9,7 @@ keywords = ["cli", "parallel", "cpu", "load", "balancer"]
 readme = "README.md"
 
 [dependencies]
-num_cpus  = "1.0"
+num_cpus  = "1.2"
 permutate = "0.2"
 arrayvec  = "0.3"
 

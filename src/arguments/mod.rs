@@ -54,6 +54,7 @@ impl<'a> Args<'a> {
         }
     }
 
+    #[allow(cyclomatic_complexity)]
     pub fn parse(&mut self, comm: &mut String, unprocessed_path: &Path) -> Result<InputIterator, ParseErr> {
         let mut quote = Quoting::None;
 
