@@ -66,6 +66,7 @@ impl<'a> Args<'a> {
         let mut lists: Vec<Vec<String>>     = Vec::new();
         let mut current_inputs: Vec<String> = Vec::with_capacity(1024);
         let mut number_of_arguments = 0;
+        let mut max_args = 0;
 
         if env::args().len() > 1 {
             // The purpose of this is to set the initial parsing mode.
@@ -78,7 +79,7 @@ impl<'a> Args<'a> {
             if let Mode::Arguments = mode {
                 while let Some(argument) = arguments.get(index) {
                     index += 1;
-                    let mut char_iter = argument.chars().peekable();
+                    let mut char_iter = argument.chars();
 
                     // If the first character is a '-' then it will be processed as an argument.
                     // We can guarantee that there will always be at least one character.
@@ -86,7 +87,9 @@ impl<'a> Args<'a> {
                         // If the second character exists, everything's OK.
                         let character = char_iter.next().ok_or(ParseErr::InvalidArgument(index-1))?;
                         if character == 'j' {
-                            self.ncores = parse_jobs(argument, arguments.get(3))?;
+                            self.ncores = parse_jobs(argument, arguments.get(index), &mut index)?;
+                        } else if character == 'n' {
+                            max_args = parse_max_args(argument, arguments.get(index), &mut index)?;
                         } else if character != '-' {
                             for character in argument[1..].chars() {
                                 match character {
@@ -111,14 +114,19 @@ impl<'a> Args<'a> {
                                     exit(0);
                                 },
                                 "jobs" => {
-                                    index += 1;
                                     let val = arguments.get(index).ok_or(ParseErr::JobsNoValue)?;
-                                    self.ncores = jobs::parse(val)?
+                                    self.ncores = jobs::parse(val)?;
+                                    index += 1;
                                 },
                                 "num-cpu-cores" => {
                                     println!("{}", num_cpus::get());
                                     exit(0);
                                 },
+                                "max-args" => {
+                                    let val = arguments.get(index).ok_or(ParseErr::MaxArgsNoValue)?;
+                                    max_args = val.parse::<usize>().map_err(|_| ParseErr::MaxArgsNaN(index))?;
+                                    index += 1;
+                                }
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
                                 "quote" => quote = Quoting::Basic,
@@ -192,17 +200,14 @@ impl<'a> Args<'a> {
                         lists.push(current_inputs.clone());
                         current_inputs.clear();
                     }
-                }}
-            }
-
-            macro_rules! switch_mode_append {
-                ($mode:expr) => {{
+                }};
+                (append $mode:expr) => {{
                     match mode {
                         Mode::InputsAppend | Mode::FilesAppend => merge_lists(&mut current_inputs, &mut append_list),
                         _ => (),
                     }
                     mode = $mode;
-                }}
+                }};
             }
 
             // Parse each and every input argument supplied to the program.
@@ -212,11 +217,11 @@ impl<'a> Args<'a> {
                     // `:::` denotes that the next set of inputs will be added to a new list.
                     ":::"  => switch_mode!(Mode::Inputs),
                     // `:::+` denotes that the next set of inputs will be added to the current list.
-                    ":::+" => switch_mode_append!(Mode::InputsAppend),
+                    ":::+" => switch_mode!(append Mode::InputsAppend),
                     // `::::` denotes that the next set of inputs will be added to a new list.
                     "::::"  => switch_mode!(Mode::Files),
                     // `:::+` denotes that the next set of inputs will be added to the current list.
-                    "::::+" => switch_mode_append!(Mode::FilesAppend),
+                    "::::+" => switch_mode!(append Mode::FilesAppend),
                     // All other arguments will be added to the current list.
                     _ => match mode {
                         Mode::Inputs       => current_inputs.push(argument.clone()),
@@ -256,35 +261,94 @@ impl<'a> Args<'a> {
                 {
                     let mut iter = permutation_buffer.iter();
                     disk_buffer.write(iter.next().unwrap().as_bytes())
-                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                        .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
                     for element in iter {
                         disk_buffer.write_byte(b' ').and_then(|_| disk_buffer.write(element.as_bytes()))
-                            .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                            .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
                     }
-                    disk_buffer.write_byte(b'\n')
-                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+
                     number_of_arguments += 1;
                 }
 
                 // Reuse that buffer for each successive permutation
-                while let Ok(true) = permutator.next_with_buffer(&mut permutation_buffer) {
-                    let mut iter = permutation_buffer.iter();
-                    disk_buffer.write(iter.next().unwrap().as_bytes())
-                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
-                    for element in iter {
-                        disk_buffer.write_byte(b' ').and_then(|_| disk_buffer.write(element.as_bytes()))
-                            .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                if max_args < 2 {
+                    disk_buffer.write_byte(b'\n').map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                    while let Ok(true) = permutator.next_with_buffer(&mut permutation_buffer) {
+                        let mut iter = permutation_buffer.iter();
+                        disk_buffer.write(iter.next().unwrap().as_bytes())
+                            .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                        for element in iter {
+                            disk_buffer.write_byte(b' ').and_then(|_| disk_buffer.write(element.as_bytes()))
+                                .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                        }
+                        disk_buffer.write_byte(b'\n')
+                            .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                        number_of_arguments += 1;
                     }
-                    disk_buffer.write_byte(b'\n')
-                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
-                    number_of_arguments += 1;
+                } else {
+                    let mut max_args_index = max_args - 1;
+                    while let Ok(true) = permutator.next_with_buffer(&mut permutation_buffer) {
+                        let mut iter = permutation_buffer.iter();
+                        if max_args_index == max_args {
+                            max_args_index -= 1;
+                            number_of_arguments += 1;
+
+                            disk_buffer.write(iter.next().unwrap().as_bytes())
+                                .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+
+                            for element in iter {
+                                disk_buffer.write_byte(b' ').and_then(|_| disk_buffer.write(element.as_bytes()))
+                                    .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                            }
+                        } else if max_args_index == 1 {
+                            max_args_index = max_args;
+                            disk_buffer.write_byte(b' ')
+                                .and_then(|_| disk_buffer.write(iter.next().unwrap().as_bytes()))
+                                .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+
+                            for element in iter {
+                                disk_buffer.write_byte(b' ').and_then(|_| disk_buffer.write(element.as_bytes()))
+                                    .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                            }
+
+                            disk_buffer.write_byte(b'\n')
+                                .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                        } else {
+                            max_args_index -= 1;
+                            disk_buffer.write_byte(b' ')
+                                .and_then(|_| disk_buffer.write(iter.next().unwrap().as_bytes()))
+                                .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+
+                            for element in iter {
+                                disk_buffer.write_byte(b' ').and_then(|_| disk_buffer.write(element.as_bytes()))
+                                    .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                            }
+                        }
+                    }
                 }
-            } else {
+
+            } else if max_args < 2 {
                 for input in current_inputs {
                     disk_buffer.write(input.as_bytes())
                         .and_then(|_| disk_buffer.write_byte(b'\n'))
-                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+                        .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
                     number_of_arguments += 1;
+                }
+            } else {
+                for chunk in current_inputs.chunks(max_args) {
+                    let max_index = chunk.len()-1;
+                    let mut index = 0;
+                    number_of_arguments += 1;
+
+                    while index != max_index {
+                        disk_buffer.write(chunk[index].as_bytes())
+                            .and_then(|_| disk_buffer.write_byte(b' '))
+                            .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                        index += 1;
+                    }
+                    disk_buffer.write(chunk[max_index].as_bytes())
+                        .and_then(|_| disk_buffer.write_byte(b'\n'))
+                        .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
                 }
             }
         }
@@ -292,11 +356,40 @@ impl<'a> Args<'a> {
         // If no inputs are provided, read from stdin instead.
         if disk_buffer.is_empty() {
             let stdin = io::stdin();
-            for line in stdin.lock().lines() {
-                if let Ok(line) = line {
-                    disk_buffer.write(line.as_bytes()).and_then(|_| disk_buffer.write_byte(b'\n'))
-                        .map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
-                    number_of_arguments += 1;
+            if max_args < 2 {
+                for line in stdin.lock().lines() {
+                    if let Ok(line) = line {
+                        disk_buffer.write(line.as_bytes()).and_then(|_| disk_buffer.write_byte(b'\n'))
+                            .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                        number_of_arguments += 1;
+                    }
+                }
+            } else {
+                let mut max_args_index = max_args;
+                for line in stdin.lock().lines() {
+                    if let Ok(line) = line {
+                        if max_args_index == max_args {
+                            max_args_index -= 1;
+                            number_of_arguments += 1;
+                            disk_buffer.write(line.as_bytes())
+                                .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                        } else if max_args_index == 1 {
+                            max_args_index = max_args;
+                            disk_buffer.write_byte(b' ')
+                                .and_then(|_| disk_buffer.write(line.as_bytes()))
+                                .and_then(|_| disk_buffer.write_byte(b'\n'))
+                                .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                        } else {
+                            max_args_index -= 1;
+                            disk_buffer.write_byte(b' ')
+                                .and_then(|_| disk_buffer.write(line.as_bytes()))
+                                .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
+                        }
+                    }
+                }
+                if max_args_index != max_args {
+                    disk_buffer.write_byte(b'\n')
+                        .map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
                 }
             }
         }
@@ -304,7 +397,7 @@ impl<'a> Args<'a> {
         if number_of_arguments == 0 { return Err(ParseErr::NoArguments); }
 
         // Flush the contents of the buffer to the disk before tokenizing the command argument.
-        disk_buffer.flush().map_err(|why| ParseErr::File(FileErr::Write(disk_buffer.path.clone(), why)))?;
+        disk_buffer.flush().map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
 
         // Expand the command if quoting is enabled
         match quote {
@@ -319,7 +412,19 @@ impl<'a> Args<'a> {
     }
 }
 
-#[inline]
+/// Parses the `max_args` value, `-n3` or `-n 3`, and optionally increments the index if necessary.
+fn parse_max_args(argument: &str, next_argument: Option<&String>,index: &mut usize) -> Result<usize, ParseErr> {
+    if argument.len() > 2 {
+        Ok(argument[2..].parse::<usize>().map_err(|_| ParseErr::MaxArgsNaN(*index))?)
+    } else {
+        *index += 1;
+        let argument = next_argument.ok_or(ParseErr::MaxArgsNoValue)?;
+        Ok(argument.parse::<usize>().map_err(|_| ParseErr::MaxArgsNaN(*index))?)
+    }
+}
+
+/// Merges an `append` list to the `original` list, draining the `append` list in the process.
+/// Excess arguments will be truncated, and therefore lost.
 fn merge_lists(original: &mut Vec<String>, append: &mut Vec<String>) {
     if original.len() > append.len() {
         original.truncate(append.len());
@@ -330,11 +435,12 @@ fn merge_lists(original: &mut Vec<String>, append: &mut Vec<String>) {
     }
 }
 
-#[inline]
-fn parse_jobs(argument: &str, next_argument: Option<&String>) -> Result<usize, ParseErr> {
+/// Parses the jobs value, and optionally increments the index if necessary.
+fn parse_jobs(argument: &str, next_argument: Option<&String>, index: &mut usize) -> Result<usize, ParseErr> {
     let ncores = if argument.len() > 2 {
         jobs::parse(&argument[2..])?
     } else {
+        *index += 1;
         jobs::parse(next_argument.ok_or(ParseErr::JobsNoValue)?)?
     };
 
@@ -342,7 +448,6 @@ fn parse_jobs(argument: &str, next_argument: Option<&String>) -> Result<usize, P
 }
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.
-#[inline]
 fn file_parse<P: AsRef<Path>>(inputs: &mut Vec<String>, path: P) -> Result<(), ParseErr> {
     let path = path.as_ref();
     let file = fs::File::open(path).map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err)))?;

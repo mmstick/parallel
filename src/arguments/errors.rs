@@ -32,8 +32,16 @@ pub enum ParseErr {
     JobsNoValue,
     /// An invalid argument flag was provided.
     InvalidArgument(usize),
+    /// The value for `max_args` was not set to a number.
+    MaxArgsNaN(usize),
+    /// No value was provided for the `max_args` flag.
+    MaxArgsNoValue,
     /// No arguments were given, so no action can be taken.
     NoArguments,
+}
+
+impl From<FileErr> for ParseErr {
+    fn from(input: FileErr) -> ParseErr { ParseErr::File(input) }
 }
 
 impl ParseErr {
@@ -77,6 +85,12 @@ impl ParseErr {
             ParseErr::JobsNoValue => {
                 let _ = stderr.write(b"no jobs parameter was defined.\n");
             },
+            ParseErr::MaxArgsNaN(index) => {
+                let _ = write!(stderr, "groups parameter, '{}', is not a number.\n", arguments[index]);
+            },
+            ParseErr::MaxArgsNoValue => {
+                let _ = stderr.write(b"no groups parameter was defined.\n");
+            }
             ParseErr::InvalidArgument(index) => {
                 let _ = write!(stderr, "invalid argument: {}\n", arguments[index]);
             },

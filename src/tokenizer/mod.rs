@@ -138,7 +138,7 @@ fn match_token<'a>(pattern: &'a str, path: &Path, nargs: usize) -> Result<Option
         "/"  => Ok(Some(Token::Basename)),
         "//" => Ok(Some(Token::Dirname)),
         "/." => Ok(Some(Token::BaseAndExt)),
-        "#^" => Ok(Some(Token::Argument(Cow::Owned(nargs.to_string())))),
+        "##" => Ok(Some(Token::Argument(Cow::Owned(nargs.to_string())))),
         _    => {
             let ndigits = pattern.chars().take_while(|&x| x.is_numeric()).count();
             let nchars  = ndigits + pattern.chars().skip(ndigits).count();

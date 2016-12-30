@@ -200,7 +200,7 @@ like. Ideas for more tokens are welcome.
 - **{//}**: Each occurrence will be replaced with the directory name of the input.
 - **{%}**: Each occurrence will be replaced with the slot number.
 - **{#}**: Each occurrence will be replaced with the job number.
-- **{#^}**: Each occurrence will be replaced with the total number of jobs.
+- **{##}**: Each occurrence will be replaced with the total number of jobs.
 - **{N}**: Where N is a number, display the associated job number.
 - **{N.}**: will remove the extension from the Nth job.
 - **{N/}**: Displays the base name (file name) of the Nth job.
@@ -214,6 +214,7 @@ operates:
 
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
+- **-n**, **--max-args**: Groups up to a certain number of arguments together in the same command line.
 - **-p**, **--pipe**: Instead of supplying arguments as arguments to child processes,
         instead supply the arguments directly to the standard input of each child process.
 - **-q**, **--quote**: Retains backslashes that are supplied as the command input.

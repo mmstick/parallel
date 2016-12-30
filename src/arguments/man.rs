@@ -65,7 +65,7 @@ INPUT TOKENS
     -  {//}: Displays the directory name of the input.
     -  {/.}: Displays the base name with the extension removed.
     -   {#}: Displays the current job ID as a number counting from 1.
-    -  {#^}: Displays the total number of jobs to be processed.
+    -  {##}: Displays the total number of jobs to be processed.
     -   {%}: Displays the thread's ID number.
     -   {N}: Where N is a number, display the associated job number.
     -  {N.}: will remove the extension from the Nth job.
@@ -82,10 +82,12 @@ OPTIONS
         Values may be written as a number (12) or as a percent (150%).
         The default value is the number of CPU cores in the system.
 
-    -n, --no-shell:
-        Allow Parallel to act as the interpreter of the commands for a
-        significant performance boost. The downside to this is that you
-        can only execute one command at a time.
+    -n, --max-args:
+        Groups up to a certain number of arguments together in the same
+        command line. For example, if five arguments are supplied and max
+        args is set to `2`, then arguments one and two will become the
+        first argument, arguments three and four will become the second
+        argument, and argument five will become the third argument.
 
     -p, --pipe:
         Instead of supplying arguments as arguments to child processes,
