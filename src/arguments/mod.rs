@@ -23,7 +23,7 @@ pub use self::errors::{FileErr, InputIteratorErr};
 
 
 #[derive(PartialEq)]
-enum Mode { Arguments, Command, Inputs, Files }
+enum Mode { Arguments, Command, Inputs, InputsAppend, Files, FilesAppend }
 
 pub const INPUTS_ARE_COMMANDS: u8 = 1;
 pub const PIPE_IS_ENABLED:     u8 = 2;
@@ -48,14 +48,14 @@ impl<'a> Args<'a> {
     pub fn new() -> Args<'a> {
         Args {
             ncores:       num_cpus::get(),
-            flags:        SHELL_ENABLED,
+            flags:        0,
             arguments:    ArrayVec::new(),
             ninputs:      0,
         }
     }
 
     #[allow(cyclomatic_complexity)]
-    pub fn parse(&mut self, comm: &mut String, unprocessed_path: &Path) -> Result<InputIterator, ParseErr> {
+    pub fn parse(&mut self, comm: &mut String, arguments: &[String], unprocessed_path: &Path) -> Result<InputIterator, ParseErr> {
         let mut quote = Quoting::None;
 
         // Create a write buffer that automatically writes data to the disk when the buffer is full.
@@ -63,126 +63,107 @@ impl<'a> Args<'a> {
             .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.to_owned(), why)))?;
 
         // Temporary stores for input arguments.
-        let mut raw_args                    = env::args().skip(1).peekable();
         let mut lists: Vec<Vec<String>>     = Vec::new();
         let mut current_inputs: Vec<String> = Vec::with_capacity(1024);
         let mut number_of_arguments = 0;
 
         if env::args().len() > 1 {
             // The purpose of this is to set the initial parsing mode.
-            let mut mode = match raw_args.peek().unwrap().as_ref() {
-                ":::"  => Mode::Inputs,
-                "::::" => Mode::Files,
-                _      => Mode::Arguments
+            let (mut mode, mut index) = match arguments[1].as_str() {
+                ":::"  => { self.flags |= INPUTS_ARE_COMMANDS; (Mode::Inputs, 2) },
+                "::::" => { self.flags |= INPUTS_ARE_COMMANDS; (Mode::Files, 2) },
+                _  => (Mode::Arguments, 1)
             };
 
-            // If there are no arguments to be parsed, then the inputs are commands.
-            if mode == Mode::Inputs || mode == Mode::Files {
-                self.flags |= INPUTS_ARE_COMMANDS;
-            } else {
-                self.flags &= 255 ^ INPUTS_ARE_COMMANDS;
-            }
+            if let Mode::Arguments = mode {
+                while let Some(argument) = arguments.get(index) {
+                    index += 1;
+                    let mut char_iter = argument.chars().peekable();
 
-            // Parse each and every input argument supplied to the program.
-            while let Some(argument) = raw_args.next() {
-                let argument = argument.as_str();
-                match mode {
-                    Mode::Arguments => {
-                        let mut char_iter = argument.chars().peekable();
-
-                        // If the first character is a '-' then it will be processed as an argument.
-                        // We can guarantee that there will always be at least one character.
-                        if char_iter.next().unwrap() == '-' {
-                            // If the second character exists, everything's OK.
-                            if let Some(character) = char_iter.next() {
-                                // This scope of code allows users to utilize the GNU style
-                                // command line arguments, to allow for laziness.
-                                if character == 'j' {
-                                    // The short-hand job argument needs to be handled specially.
-                                    self.ncores = if char_iter.peek().is_some() {
-                                        // Each character that follows after `j` will be considered an
-                                        // input value.
-                                        jobs::parse(&argument[2..])?
-                                    } else {
-                                        // If there was no character after `j`, the following argument
-                                        // must be the job value.
-                                        let val = &raw_args.next().ok_or(ParseErr::JobsNoValue)?;
-                                        jobs::parse(val)?
-                                    }
-                                } else if character != '-' {
-                                    // NOTE: Short mode versions of arguments
-                                    for character in argument[1..].chars() {
-                                        match character {
-                                            'h' => {
-                                                println!("{}", man::MAN_PAGE);
-                                                exit(0);
-                                            },
-                                            'n' => self.flags &= 255 ^ SHELL_ENABLED,
-                                            'p' => self.flags |= PIPE_IS_ENABLED,
-                                            'q' => quote = Quoting::Basic,
-                                            's' => self.flags |= QUIET_MODE,
-                                            'v' => self.flags |= VERBOSE_MODE,
-                                            _ => {
-                                                return Err(ParseErr::InvalidArgument(argument.to_owned()))
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    // NOTE: Long mode versions of arguments
-                                    match &argument[2..] {
-                                        "help" => {
-                                            println!("{}", man::MAN_PAGE);
-                                            exit(0);
-                                        },
-                                        "jobs" => {
-                                            let val = &raw_args.next().ok_or(ParseErr::JobsNoValue)?;
-                                            self.ncores = jobs::parse(val)?
-                                        },
-                                        "no-shell" => self.flags &= 255 ^ SHELL_ENABLED,
-                                        "num-cpu-cores" => {
-                                            println!("{}", num_cpus::get());
-                                            exit(0);
-                                        },
-                                        "pipe" => self.flags |= PIPE_IS_ENABLED,
-                                        "quiet" | "silent" => self.flags |= QUIET_MODE,
-                                        "quote" => quote = Quoting::Basic,
-                                        "shellquote" => quote = Quoting::Shell,
-                                        "verbose" => self.flags |= VERBOSE_MODE,
-                                        "version" => {
-                                            println!("parallel 0.6.2\n\nCrate Dependencies:");
-                                            println!("    libc      0.2.15");
-                                            println!("    num_cpus  1.0.0");
-                                            println!("    permutate 0.1.3");
-                                            exit(0);
-                                        }
-                                        _ => {
-                                            return Err(ParseErr::InvalidArgument(argument.to_owned()));
-                                        }
+                    // If the first character is a '-' then it will be processed as an argument.
+                    // We can guarantee that there will always be at least one character.
+                    if char_iter.next().unwrap() == '-' {
+                        // If the second character exists, everything's OK.
+                        let character = char_iter.next().ok_or(ParseErr::InvalidArgument(index-1))?;
+                        if character == 'j' {
+                            self.ncores = parse_jobs(argument, arguments.get(3))?;
+                        } else if character != '-' {
+                            for character in argument[1..].chars() {
+                                match character {
+                                    'h' => {
+                                        println!("{}", man::MAN_PAGE);
+                                        exit(0);
+                                    },
+                                    'p' => self.flags |= PIPE_IS_ENABLED,
+                                    'q' => quote = Quoting::Basic,
+                                    's' => self.flags |= QUIET_MODE,
+                                    'v' => self.flags |= VERBOSE_MODE,
+                                    _ => {
+                                        return Err(ParseErr::InvalidArgument(index-1))
                                     }
                                 }
-                            } else {
-                                // `-` will never be a valid argument
-                                return Err(ParseErr::InvalidArgument("-".to_owned()));
                             }
                         } else {
-                            match argument {
-                                ":::" => {
-                                    mode = Mode::Inputs;
-                                    self.flags |= INPUTS_ARE_COMMANDS;
+                            // NOTE: Long mode versions of arguments
+                            match &argument[2..] {
+                                "help" => {
+                                    println!("{}", man::MAN_PAGE);
+                                    exit(0);
                                 },
-                                "::::" => {
-                                    mode = Mode::Files;
-                                    self.flags |= INPUTS_ARE_COMMANDS;
+                                "jobs" => {
+                                    index += 1;
+                                    let val = arguments.get(index).ok_or(ParseErr::JobsNoValue)?;
+                                    self.ncores = jobs::parse(val)?
+                                },
+                                "num-cpu-cores" => {
+                                    println!("{}", num_cpus::get());
+                                    exit(0);
+                                },
+                                "pipe" => self.flags |= PIPE_IS_ENABLED,
+                                "quiet" | "silent" => self.flags |= QUIET_MODE,
+                                "quote" => quote = Quoting::Basic,
+                                "shellquote" => quote = Quoting::Shell,
+                                "verbose" => self.flags |= VERBOSE_MODE,
+                                "version" => {
+                                    println!("parallel 0.7.1\n\nCrate Dependencies:");
+                                    println!("    libc      0.2.18");
+                                    println!("    num_cpus  1.2.0");
+                                    println!("    permutate 0.2.0");
+                                    println!("    arrayvec  0.3.20");
+                                    println!("    nodrop    0.1.8");
+                                    println!("    odds      0.2.25");
+                                    exit(0);
                                 }
                                 _ => {
-                                    // The command has been supplied, and argument parsing is over.
-                                    comm.push_str(argument);
-                                    mode = Mode::Command;
+                                    return Err(ParseErr::InvalidArgument(index-1));
                                 }
                             }
                         }
-                    },
-                    Mode::Command => match argument {
+                    } else {
+                        match argument.as_str() {
+                            ":::" => {
+                                mode = Mode::Inputs;
+                                self.flags |= INPUTS_ARE_COMMANDS;
+                            },
+                            "::::" => {
+                                mode = Mode::Files;
+                                self.flags |= INPUTS_ARE_COMMANDS;
+                            }
+                            _ => {
+                                // The command has been supplied, and argument parsing is over.
+                                comm.push_str(argument);
+                                mode = Mode::Command;
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+
+            if let Mode::Command = mode {
+                while let Some(argument) = arguments.get(index) {
+                    index += 1;
+                    match argument.as_str() {
                         // Arguments after `:::` are input values.
                         ":::" | ":::+" => mode = Mode::Inputs,
                         // Arguments after `::::` are files with inputs.
@@ -191,36 +172,66 @@ impl<'a> Args<'a> {
                         _ => {
                             comm.push(' ');
                             comm.push_str(argument);
-                        }
-                    },
-                    _ => match argument {
-                        // `:::` denotes that the next set of inputs will be added to a new list.
-                        ":::"  => {
-                            mode = Mode::Inputs;
-                            if !current_inputs.is_empty() {
-                                lists.push(current_inputs.clone());
-                                current_inputs.clear();
-                            }
-                        },
-                        // `:::+` denotes that the next set of inputs will be added to the current list.
-                        ":::+" => mode = Mode::Inputs,
-                        // `::::` denotes that the next set of inputs will be added to a new list.
-                        "::::"  => {
-                            mode = Mode::Files;
-                            if !current_inputs.is_empty() {
-                                lists.push(current_inputs.clone());
-                                current_inputs.clear();
-                            }
-                        },
-                        // `:::+` denotes that the next set of inputs will be added to the current list.
-                        "::::+" => mode = Mode::Files,
-                        // All other arguments will be added to the current list.
-                        _ => match mode {
-                            Mode::Inputs => current_inputs.push(argument.to_owned()),
-                            Mode::Files => file_parse(&mut current_inputs, argument)?,
-                            _ => unreachable!()
+                            continue
                         }
                     }
+                    break
+                }
+            }
+
+            let mut append_list = Vec::new();
+
+            macro_rules! switch_mode {
+                ($mode:expr) => {{
+                    match mode {
+                        Mode::InputsAppend | Mode::FilesAppend => merge_lists(&mut current_inputs, &mut append_list),
+                        _ => (),
+                    }
+                    mode = $mode;
+                    if !current_inputs.is_empty() {
+                        lists.push(current_inputs.clone());
+                        current_inputs.clear();
+                    }
+                }}
+            }
+
+            macro_rules! switch_mode_append {
+                ($mode:expr) => {{
+                    match mode {
+                        Mode::InputsAppend | Mode::FilesAppend => merge_lists(&mut current_inputs, &mut append_list),
+                        _ => (),
+                    }
+                    mode = $mode;
+                }}
+            }
+
+            // Parse each and every input argument supplied to the program.
+            while let Some(argument) = arguments.get(index) {
+                index += 1;
+                match argument.as_str() {
+                    // `:::` denotes that the next set of inputs will be added to a new list.
+                    ":::"  => switch_mode!(Mode::Inputs),
+                    // `:::+` denotes that the next set of inputs will be added to the current list.
+                    ":::+" => switch_mode_append!(Mode::InputsAppend),
+                    // `::::` denotes that the next set of inputs will be added to a new list.
+                    "::::"  => switch_mode!(Mode::Files),
+                    // `:::+` denotes that the next set of inputs will be added to the current list.
+                    "::::+" => switch_mode_append!(Mode::FilesAppend),
+                    // All other arguments will be added to the current list.
+                    _ => match mode {
+                        Mode::Inputs       => current_inputs.push(argument.clone()),
+                        Mode::InputsAppend => append_list.push(argument.clone()),
+                        Mode::Files        => file_parse(&mut current_inputs, argument)?,
+                        Mode::FilesAppend  => file_parse(&mut append_list, argument)?,
+                        _                  => unreachable!()
+                    }
+                }
+            }
+
+            if !append_list.is_empty() {
+                match mode {
+                    Mode::InputsAppend | Mode::FilesAppend => merge_lists(&mut current_inputs, &mut append_list),
+                    _ => (),
                 }
             }
 
@@ -308,7 +319,30 @@ impl<'a> Args<'a> {
     }
 }
 
+#[inline]
+fn merge_lists(original: &mut Vec<String>, append: &mut Vec<String>) {
+    if original.len() > append.len() {
+        original.truncate(append.len());
+    }
+    for (input, element) in original.iter_mut().zip(append.drain(..)) {
+        input.push(' ');
+        input.push_str(&element);
+    }
+}
+
+#[inline]
+fn parse_jobs(argument: &str, next_argument: Option<&String>) -> Result<usize, ParseErr> {
+    let ncores = if argument.len() > 2 {
+        jobs::parse(&argument[2..])?
+    } else {
+        jobs::parse(next_argument.ok_or(ParseErr::JobsNoValue)?)?
+    };
+
+    Ok(ncores)
+}
+
 /// Attempts to open an input argument and adds each line to the `inputs` list.
+#[inline]
 fn file_parse<P: AsRef<Path>>(inputs: &mut Vec<String>, path: P) -> Result<(), ParseErr> {
     let path = path.as_ref();
     let file = fs::File::open(path).map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err)))?;

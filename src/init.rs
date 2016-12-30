@@ -66,12 +66,12 @@ pub fn cleanup(stderr: &mut StderrLock) -> (PathBuf, PathBuf, PathBuf) {
     }
 }
 
-pub fn parse(args: &mut Args, comm: &mut String, unprocessed: &Path) -> InputIterator {
-    match args.parse(comm, unprocessed) {
+pub fn parse(args: &mut Args, comm: &mut String, arguments: &[String], unprocessed: &Path) -> InputIterator {
+    match args.parse(comm, arguments, unprocessed) {
         Ok(inputs) => {
             args.ninputs = inputs.total_arguments;
             inputs
         },
-        Err(why) => why.handle()
+        Err(why) => why.handle(arguments)
     }
 }

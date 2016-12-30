@@ -81,7 +81,8 @@ fn main() {
     // Parse arguments and collect flags and statistics.
     let mut args = Args::new();
     let mut comm = String::with_capacity(128);
-    let inputs = init::parse(&mut args, &mut comm, &unprocessed_path);
+    let raw_arguments = env::args().collect::<Vec<String>>();
+    let inputs = init::parse(&mut args, &mut comm, &raw_arguments, &unprocessed_path);
 
     // Coerce the `comm` `String` into a `&'static str` so that it may be shared by all threads.
     // This is safe because the original `comm` may no longer be modified due to shadowing rules.
@@ -103,10 +104,12 @@ fn main() {
     }
 
     // Determines if a shell is required or not
-    if !shell_required(&args.arguments) {
-        args.flags &= 255 ^ arguments::SHELL_ENABLED;
-    } else if dash_exists() {
-        args.flags |= arguments::DASH_EXISTS;
+    if shell_required(&args.arguments) {
+        if dash_exists() {
+            args.flags |= arguments::DASH_EXISTS + arguments::SHELL_ENABLED;
+        } else {
+            args.flags |= arguments::SHELL_ENABLED;
+        }
     }
 
     let shared_input = Arc::new(Mutex::new(inputs));

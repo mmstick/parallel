@@ -31,13 +31,13 @@ pub enum ParseErr {
     /// No value was provided for the jobs flag.
     JobsNoValue,
     /// An invalid argument flag was provided.
-    InvalidArgument(String),
+    InvalidArgument(usize),
     /// No arguments were given, so no action can be taken.
     NoArguments,
 }
 
 impl ParseErr {
-    pub fn handle(self) -> ! {
+    pub fn handle(self, arguments: &[String]) -> ! {
         // Always lock an output buffer before using it.
         let stderr = stderr();
         let stdout = stdout();
@@ -77,8 +77,8 @@ impl ParseErr {
             ParseErr::JobsNoValue => {
                 let _ = stderr.write(b"no jobs parameter was defined.\n");
             },
-            ParseErr::InvalidArgument(argument) => {
-                let _ = write!(stderr, "invalid argument: {}\n", argument);
+            ParseErr::InvalidArgument(index) => {
+                let _ = write!(stderr, "invalid argument: {}\n", arguments[index]);
             },
             ParseErr::NoArguments => {
                 let _ = write!(stderr, "no input arguments were given.\n");

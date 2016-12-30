@@ -214,8 +214,6 @@ operates:
 
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
-- **-n**, **--no-shell**: Disables executing commands within the platform's shell for a performance boost.
-    - Double quotes and backslashes are used to allow spaces in inputs, similar to standard shells.
 - **-p**, **--pipe**: Instead of supplying arguments as arguments to child processes,
         instead supply the arguments directly to the standard input of each child process.
 - **-q**, **--quote**: Retains backslashes that are supplied as the command input.
