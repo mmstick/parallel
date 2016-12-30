@@ -133,7 +133,7 @@ impl<'a> Args<'a> {
                                 "shellquote" => quote = Quoting::Shell,
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
-                                    println!("parallel 0.7.1\n\nCrate Dependencies:");
+                                    println!("parallel 0.8.0\n\nCrate Dependencies:");
                                     println!("    libc      0.2.18");
                                     println!("    num_cpus  1.2.0");
                                     println!("    permutate 0.2.0");

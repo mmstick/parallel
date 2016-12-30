@@ -47,7 +47,7 @@ pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: &[Token],
 
         let command = command::ParallelCommand {
             slot_no:          slot,
-            job_no:           &job_id.to_string(),
+            job_no:           &(job_id + 1).to_string(),
             job_total:        job_total,
             input:            &input,
             command_template: arguments,

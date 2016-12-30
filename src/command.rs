@@ -169,7 +169,7 @@ impl<'a> ArgumentSplitter<'a> {
 
 impl<'a> Iterator for ArgumentSplitter<'a> {
     type Item = String;
-    
+
     fn next(&mut self) -> Option<String> {
         for character in self.data.chars().skip(self.read) {
             self.read += 1;
@@ -185,7 +185,7 @@ impl<'a> Iterator for ArgumentSplitter<'a> {
                 _ => self.buffer.push(character)
             }
         }
-        
+
         if self.buffer.is_empty() {
             None
         } else {
@@ -207,4 +207,3 @@ fn test_split_args() {
     let expected = vec!["one two\\", "three"];
     assert_eq!(argument.collect::<Vec<String>>(), expected);
 }
-
