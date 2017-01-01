@@ -18,5 +18,6 @@ The list is actively updated with each successful pull request.
     - Basically, enale the ability to use parallel in a shebang line
 - Implement `workdir` and `tempdir`
     - Allow the ability to change the default location of the temp and work directories
-- Implement `dry-run`
-    - Print a list of all commands that would be run
+- Fix quoting issues
+    - `shell-quote` should infer `dry-run`
+    - input tokens should be quoted

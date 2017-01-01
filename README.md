@@ -2,6 +2,10 @@
 This is an attempt at recreating the functionality of [GNU Parallel](https://www.gnu.org/software/parallel/), a work-stealer for the command-line, in Rust under a MIT license. The end goal will be to support much of the functionality of `GNU Parallel` and then to extend the functionality further for the next generation of command-line utilities written in Rust. While functionality is important, with the application being developed in Rust, the goal is to also be as fast and efficient as possible.
 
 ## Note
+
+> A nightly version of the Rust compiler is required to build this application.
+> This is required to disable `jemalloc` because it incurs a performance overhead on Linux systems.
+
 It's a good idea to install the `dash` shell as this implementation of Parallel will try to use it by default.
 Dash is basically a superior implementation of `sh` that's many times faster and more secure.
 If `dash` cannot be found, it will default to `sh`. Although on Windows it will default to `cmd`.
@@ -133,8 +137,8 @@ parallel echo ::: 1 2 3 ::: A B C ::: D E F       // Permutate the inputs.
 parallel echo {} {1} {2} {3.} ::: 1 2 file.mkv    // {N} tokens are replaced by the Nth input argument
 parallel ::: "echo 1" "echo 2" "echo 3"           // If no command is supplied, the input arguments become commands.
 parallel 'cd {}; echo Directory: {}; echo - {}'   // Commands may be chained in the platform\'s shell.
-ls | parallel 'echo {}'                           // If no input arguments are supplied, stdin will be read.
-ls -1 | parallel --pipe cat                       // Piping arguments to the standard input of the given command.
+seq 1 10 | parallel 'echo {}'                           // If no input arguments are supplied, stdin will be read.
+seq 1 10 | parallel --pipe cat                       // Piping arguments to the standard input of the given command.
 ```
 
 ## Manual
@@ -212,9 +216,11 @@ like. Ideas for more tokens are welcome.
 Options may also be supplied to the program to change how the program
 operates:
 
+- **--dry-run**: Prints the jobs that will be run to standard output, without running them.
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
 - **-n**, **--max-args**: Groups up to a certain number of arguments together in the same command line.
+- **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
 - **-p**, **--pipe**: Instead of supplying arguments as arguments to child processes,
         instead supply the arguments directly to the standard input of each child process.
 - **-q**, **--quote**: Retains backslashes that are supplied as the command input.
@@ -222,7 +228,6 @@ operates:
 - **--shellquote**: Expands upon quote mode by escaping a wide variety of special characters.
 - **-v**, **--verbose**: Prints information about running processes.
 - **--version**: Prints the current version of the application and it's dependencies.
-- **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
 
 ## Useful Examples
 

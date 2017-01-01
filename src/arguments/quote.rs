@@ -1,18 +1,13 @@
-pub fn basic(command: &mut String) {
+pub fn basic(command: &str) -> String {
     let mut output = String::with_capacity(command.len() << 1);
     for character in command.chars() {
-        match character {
-            '\\' => {
-                output.push('\\');
-                output.push(character);
-            },
-            _ => output.push(character)
-        }
+        if character == '\\' { output.push(character); }
+        output.push(character);
     }
-    *command = output
+    output
 }
 
-pub fn shell(command: &mut String) {
+pub fn shell(command: &str) -> String {
     let mut output = String::with_capacity(command.len() << 1);
     {
         let mut char_iter = command.chars();
@@ -33,5 +28,5 @@ pub fn shell(command: &mut String) {
         }
     }
 
-    *command = output
+    output
 }

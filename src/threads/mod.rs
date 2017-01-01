@@ -84,7 +84,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
     // A buffer for buffering the outputs of temporary files on disk.
     let mut read_buffer = [0u8; 8192];
 
-    // The loop will only quit once all inpulet mut stdout = stdout.lock();
+    // The loop will only quit once all inputs have been processed
     while counter < args.ninputs {
         let mut tail_next = false;
 

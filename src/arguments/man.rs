@@ -77,6 +77,9 @@ OPTIONS
     Options may also be supplied to the program to change how the program
     operates:
 
+    --dry-run:
+        Prints the jobs that will be run to standard output, without running them.
+
     -j, --jobs:
         Defines the number of tasks to process in parallel.
         Values may be written as a number (12) or as a percent (150%).
@@ -88,6 +91,10 @@ OPTIONS
         args is set to `2`, then arguments one and two will become the
         first argument, arguments three and four will become the second
         argument, and argument five will become the third argument.
+
+    --num-cpu-cores:
+        A convenience command that will print the number of CPU cores in the
+        system.
 
     -p, --pipe:
         Instead of supplying arguments as arguments to child processes,
@@ -108,10 +115,6 @@ OPTIONS
 
     --version:
         Print version information.
-
-    --num-cpu-cores:
-        A convenience command that will print the number of CPU cores in the
-        system.
 
 EXAMPLES
     # Command followed by inputs

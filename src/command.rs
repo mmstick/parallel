@@ -10,7 +10,7 @@ pub enum CommandErr {
 }
 
 /// If no placeholder tokens are in use, then the input will be appended at the end of the the command.
-fn append_argument(arguments: &mut String, command_template: &[Token], input: &str) {
+pub fn append_argument(arguments: &mut String, command_template: &[Token], input: &str) {
     // Check to see if any placeholder tokens are in use.
     let placeholder_exists = command_template.iter().any(|x| {
         x == &Token::BaseAndExt || x == &Token::Basename || x == &Token::Dirname ||
@@ -35,10 +35,10 @@ pub struct ParallelCommand<'a> {
 
 impl<'a> ParallelCommand<'a> {
     pub fn exec(&self, arguments: &mut String, flags: u8) -> Result<Child, CommandErr> {
-        // First the arguments will be generated based on the tokens and input.
-        self.build_arguments(arguments, flags & arguments::PIPE_IS_ENABLED != 0);
+        let pipe_enabled = flags & arguments::PIPE_IS_ENABLED != 0;
+        self.build_arguments(arguments, pipe_enabled);
 
-        if flags & arguments::PIPE_IS_ENABLED == 0 {
+        if !pipe_enabled {
             append_argument(arguments, self.command_template, self.input);
             get_command_output(arguments.as_str(), flags).map_err(CommandErr::IO)
         } else {
@@ -59,7 +59,7 @@ impl<'a> ParallelCommand<'a> {
 
     /// Builds arguments using the `tokens` template with the current `input` value.
     /// The arguments will be stored within a `Vec<String>`
-    fn build_arguments(&self, arguments: &mut String, pipe: bool) {
+    pub fn build_arguments(&self, arguments: &mut String, pipe: bool) {
         if pipe {
             for arg in self.command_template {
                 match *arg {
