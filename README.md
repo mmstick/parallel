@@ -218,6 +218,7 @@ operates:
 
 - **--delay**: Delays starting the next job for N amount of seconds, where the seconds can be fractional.
 - **--dry-run**: Prints the jobs that will be run to standard output, without running them.
+- **--eta**: Prints the estimated time to complete based on average runtime of running processes.
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
 - **-n**, **--max-args**: Groups up to a certain number of arguments together in the same command line.
@@ -227,6 +228,7 @@ operates:
 - **-q**, **--quote**: Retains backslashes that are supplied as the command input.
 - **-s**, **--silent**, **--quiet**: Disables printing the standard output of running processes.
 - **--shellquote**: Expands upon quote mode by escaping a wide variety of special characters.
+- **--timeout**: If a command runs for longer than a specified number of seconds, it will be killed with a SIGKILL.
 - **-v**, **--verbose**: Prints information about running processes.
 - **--version**: Prints the current version of the application and it's dependencies.
 

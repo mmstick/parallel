@@ -22,15 +22,18 @@ pub struct ExecInputs {
 }
 
 impl ExecInputs {
-    pub fn run(&self, mut flags: u8) {
+    pub fn run(&self, mut flags: u16) {
         let stdout = io::stdout();
         let stderr = io::stderr();
 
         let job_total   = &self.num_inputs.to_string();
         let has_delay   = self.delay != Duration::from_millis(0);
         let has_timeout = self.timeout != Duration::from_millis(0);
+        let mut completed = false;
 
-        while let Some((input, job_id)) = attempt_next(&self.inputs, &stderr, has_delay, self.delay) {
+        while let Some((input, job_id, _)) = attempt_next(&self.inputs, &stderr, has_delay, self.delay,
+            &mut completed, flags)
+        {
             if flags & arguments::VERBOSE_MODE != 0 {
                 verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
             }

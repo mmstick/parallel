@@ -66,8 +66,6 @@ macro_rules! append_to_processed {
 pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &Path, errors_path: &Path) {
     let stdout = io::stdout();
     let stderr = io::stderr();
-    let mut stdout = stdout.lock();
-    let mut stderr = stderr.lock();
 
     // Keeps track of which job is currently allowed to print to standard output/error.
     let mut counter = 0;
@@ -88,6 +86,8 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
         match input_rx.recv().unwrap() {
             State::Completed(id, name) => {
                 if id == counter {
+                    let mut stdout = stdout.lock();
+                    let mut stderr = stderr.lock();
                     let (stdout_path, stderr_path) = filepaths::job(counter);
                     let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
                     append_to_processed!(processed_file, name, stderr);
@@ -103,6 +103,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                 if id == counter {
                     counter += 1;
                     if let Err(why) = error_file.write(message.as_bytes()) {
+                        let mut stderr = stderr.lock();
                         let _ = write!(stderr, "parallel: I/O error: {}", why);
                     }
                 } else {
@@ -119,6 +120,8 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                 match input_rx.try_recv() {
                     Ok(State::Completed(id, name)) => {
                         if id == counter {
+                            let mut stdout = stdout.lock();
+                            let mut stderr = stderr.lock();
                             append_to_processed!(processed_file, name, stderr);
                             read_outputs!(stdout_file, stderr_file, read_buffer, stdout, stderr);
                             remove_job_files!(stdout_path, stderr_path, stderr);
@@ -132,6 +135,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                         if id == counter {
                             counter += 1;
                             if let Err(why) = error_file.write(message.as_bytes()) {
+                                let mut stderr = stderr.lock();
                                 let _ = write!(stderr, "parallel: I/O error: {}", why);
                             }
                         } else {
@@ -139,6 +143,8 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                         }
                     },
                     _ => {
+                        let mut stdout = stdout.lock();
+                        let mut stderr = stderr.lock();
                         let mut bytes_read = stdout_file.read(&mut read_buffer).unwrap();
                         if bytes_read != 0 { stdout.write(&read_buffer[0..bytes_read]).unwrap(); }
 
@@ -156,6 +162,8 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
             for (index, state) in buffer.iter().enumerate() {
                 match *state {
                     State::Completed(id, ref name) if id == counter => {
+                        let mut stdout = stdout.lock();
+                        let mut stderr = stderr.lock();
                         let (stdout_path, stderr_path) = filepaths::job(counter);
                         let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
                         append_to_processed!(processed_file, name, stderr);
@@ -168,6 +176,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                     State::Error(id, ref message) if id == counter => {
                         counter += 1;
                         if let Err(why) = error_file.write(message.as_bytes()) {
+                            let mut stderr = stderr.lock();
                             let _ = write!(stderr, "parallel: I/O error: {}", why);
                         }
                     },
@@ -180,10 +189,12 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
     }
 
     if let Err(why) = processed_file.flush() {
+        let mut stderr = stderr.lock();
         let _ = write!(stderr, "parallel: I/O error: {}", why);
     }
 
     if let Err(why) = error_file.flush() {
+        let mut stderr = stderr.lock();
         let _ = write!(stderr, "parallel: I/O error: {}", why);
     }
 }

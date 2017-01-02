@@ -8,8 +8,6 @@ The list is actively updated with each successful pull request.
     - Generate a new unprocessed file and remove the originals\
 - Implement `compress`
     - Compress the outputs of a file if the file exceeds a certain length
-- Implement `eta` and `progress`
-    - Estimate how long it will take for the commands to complete and show a progress bar
 - Implement `memfree`
     - Only execute a task if memory consumption is below a certain threshold.
 - Implement `skip-first-line` and `shebang`
@@ -20,4 +18,6 @@ The list is actively updated with each successful pull request.
     - `shell-quote` should infer `dry-run`
     - input tokens should be quoted
 - Fix `timeout` for commands that are running within a shell
+- Measure the median average runtime of tasks for `timeout`
 - Eliminate the need to run commands within a shell
+- Improve `eta` and implement `progress`

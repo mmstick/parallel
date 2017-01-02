@@ -79,9 +79,12 @@ OPTIONS
 
     --delay:
         Delays starting the next job for N amount of seconds, where the seconds can be fractional.
-        
+
     --dry-run:
         Prints the jobs that will be run to standard output, without running them.
+
+    --eta:
+        Prints the estimated time to complete based on average runtime of running processes.
 
     -j, --jobs:
         Defines the number of tasks to process in parallel.
@@ -109,6 +112,10 @@ OPTIONS
 
     -s, --silent, --quiet:
         Disables printing the standard output of running processes.
+
+    --timeout:
+        If a command runs for longer than a specified number of seconds, it will be
+        killed with a SIGKILL.
 
     --shellquote:
         Expands upon quote mode by escaping a wide variety of special characters.

@@ -12,6 +12,7 @@ readme = "README.md"
 num_cpus  = "1.2"
 permutate = "0.2"
 arrayvec  = "0.3"
+time      = "0.1"
 wait-timeout = "0.1"
 
 [profile.release]

@@ -27,13 +27,14 @@ pub use self::errors::{FileErr, InputIteratorErr};
 #[derive(PartialEq)]
 enum Mode { Arguments, Command, Inputs, InputsAppend, Files, FilesAppend }
 
-pub const INPUTS_ARE_COMMANDS: u8 = 1;
-pub const PIPE_IS_ENABLED:     u8 = 2;
-pub const SHELL_ENABLED:       u8 = 4;
-pub const QUIET_MODE:          u8 = 8;
-pub const VERBOSE_MODE:        u8 = 16;
-pub const DASH_EXISTS:         u8 = 32;
-pub const DRY_RUN:             u8 = 64;
+pub const INPUTS_ARE_COMMANDS: u16 = 1;
+pub const PIPE_IS_ENABLED:     u16 = 2;
+pub const SHELL_ENABLED:       u16 = 4;
+pub const QUIET_MODE:          u16 = 8;
+pub const VERBOSE_MODE:        u16 = 16;
+pub const DASH_EXISTS:         u16 = 32;
+pub const DRY_RUN:             u16 = 64;
+pub const ETA:                 u16 = 128;
 
 /// Defines what quoting mode to use when expanding the command.
 enum Quoting { None, Basic, Shell }
@@ -41,7 +42,7 @@ enum Quoting { None, Basic, Shell }
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
 pub struct Args<'a> {
-    pub flags:     u8,
+    pub flags:     u16,
     pub ncores:    usize,
     pub ninputs:   usize,
     pub delay:     Duration,
@@ -121,6 +122,7 @@ impl<'a> Args<'a> {
                                     index += 1;
                                 },
                                 "dry-run" => self.flags |= DRY_RUN,
+                                "eta" => self.flags |= ETA,
                                 "help" => {
                                     println!("{}", man::MAN_PAGE);
                                     exit(0);

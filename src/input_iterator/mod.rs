@@ -2,12 +2,23 @@ use super::disk_buffer::*;
 use super::arguments::errors::{FileErr, InputIteratorErr};
 use std::path::{Path, PathBuf};
 
+extern crate time;
+
+pub struct ETA {
+    pub left:    u64,
+    pub time:    u64,
+    pub average: u64,
+}
+
 /// The `InputIterator` tracks the total number of arguments, the current argument counter, and
 /// takes ownership of an `InputBuffer` which buffers input arguments from the disk when arguments
 /// stored in memory are depleted.
 pub struct InputIterator {
     pub total_arguments: usize,
     pub curr_argument:   usize,
+    pub completed:       usize,
+    start_time:          u64,
+    average_time:        u64,
     input_buffer:        InputBuffer,
 }
 
@@ -21,7 +32,10 @@ impl InputIterator {
         Ok(InputIterator {
             total_arguments: args,
             curr_argument:   0,
+            completed:       0,
             input_buffer:    input_buffer,
+            start_time:      time::precise_time_ns(),
+            average_time:    0,
         })
     }
 
@@ -38,6 +52,15 @@ impl InputIterator {
         count_arguments(&mut self.input_buffer, bytes_read);
         self.input_buffer.index = 0;
         Ok(())
+    }
+
+    pub fn eta(&self) -> ETA {
+        let left = self.total_arguments as u64 - self.completed as u64;
+        ETA {
+            left: left,
+            time: left * self.average_time,
+            average: self.average_time
+        }
     }
 }
 
@@ -61,6 +84,13 @@ impl Iterator for InputIterator {
         } else {
             self.input_buffer.indices[self.input_buffer.index] + 1
         };
+
+        // Update times
+        match self.completed {
+            0 => (),
+            1 => self.average_time = time::precise_time_ns() - self.start_time,
+            _ => self.average_time = (time::precise_time_ns() - self.start_time) / self.completed as u64,
+        }
 
         // Increment the iterator's state.
         self.curr_argument       += 1;

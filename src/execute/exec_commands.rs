@@ -16,7 +16,7 @@ use std::time::Duration;
 pub struct ExecCommands<'a> {
     pub slot:       usize,
     pub num_inputs: usize,
-    pub flags:      u8,
+    pub flags:      u16,
     pub delay:      Duration,
     pub timeout:    Duration,
     pub inputs:     Arc<Mutex<InputIterator>>,
@@ -34,8 +34,11 @@ impl<'a> ExecCommands<'a> {
         let mut command_buffer = &mut String::with_capacity(64);
         let has_delay          = self.delay != Duration::from_millis(0);
         let has_timeout        = self.timeout != Duration::from_millis(0);
+        let mut completed      = false;
 
-        while let Some((input, job_id)) = attempt_next(&self.inputs, &stderr, has_delay, self.delay) {
+        while let Some((input, job_id, _)) = attempt_next(&self.inputs, &stderr, has_delay, self.delay,
+            &mut completed, self.flags)
+        {
             if self.flags & arguments::VERBOSE_MODE != 0  {
                 verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
             }

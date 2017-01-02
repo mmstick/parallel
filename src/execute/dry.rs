@@ -5,7 +5,7 @@ use super::super::input_iterator::InputIterator;
 
 use std::io::{self, Write};
 
-pub fn dry_run(flags: u8, inputs: InputIterator, arguments: &[Token]) {
+pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
     let stderr = io::stderr();

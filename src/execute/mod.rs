@@ -6,7 +6,7 @@ mod receive;
 
 use arguments::{self, InputIteratorErr};
 use command;
-use super::input_iterator::InputIterator;
+use super::input_iterator::{ETA, InputIterator};
 
 use std::thread;
 use std::time::Duration;
@@ -20,13 +20,28 @@ pub use self::receive::receive_messages;
 
 // Attempts to obtain the next input argument along with it's job ID from the `InputIterator`.
 // NOTE: Some reason this halves the wall time compared to making this a method of `InputIterator`.
-fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr, has_delay: bool, delay: Duration) -> Option<(String, usize)> {
+fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr, has_delay: bool, delay: Duration,
+    completed: &mut bool, flags: u16) -> Option<(String, usize, ETA)>
+{
     let mut inputs = inputs.lock().unwrap();
     let job_id = inputs.curr_argument;
+    let eta = inputs.eta();
+    if flags & arguments::ETA != 0 {
+        if *completed {
+            inputs.completed += 1;
+        } else {
+            *completed = true;
+        }
+        println!("ETA: {}s Left: {} AVG: {:.2}s Completed: {}",
+            eta.time / 1_000_000_000, eta.left, eta.average as f64 / 1_000_000_000f64,
+            inputs.completed);
+    }
+
     if has_delay { thread::sleep(delay); }
+
     match inputs.next() {
         None            => None,
-        Some(Ok(input)) => Some((input, job_id)),
+        Some(Ok(input)) => Some((input, job_id, eta)),
         Some(Err(why))  => {
             let stderr = &mut stderr.lock();
             match why {

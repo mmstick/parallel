@@ -34,7 +34,7 @@ pub struct ParallelCommand<'a> {
 }
 
 impl<'a> ParallelCommand<'a> {
-    pub fn exec(&self, arguments: &mut String, flags: u8) -> Result<Child, CommandErr> {
+    pub fn exec(&self, arguments: &mut String, flags: u16) -> Result<Child, CommandErr> {
         let pipe_enabled = flags & arguments::PIPE_IS_ENABLED != 0;
         self.build_arguments(arguments, pipe_enabled);
 
@@ -86,7 +86,7 @@ impl<'a> ParallelCommand<'a> {
     }
 }
 
-pub fn get_command_output(command: &str, flags: u8) -> io::Result<Child> {
+pub fn get_command_output(command: &str, flags: u16) -> io::Result<Child> {
     if flags & arguments::SHELL_ENABLED != 0 && flags & arguments::PIPE_IS_ENABLED == 0 {
         shell_output(command, flags)
     } else {
@@ -120,7 +120,7 @@ pub fn get_command_output(command: &str, flags: u8) -> io::Result<Child> {
     }
 }
 
-fn shell_output<S: AsRef<OsStr>>(args: S, flags: u8) -> io::Result<Child> {
+fn shell_output<S: AsRef<OsStr>>(args: S, flags: u16) -> io::Result<Child> {
     let (cmd, flag) = if cfg!(windows) {
         ("cmd".to_owned(), "/C")
     } else if flags & arguments::DASH_EXISTS != 0  {
