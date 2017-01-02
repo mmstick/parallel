@@ -5,9 +5,7 @@ The list is actively updated with each successful pull request.
     - Re-integrate the original memory-buffered implementation
 - Implement `retries`, `resume`, `resume-failed`, and `retry-failed`
     - Will require comparing the processed and unprocessed files
-    - Generate a new unprocessed file and remove the originals
-- Implement `delay` and `timeout`
-    - Add a delay timer between commands and a timeout timer to kill applications that run too long
+    - Generate a new unprocessed file and remove the originals\
 - Implement `compress`
     - Compress the outputs of a file if the file exceeds a certain length
 - Implement `eta` and `progress`
@@ -21,3 +19,5 @@ The list is actively updated with each successful pull request.
 - Fix quoting issues
     - `shell-quote` should infer `dry-run`
     - input tokens should be quoted
+- Fix `timeout` for commands that are running within a shell
+- Eliminate the need to run commands within a shell

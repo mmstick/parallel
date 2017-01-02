@@ -1,6 +1,3 @@
-pub mod execute;
-pub mod pipe;
-
 use std::fs::{self, File};
 use std::io::{self, Write, Read};
 use std::path::Path;
@@ -9,9 +6,9 @@ use std::thread;
 use std::time::Duration;
 
 use super::arguments::Args;
-use super::disk_buffer::DiskBuffer;
-use super::filepaths;
-use self::pipe::disk::State;
+use super::super::disk_buffer::DiskBuffer;
+use super::super::filepaths;
+use super::pipe::disk::State;
 
 macro_rules! read_outputs {
     ($stdout:ident, $stderr:ident, $buffer:ident, $stdout_out:ident, $stderr_out:ident) => {

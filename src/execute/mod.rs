@@ -1,0 +1,40 @@
+mod dry;
+mod exec_commands;
+mod exec_inputs;
+pub mod pipe;
+mod receive;
+
+use arguments::{self, InputIteratorErr};
+use command;
+use super::input_iterator::InputIterator;
+
+use std::thread;
+use std::time::Duration;
+use std::io::{Write, Stderr};
+use std::sync::{Arc, Mutex};
+
+pub use self::dry::dry_run;
+pub use self::exec_commands::ExecCommands;
+pub use self::exec_inputs::ExecInputs;
+pub use self::receive::receive_messages;
+
+// Attempts to obtain the next input argument along with it's job ID from the `InputIterator`.
+// NOTE: Some reason this halves the wall time compared to making this a method of `InputIterator`.
+fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr, has_delay: bool, delay: Duration) -> Option<(String, usize)> {
+    let mut inputs = inputs.lock().unwrap();
+    let job_id = inputs.curr_argument;
+    if has_delay { thread::sleep(delay); }
+    match inputs.next() {
+        None            => None,
+        Some(Ok(input)) => Some((input, job_id)),
+        Some(Err(why))  => {
+            let stderr = &mut stderr.lock();
+            match why {
+                InputIteratorErr::FileRead(path, why) => {
+                    let _ = write!(stderr, "parallel: input file read error: {:?}: {}\n", path, why);
+                },
+            }
+            None
+        }
+    }
+}

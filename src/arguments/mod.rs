@@ -41,21 +41,23 @@ enum Quoting { None, Basic, Shell }
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
 pub struct Args<'a> {
-    pub flags:        u8,
-    pub ncores:       usize,
-    pub ninputs:      usize,
-    pub delay:        Duration,
-    pub arguments:    ArrayVec<[Token<'a>; 128]>,
+    pub flags:     u8,
+    pub ncores:    usize,
+    pub ninputs:   usize,
+    pub delay:     Duration,
+    pub timeout:   Duration,
+    pub arguments: ArrayVec<[Token<'a>; 128]>,
 }
 
 impl<'a> Args<'a> {
     pub fn new() -> Args<'a> {
         Args {
-            ncores:       num_cpus::get(),
-            flags:        0,
-            arguments:    ArrayVec::new(),
-            ninputs:      0,
-            delay:        Duration::from_millis(0),
+            ncores:    num_cpus::get(),
+            flags:     0,
+            arguments: ArrayVec::new(),
+            ninputs:   0,
+            delay:     Duration::from_millis(0),
+            timeout:   Duration::from_millis(0),
         }
     }
 
@@ -141,6 +143,12 @@ impl<'a> Args<'a> {
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
                                 "quote" => quote = Quoting::Basic,
                                 "shellquote" => quote = Quoting::Shell,
+                                "timeout" => {
+                                    let val = arguments.get(index).ok_or(ParseErr::DelayNoValue)?;
+                                    let seconds = val.parse::<f64>().map_err(|_| ParseErr::DelayNaN(index))?;
+                                    self.timeout = Duration::from_millis((seconds * 1000f64) as u64);
+                                    index += 1;
+                                }
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
                                     println!("parallel 0.8.0\n\nCrate Dependencies:");

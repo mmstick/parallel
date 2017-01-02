@@ -7,20 +7,21 @@ extern crate alloc_system;
 extern crate arrayvec;
 extern crate num_cpus;
 extern crate permutate;
+extern crate wait_timeout;
 
 mod arguments;
 mod command;
 mod disk_buffer;
+mod execute;
 mod filepaths;
 mod init;
 mod input_iterator;
-mod threads;
 mod tokenizer;
+mod shell;
 mod verbose;
 
 use std::env;
-use std::ffi::OsStr;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::mem;
 use std::process::exit;
@@ -29,8 +30,8 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 
 use arguments::Args;
-use threads::pipe::disk::State;
-use tokenizer::{Token, TokenErr, tokenize};
+use execute::pipe::disk::State;
+use tokenizer::{TokenErr, tokenize};
 
 /// Coercing the `command` `String` into a `&'static str` is required to share it among all threads.
 /// The command string needs to be available in memory for the entirety of the application, so this
@@ -41,34 +42,6 @@ unsafe fn leak_command(comm: String) -> &'static str {
     static_comm
 }
 
-/// Determines if a shell is required or not for execution
-fn shell_required(arguments: &[Token]) -> bool {
-    for token in arguments {
-        if let Token::Argument(ref arg) = *token {
-            if arg.contains(';') || arg.contains('&') || arg.contains('|') {
-                return true
-            }
-        }
-    }
-    false
-}
-
-/// Returns `true` if the Dash shell was found within the `PATH` environment variable.
-fn dash_exists() -> bool {
-    if let Ok(path) = env::var("PATH") {
-        for path in path.split(':') {
-            if let Ok(directory) = fs::read_dir(path) {
-                for entry in directory {
-                    if let Ok(entry) = entry {
-                        let path = entry.path();
-                        if path.is_file() && path.file_name() == Some(OsStr::new("dash")) { return true; }
-                    }
-                }
-            }
-        }
-    }
-    false
-}
 
 fn main() {
     // Obtain a handle to standard error's buffer so we can write directly to it.
@@ -104,11 +77,10 @@ fn main() {
     }
 
     if args.flags & arguments::DRY_RUN != 0 {
-        threads::execute::dry_run(args.flags, inputs, &args.arguments);
+        execute::dry_run(args.flags, inputs, &args.arguments);
     } else {
-        // Determines if a shell is required or not
-        if shell_required(&args.arguments) {
-            if dash_exists() {
+        if shell::required(shell::Kind::Tokens(&args.arguments)) {
+            if shell::dash_exists() {
                 args.flags |= arguments::DASH_EXISTS + arguments::SHELL_ENABLED;
             } else {
                 args.flags |= arguments::SHELL_ENABLED;
@@ -130,15 +102,16 @@ fn main() {
         // The `slot` variable is required by the {%} token.
         if args.flags & arguments::INPUTS_ARE_COMMANDS != 0 {
             for _ in 0..args.ncores {
-                let num_inputs = args.ninputs;
-                let inputs     = shared_input.clone();
-                let flags      = args.flags;
-                let output_tx  = output_tx.clone();
-                let delay      = args.delay;
-
-                // Each input will be treated as a command
+                let flags = args.flags;
+                let exec = execute::ExecInputs {
+                    num_inputs: args.ninputs,
+                    delay:      args.delay,
+                    timeout:    args.timeout,
+                    inputs:     shared_input.clone(),
+                    output_tx:  output_tx.clone(),
+                };
                 let handle: JoinHandle<()> = thread::spawn(move || {
-                    threads::execute::inputs(num_inputs, flags, inputs, output_tx, delay)
+                    exec.run(flags);
                 });
 
                 // Add the thread handle to the `threads` vector to know when to quit the program.
@@ -146,16 +119,27 @@ fn main() {
             }
         } else {
             for slot in 1..args.ncores+1 {
+                let flags = args.flags;
+                let delay = args.delay;
+                let timeout = args.timeout;
                 let num_inputs = args.ninputs;
-                let inputs     = shared_input.clone();
-                let flags      = args.flags;
-                let output_tx  = output_tx.clone();
-                let arguments  = args.arguments.clone();
-                let delay      = args.delay;
+                let inputs = shared_input.clone();
+                let output_tx = output_tx.clone();
+                let arguments = args.arguments.clone();
 
                 // The command will be built from the arguments, and inputs will be transferred to the command.
                 let handle: JoinHandle<()> = thread::spawn(move || {
-                    threads::execute::command(slot, num_inputs, flags, &arguments, inputs, output_tx, delay)
+                    let exec = execute::ExecCommands {
+                        slot:       slot,
+                        num_inputs: num_inputs,
+                        flags:      flags,
+                        delay:      delay,
+                        timeout:    timeout,
+                        inputs:     inputs,
+                        output_tx:  output_tx,
+                        arguments:  &arguments,
+                    };
+                    exec.run();
                 });
 
                 // Add the thread handle to the `threads` vector to know when to quit the program.
@@ -163,7 +147,7 @@ fn main() {
             }
         }
 
-        threads::receive_messages(input_rx, args, &processed_path, &errors_path);
+        execute::receive_messages(input_rx, args, &processed_path, &errors_path);
         for thread in threads { thread.join().unwrap(); }
 
         // If errors have occurred, re-print these errors at the end.
