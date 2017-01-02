@@ -5,15 +5,18 @@ use super::pipe::disk::State;
 use super::super::tokenizer::Token;
 use super::super::input_iterator::InputIterator;
 use verbose;
+use std::thread;
+use std::time::Duration;
 use std::io::{self, Write, Stderr};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 
 // Attempts to obtain the next input argument along with it's job ID from the `InputIterator`.
 // NOTE: Some reason this halves the wall time compared to making this a method of `InputIterator`.
-fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr) -> Option<(String, usize)> {
+fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr, has_delay: bool, delay: Duration) -> Option<(String, usize)> {
     let mut inputs = inputs.lock().unwrap();
     let job_id = inputs.curr_argument;
+    if has_delay { thread::sleep(delay); }
     match inputs.next() {
         None            => None,
         Some(Ok(input)) => Some((input, job_id)),
@@ -71,7 +74,7 @@ pub fn dry_run(flags: u8, inputs: InputIterator, arguments: &[Token]) {
 
 /// Builds and executes commands based on a provided template and associated inputs.
 pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: &[Token],
-    inputs: Arc<Mutex<InputIterator>>, output_tx: Sender<State>)
+    inputs: Arc<Mutex<InputIterator>>, output_tx: Sender<State>, delay: Duration)
 {
     let stdout = io::stdout();
     let stderr = io::stderr();
@@ -79,8 +82,9 @@ pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: &[Token],
     let slot      = &slot.to_string();
     let job_total = &num_inputs.to_string();
     let mut command_buffer = &mut String::with_capacity(64);
+    let has_delay = delay != Duration::from_millis(0);
 
-    while let Some((input, job_id)) = attempt_next(&inputs, &stderr) {
+    while let Some((input, job_id)) = attempt_next(&inputs, &stderr, has_delay, delay) {
         if flags & arguments::VERBOSE_MODE != 0  {
             verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
         }
@@ -119,13 +123,14 @@ pub fn command(slot: usize, num_inputs: usize, flags: u8, arguments: &[Token],
 }
 
 /// Executes inputs as commands
-pub fn inputs(num_inputs: usize, flags: u8, inputs: Arc<Mutex<InputIterator>>, output_tx: Sender<State>) {
+pub fn inputs(num_inputs: usize, flags: u8, inputs: Arc<Mutex<InputIterator>>, output_tx: Sender<State>, delay: Duration) {
     let stdout = io::stdout();
     let stderr = io::stderr();
 
     let job_total = &num_inputs.to_string();
+    let has_delay = delay != Duration::from_millis(0);
 
-    while let Some((input, job_id)) = attempt_next(&inputs, &stderr) {
+    while let Some((input, job_id)) = attempt_next(&inputs, &stderr, has_delay, delay) {
         if flags & arguments::VERBOSE_MODE != 0 {
             verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
         }

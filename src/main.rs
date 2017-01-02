@@ -134,10 +134,11 @@ fn main() {
                 let inputs     = shared_input.clone();
                 let flags      = args.flags;
                 let output_tx  = output_tx.clone();
+                let delay      = args.delay;
 
                 // Each input will be treated as a command
                 let handle: JoinHandle<()> = thread::spawn(move || {
-                    threads::execute::inputs(num_inputs, flags, inputs, output_tx)
+                    threads::execute::inputs(num_inputs, flags, inputs, output_tx, delay)
                 });
 
                 // Add the thread handle to the `threads` vector to know when to quit the program.
@@ -150,10 +151,11 @@ fn main() {
                 let flags      = args.flags;
                 let output_tx  = output_tx.clone();
                 let arguments  = args.arguments.clone();
+                let delay      = args.delay;
 
                 // The command will be built from the arguments, and inputs will be transferred to the command.
                 let handle: JoinHandle<()> = thread::spawn(move || {
-                    threads::execute::command(slot, num_inputs, flags, &arguments, inputs, output_tx)
+                    threads::execute::command(slot, num_inputs, flags, &arguments, inputs, output_tx, delay)
                 });
 
                 // Add the thread handle to the `threads` vector to know when to quit the program.

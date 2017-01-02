@@ -77,6 +77,9 @@ OPTIONS
     Options may also be supplied to the program to change how the program
     operates:
 
+    --delay:
+        Delays starting the next job for N amount of seconds, where the seconds can be fractional.
+        
     --dry-run:
         Prints the jobs that will be run to standard output, without running them.
 

@@ -216,6 +216,7 @@ like. Ideas for more tokens are welcome.
 Options may also be supplied to the program to change how the program
 operates:
 
+- **--delay**: Delays starting the next job for N amount of seconds, where the seconds can be fractional.
 - **--dry-run**: Prints the jobs that will be run to standard output, without running them.
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.

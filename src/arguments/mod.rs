@@ -9,6 +9,8 @@ use std::fs;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use std::process::exit;
+use std::time::Duration;
+
 use arrayvec::ArrayVec;
 use permutate::Permutator;
 use num_cpus;
@@ -41,8 +43,9 @@ enum Quoting { None, Basic, Shell }
 pub struct Args<'a> {
     pub flags:        u8,
     pub ncores:       usize,
-    pub arguments:    ArrayVec<[Token<'a>; 128]>,
     pub ninputs:      usize,
+    pub delay:        Duration,
+    pub arguments:    ArrayVec<[Token<'a>; 128]>,
 }
 
 impl<'a> Args<'a> {
@@ -52,6 +55,7 @@ impl<'a> Args<'a> {
             flags:        0,
             arguments:    ArrayVec::new(),
             ninputs:      0,
+            delay:        Duration::from_millis(0),
         }
     }
 
@@ -108,6 +112,12 @@ impl<'a> Args<'a> {
                         } else {
                             // NOTE: Long mode versions of arguments
                             match &argument[2..] {
+                                "delay" => {
+                                    let val = arguments.get(index).ok_or(ParseErr::DelayNoValue)?;
+                                    let seconds = val.parse::<f64>().map_err(|_| ParseErr::DelayNaN(index))?;
+                                    self.delay = Duration::from_millis((seconds * 1000f64) as u64);
+                                    index += 1;
+                                },
                                 "dry-run" => self.flags |= DRY_RUN,
                                 "help" => {
                                     println!("{}", man::MAN_PAGE);
