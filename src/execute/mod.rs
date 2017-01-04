@@ -33,9 +33,10 @@ fn attempt_next(inputs: &Arc<Mutex<InputIterator>>, stderr: &Stderr, has_delay: 
         } else {
             *completed = true;
         }
-        println!("ETA: {}s Left: {} AVG: {:.2}s Completed: {}",
-            eta.time / 1_000_000_000, eta.left, eta.average as f64 / 1_000_000_000f64,
-            inputs.completed);
+        let mut stderr = &mut stderr.lock();
+        let message = format!("ETA: {}s Left: {} AVG: {:.2}s Completed: {}\n", eta.time / 1_000_000_000,
+            eta.left, eta.average as f64 / 1_000_000_000f64, inputs.completed);
+        let _ = stderr.write(message.as_bytes());
     }
 
     if has_delay { thread::sleep(delay); }
