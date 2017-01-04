@@ -7,6 +7,7 @@ mod quote;
 use std::env;
 use std::fs;
 use std::io::{self, BufRead, BufReader};
+use std::num::ParseIntError;
 use std::path::Path;
 use std::process::exit;
 use std::time::Duration;
@@ -22,7 +23,6 @@ use self::errors::ParseErr;
 
 // Re-export key items from internal modules.
 pub use self::errors::{FileErr, InputIteratorErr};
-
 
 #[derive(PartialEq)]
 enum Mode { Arguments, Command, Inputs, InputsAppend, Files, FilesAppend }
@@ -45,6 +45,7 @@ pub struct Args<'a> {
     pub flags:     u16,
     pub ncores:    usize,
     pub ninputs:   usize,
+    pub memory:    u64,
     pub delay:     Duration,
     pub timeout:   Duration,
     pub arguments: ArrayVec<[Token<'a>; 128]>,
@@ -57,6 +58,7 @@ impl<'a> Args<'a> {
             flags:     0,
             arguments: ArrayVec::new(),
             ninputs:   0,
+            memory:    0,
             delay:     Duration::from_millis(0),
             timeout:   Duration::from_millis(0),
         }
@@ -93,7 +95,7 @@ impl<'a> Args<'a> {
                     // We can guarantee that there will always be at least one character.
                     if char_iter.next().unwrap() == '-' {
                         // If the second character exists, everything's OK.
-                        let character = char_iter.next().ok_or(ParseErr::InvalidArgument(index-1))?;
+                        let character = char_iter.next().ok_or_else(|| ParseErr::InvalidArgument(index-1))?;
                         if character == 'j' {
                             self.ncores = parse_jobs(argument, arguments.get(index), &mut index)?;
                         } else if character == 'n' {
@@ -143,14 +145,19 @@ impl<'a> Args<'a> {
                                     max_args = val.parse::<usize>().map_err(|_| ParseErr::MaxArgsNaN(index))?;
                                     index += 1;
                                 }
+                                "mem-free" => {
+                                    let val = arguments.get(index).ok_or(ParseErr::MemNoValue)?;
+                                    self.memory = parse_memory(val).map_err(|_| ParseErr::MemInvalid(index))?;
+                                    index += 1;
+                                }
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
                                 "quote" => quote = Quoting::Basic,
                                 // "shebang" => shebang = true,
                                 "shellquote" => quote = Quoting::Shell,
                                 "timeout" => {
-                                    let val = arguments.get(index).ok_or(ParseErr::DelayNoValue)?;
-                                    let seconds = val.parse::<f64>().map_err(|_| ParseErr::DelayNaN(index))?;
+                                    let val = arguments.get(index).ok_or(ParseErr::TimeoutNoValue)?;
+                                    let seconds = val.parse::<f64>().map_err(|_| ParseErr::TimeoutNaN(index))?;
                                     self.timeout = Duration::from_millis((seconds * 1000f64) as u64);
                                     index += 1;
                                 }
@@ -486,6 +493,23 @@ fn merge_lists(original: &mut Vec<String>, append: &mut Vec<String>) {
         input.push(' ');
         input.push_str(&element);
     }
+}
+
+fn parse_memory(input: &str) -> Result<u64, ParseIntError> {
+    let result = match input.chars().last().unwrap() {
+        'k' => &input[..input.len()-1].parse::<u64>()? * 1_000,
+        'K' => &input[..input.len()-1].parse::<u64>()? * 1_024,
+        'm' => &input[..input.len()-1].parse::<u64>()? * 1_000_000,
+        'M' => &input[..input.len()-1].parse::<u64>()? * 1_048_576,
+        'g' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000,
+        'G' => &input[..input.len()-1].parse::<u64>()? * 1_073_741_824,
+        't' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000_000,
+        'T' => &input[..input.len()-1].parse::<u64>()? * 1_099_511_627_776,
+        'p' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000_000_000,
+        'P' => &input[..input.len()-1].parse::<u64>()? * 1_125_899_906_842_624,
+        _ => input.parse::<u64>()?
+    };
+    Ok(result)
 }
 
 /// Parses the jobs value, and optionally increments the index if necessary.

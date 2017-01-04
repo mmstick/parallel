@@ -91,6 +91,9 @@ OPTIONS
         Values may be written as a number (12) or as a percent (150%).
         The default value is the number of CPU cores in the system.
 
+    --memfree:
+        Defines the minimum amount of memory available before starting the next job.
+
     -n, --max-args:
         Groups up to a certain number of arguments together in the same
         command line. For example, if five arguments are supplied and max
@@ -99,13 +102,11 @@ OPTIONS
         argument, and argument five will become the third argument.
 
     --num-cpu-cores:
-        A convenience command that will print the number of CPU cores in the
-        system.
+        A convenience command that will print the number of CPU cores in the system.
 
     -p, --pipe:
-        Instead of supplying arguments as arguments to child processes,
-        instead supply the arguments directly to the standard input of each
-        child process.
+        Instead of supplying arguments as arguments to child processes, apply
+        them to the standard input of each child process.
 
     -q, --quote:
         Retains backslashes that are supplied as the command input.

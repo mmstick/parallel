@@ -15,6 +15,7 @@ use std::sync::mpsc::Sender;
 
 pub struct ExecInputs {
     pub num_inputs: usize,
+    pub memory:     u64,
     pub delay:      Duration,
     pub timeout:    Duration,
     pub inputs:     Arc<Mutex<InputIterator>>,
@@ -32,7 +33,7 @@ impl ExecInputs {
         let mut completed = false;
 
         while let Some((input, job_id, _)) = attempt_next(&self.inputs, &stderr, has_delay, self.delay,
-            &mut completed, flags)
+            &mut completed, self.memory, flags)
         {
             if flags & arguments::VERBOSE_MODE != 0 {
                 verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);

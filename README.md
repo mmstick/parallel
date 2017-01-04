@@ -231,6 +231,7 @@ operates:
 - **--eta**: Prints the estimated time to complete based on average runtime of running processes.
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
+- **--memfree**: Defines the minimum amount of memory available before starting the next job.
 - **-n**, **--max-args**: Groups up to a certain number of arguments together in the same command line.
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
 - **-p**, **--pipe**: Instead of supplying arguments as arguments to child processes,

@@ -7,6 +7,7 @@ extern crate alloc_system;
 extern crate arrayvec;
 extern crate num_cpus;
 extern crate permutate;
+extern crate sys_info;
 extern crate wait_timeout;
 
 mod arguments;
@@ -107,6 +108,7 @@ fn main() {
                     num_inputs: args.ninputs,
                     delay:      args.delay,
                     timeout:    args.timeout,
+                    memory:     args.memory,
                     inputs:     shared_input.clone(),
                     output_tx:  output_tx.clone(),
                 };
@@ -123,6 +125,7 @@ fn main() {
                 let delay = args.delay;
                 let timeout = args.timeout;
                 let num_inputs = args.ninputs;
+                let memory = args.memory;
                 let inputs = shared_input.clone();
                 let output_tx = output_tx.clone();
                 let arguments = args.arguments.clone();
@@ -135,6 +138,7 @@ fn main() {
                         flags:      flags,
                         delay:      delay,
                         timeout:    timeout,
+                        memory:     memory,
                         inputs:     inputs,
                         output_tx:  output_tx,
                         arguments:  &arguments,

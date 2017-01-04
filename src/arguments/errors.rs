@@ -38,8 +38,12 @@ pub enum ParseErr {
     MaxArgsNaN(usize),
     /// No value was provided for the `max_args` flag.
     MaxArgsNoValue,
+    MemInvalid(usize),
+    MemNoValue,
     /// No arguments were given, so no action can be taken.
     NoArguments,
+    TimeoutNaN(usize),
+    TimeoutNoValue,
 }
 
 impl From<FileErr> for ParseErr {
@@ -98,12 +102,24 @@ impl ParseErr {
             },
             ParseErr::MaxArgsNoValue => {
                 let _ = stderr.write(b"no groups parameter was defined.\n");
+            },
+            ParseErr::MemNoValue => {
+                let _ = stderr.write(b"no memory parameter was defined.\n");
+            },
+            ParseErr::MemInvalid(index) => {
+                let _ = write!(stderr, "invalid memory value: {}\n", arguments[index]);
             }
             ParseErr::InvalidArgument(index) => {
                 let _ = write!(stderr, "invalid argument: {}\n", arguments[index]);
             },
             ParseErr::NoArguments => {
                 let _ = write!(stderr, "no input arguments were given.\n");
+            },
+            ParseErr::TimeoutNaN(index) => {
+                let _ = write!(stderr, "invalid timeout value: {}\n", arguments[index]);
+            },
+            ParseErr::TimeoutNoValue => {
+                let _ = stderr.write(b"no timeout parameter was defined.\n");
             }
         };
         let _ = stdout.write(b"For help on command-line usage, execute `parallel -h`\n");

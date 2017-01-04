@@ -16,6 +16,7 @@ use std::time::Duration;
 pub struct ExecCommands<'a> {
     pub slot:       usize,
     pub num_inputs: usize,
+    pub memory:     u64,
     pub flags:      u16,
     pub delay:      Duration,
     pub timeout:    Duration,
@@ -37,7 +38,7 @@ impl<'a> ExecCommands<'a> {
         let mut completed      = false;
 
         while let Some((input, job_id, _)) = attempt_next(&self.inputs, &stderr, has_delay, self.delay,
-            &mut completed, self.flags)
+            &mut completed, self.memory, self.flags)
         {
             if self.flags & arguments::VERBOSE_MODE != 0  {
                 verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
