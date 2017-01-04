@@ -113,6 +113,10 @@ OPTIONS
     -s, --silent, --quiet:
         Disables printing the standard output of running processes.
 
+    --shebang:
+        Grants ability to utilize the parallel command as an interpreter via
+        calling it within a shebang line.
+
     --timeout:
         If a command runs for longer than a specified number of seconds, it will be
         killed with a SIGKILL.
@@ -141,6 +145,11 @@ EXAMPLES
 
     # Reading inputs from files and command arguments
     parallel 'echo {}' :::: list1 list2 ::: $(seq 1 10) :::: list3 list4
+
+    # Within a file, with each successive newline being an input argument
+    #!/usr/bin/parallel --shebang echo
+    1
+    2
 
 HOW IT WORKS
     The Parallel command consists of three phases: parsing, threading, and execution.

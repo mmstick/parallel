@@ -10,8 +10,6 @@ The list is actively updated with each successful pull request.
     - Compress the outputs of a file if the file exceeds a certain length
 - Implement `memfree`
     - Only execute a task if memory consumption is below a certain threshold.
-- Implement `skip-first-line` and `shebang`
-    - Basically, enale the ability to use parallel in a shebang line
 - Implement `workdir` and `tempdir`
     - Allow the ability to change the default location of the temp and work directories
 - Fix quoting issues

@@ -82,6 +82,8 @@ impl<'a> Args<'a> {
                 _  => (Mode::Arguments, 1)
             };
 
+            let mut shebang = false;
+
             if let Mode::Arguments = mode {
                 while let Some(argument) = arguments.get(index) {
                     index += 1;
@@ -144,6 +146,7 @@ impl<'a> Args<'a> {
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
                                 "quote" => quote = Quoting::Basic,
+                                // "shebang" => shebang = true,
                                 "shellquote" => quote = Quoting::Shell,
                                 "timeout" => {
                                     let val = arguments.get(index).ok_or(ParseErr::DelayNoValue)?;
@@ -163,6 +166,11 @@ impl<'a> Args<'a> {
                                     exit(0);
                                 }
                                 _ => {
+                                    if &argument[2..9] == "shebang" {
+                                        shebang = true;
+                                        comm.push_str(&argument[10..]);
+                                        break
+                                    }
                                     return Err(ParseErr::InvalidArgument(index-1));
                                 }
                             }
@@ -207,7 +215,12 @@ impl<'a> Args<'a> {
                 }
             }
 
-            parse_inputs(arguments, index, &mut current_inputs, &mut lists, &mut mode)?;
+            if shebang {
+                file_parse(&mut current_inputs, &arguments.last().unwrap())?;
+            } else {
+                parse_inputs(arguments, index, &mut current_inputs, &mut lists, &mut mode)?;
+            }
+
             number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, &mut disk_buffer)?;
         }
 
@@ -491,8 +504,16 @@ fn parse_jobs(argument: &str, next_argument: Option<&String>, index: &mut usize)
 fn file_parse<P: AsRef<Path>>(inputs: &mut Vec<String>, path: P) -> Result<(), ParseErr> {
     let path = path.as_ref();
     let file = fs::File::open(path).map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err)))?;
-    for line in BufReader::new(file).lines() {
-        if let Ok(line) = line { inputs.push(line); }
+    let mut buffer = BufReader::new(file).lines();
+    if let Some(line) = buffer.next() {
+        if let Ok(line) = line {
+            if !line.is_empty() && !line.starts_with("#!") { inputs.push(line); }
+        }
+    }
+    for line in buffer {
+        if let Ok(line) = line {
+            if !line.is_empty() { inputs.push(line); }
+        }
     }
     Ok(())
 }

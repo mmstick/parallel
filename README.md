@@ -15,6 +15,9 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
 ## Benchmark Comparison to GNU Parallel
 
 ### GNU Parallel
+
+#### Printing 1 to 10,000 in parallel
+
 ```
 ~/D/parallel (master) $ seq 1 10000 | time -v /usr/bin/parallel echo > /dev/null
     Command being timed: "/usr/bin/parallel echo"
@@ -41,6 +44,8 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
     Page size (bytes): 4096
     Exit status: 0
 ```
+
+#### Cat the contents of every binary in /usr/bin
 
 ```
 ~/D/parallel (master) $ time -v /usr/bin/parallel cat ::: /usr/bin/* > /dev/null
@@ -72,26 +77,28 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
 
 It's highly recommend to compile Parallel with MUSL instead of glibc, as this reduces memory consumption in half and doubles performance.
 
+#### Printing 1 to 10,000 in parallel
+
 ```
 ~/D/parallel (master) $ seq 1 10000 | time -v target/release/x86_64-unknown-linux-musl/parallel echo > /dev/null
-    Command being timed: "target/x86_64-unknown-linux-musl/release/parallel echo"
-    User time (seconds): 0.55
-    System time (seconds): 3.45
-    Percent of CPU this job got: 65%
-    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:06.14
+Command being timed: "target/x86_64-unknown-linux-musl/release/parallel echo"
+    User time (seconds): 0.48
+    System time (seconds): 2.85
+    Percent of CPU this job got: 104%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:03.20
     Average shared text size (kbytes): 0
     Average unshared data size (kbytes): 0
     Average stack size (kbytes): 0
     Average total size (kbytes): 0
     Maximum resident set size (kbytes): 1768
     Average resident set size (kbytes): 0
-    Major (requiring I/O) page faults: 1
-    Minor (reclaiming a frame) page faults: 815825
-    Voluntary context switches: 72504
-    Involuntary context switches: 54392
+    Major (requiring I/O) page faults: 0
+    Minor (reclaiming a frame) page faults: 823754
+    Voluntary context switches: 82723
+    Involuntary context switches: 64834
     Swaps: 0
-    File system inputs: 8
-    File system outputs: 352
+    File system inputs: 0
+    File system outputs: 320
     Socket messages sent: 0
     Socket messages received: 0
     Signals delivered: 0
@@ -99,25 +106,27 @@ It's highly recommend to compile Parallel with MUSL instead of glibc, as this re
     Exit status: 0
 ```
 
+#### Cat the contents of every binary in /usr/bin
+
 ```
 ~/D/parallel (master) $ time -v target/release/x86_64-unknown-linux-musl/release/parallel cat ::: /usr/bin/* > /dev/null
-    User time (seconds): 1.27
-    System time (seconds): 5.07
-    Percent of CPU this job got: 138%
-    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:04.58
+    User time (seconds): 0.96
+    System time (seconds): 4.61
+    Percent of CPU this job got: 192%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:02.89
     Average shared text size (kbytes): 0
     Average unshared data size (kbytes): 0
     Average stack size (kbytes): 0
     Average total size (kbytes): 0
-    Maximum resident set size (kbytes): 1844
+    Maximum resident set size (kbytes): 1868
     Average resident set size (kbytes): 0
     Major (requiring I/O) page faults: 0
-    Minor (reclaiming a frame) page faults: 350701
-    Voluntary context switches: 67739
-    Involuntary context switches: 44271
+    Minor (reclaiming a frame) page faults: 350216
+    Voluntary context switches: 68772
+    Involuntary context switches: 40085
     Swaps: 0
-    File system inputs: 0
-    File system outputs: 480
+    File system inputs: 368
+    File system outputs: 416
     Socket messages sent: 0
     Socket messages received: 0
     Signals delivered: 0
@@ -137,8 +146,9 @@ parallel echo ::: 1 2 3 ::: A B C ::: D E F       // Permutate the inputs.
 parallel echo {} {1} {2} {3.} ::: 1 2 file.mkv    // {N} tokens are replaced by the Nth input argument
 parallel ::: "echo 1" "echo 2" "echo 3"           // If no command is supplied, the input arguments become commands.
 parallel 'cd {}; echo Directory: {}; echo - {}'   // Commands may be chained in the platform\'s shell.
-seq 1 10 | parallel 'echo {}'                           // If no input arguments are supplied, stdin will be read.
-seq 1 10 | parallel --pipe cat                       // Piping arguments to the standard input of the given command.
+seq 1 10 | parallel 'echo {}'                     // If no input arguments are supplied, stdin will be read.
+seq 1 10 | parallel --pipe cat                    // Piping arguments to the standard input of the given command.
+#!/usr/bin/parallel --shebang echo            // Ability to use within a shebang line.
 ```
 
 ## Manual
@@ -227,6 +237,7 @@ operates:
         instead supply the arguments directly to the standard input of each child process.
 - **-q**, **--quote**: Retains backslashes that are supplied as the command input.
 - **-s**, **--silent**, **--quiet**: Disables printing the standard output of running processes.
+- **--shebang**: Grants ability to utilize the parallel command as an interpreter via calling it within a shebang line.
 - **--shellquote**: Expands upon quote mode by escaping a wide variety of special characters.
 - **--timeout**: If a command runs for longer than a specified number of seconds, it will be killed with a SIGKILL.
 - **-v**, **--verbose**: Prints information about running processes.
