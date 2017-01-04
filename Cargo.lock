@@ -1,9 +1,9 @@
 [root]
 name = "parallel"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "arrayvec 0.3.20 (registry+https://github.com/rust-lang/crates.io-index)",
- "num_cpus 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num_cpus 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "permutate 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sys-info 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "num_cpus"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -106,7 +106,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 "checksum libc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)" = "a51822fc847e7a8101514d1d44e354ba2ffa7d4c194dcab48870740e327cac70"
 "checksum nodrop 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "0dbbadd3f4c98dea0bd3d9b4be4c0cdaf1ab57035cb2e41fce3983db5add7cc5"
-"checksum num_cpus 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "55aabf4e2d6271a2e4e4c0f2ea1f5b07cc589cc1a9e9213013b54a76678ca4f3"
+"checksum num_cpus 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a225d1e2717567599c24f88e49f00856c6e825a12125181ee42c4257e3688d39"
 "checksum odds 0.2.25 (registry+https://github.com/rust-lang/crates.io-index)" = "c3df9b730298cea3a1c3faa90b7e2f9df3a9c400d0936d6015e6165734eefcba"
 "checksum permutate 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1b4ba980af238a6d6fcc0df53fe0d7920376bc4ce2c6ce298992891a230b47a8"
 "checksum sys-info 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "246f8bbb443ae0026c92266c26d997d04634c8b44c3baff9fa3bff445b40878c"

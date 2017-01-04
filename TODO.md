@@ -15,6 +15,7 @@ The list is actively updated with each successful pull request.
 - Allow the `timeout` parameter to be a percent of the average runtime.
 - Eliminate the need to run commands within a shell
 - Improve `eta` and implement `progress`
+- Fix `-n` issue when using `{1..}` tokens
 
 ## May or may not implement
 - Kill the youngest job and add it to the back of the queue if available memory is 50% less than `memfree`'s value.

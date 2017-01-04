@@ -153,7 +153,6 @@ impl<'a> Args<'a> {
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
                                 "quote" => quote = Quoting::Basic,
-                                // "shebang" => shebang = true,
                                 "shellquote" => quote = Quoting::Shell,
                                 "timeout" => {
                                     let val = arguments.get(index).ok_or(ParseErr::TimeoutNoValue)?;
@@ -163,23 +162,27 @@ impl<'a> Args<'a> {
                                 }
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
-                                    println!("parallel 0.8.0\n\nCrate Dependencies:");
-                                    println!("    libc      0.2.18");
-                                    println!("    num_cpus  1.2.0");
-                                    println!("    permutate 0.2.0");
-                                    println!("    arrayvec  0.3.20");
-                                    println!("    nodrop    0.1.8");
-                                    println!("    odds      0.2.25");
+                                    println!("parallel 0.9.0\n\nCrate Dependencies:");
+                                    println!("    arrayvec     0.3.20");
+                                    println!("    gcc          0.3.41");
+                                    println!("    kernel32-sys 0.2.2");
+                                    println!("    libc         0.2.18");
+                                    println!("    num_cpus     1.2.1");
+                                    println!("    nodrop       0.1.8");
+                                    println!("    odds         0.2.25");
+                                    println!("    permutate    0.2.0");
+                                    println!("    sys-info     0.4.1");
+                                    println!("    wait-timeout 0.1.3");
+                                    println!("    winapi       0.2.8");
+                                    println!("    winapi-build 0.1.1");
                                     exit(0);
                                 }
-                                _ => {
-                                    if &argument[2..9] == "shebang" {
+                                _ if &argument[2..9] == "shebang" => {
                                         shebang = true;
                                         comm.push_str(&argument[10..]);
                                         break
-                                    }
-                                    return Err(ParseErr::InvalidArgument(index-1));
-                                }
+                                },
+                                _ => return Err(ParseErr::InvalidArgument(index-1)),
                             }
                         }
                     } else {

@@ -1,6 +1,6 @@
 [package]
 name = "parallel"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["Michael Aaron Murphy <mmstickman@gmail.com>"]
 license = "MIT"
 description = "Command-line CPU load balancer for executing jobs in parallel"
