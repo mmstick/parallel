@@ -4,7 +4,7 @@ use std::fs;
 use std::ffi::OsStr;
 
 pub enum Kind<'a> {
-    Tokens(&'a [Token<'a>]),
+    Tokens(&'a [Token]),
     Input(&'a str)
 }
 

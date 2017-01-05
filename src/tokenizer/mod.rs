@@ -14,9 +14,9 @@ pub enum TokenErr {
 
 #[derive(Clone, PartialEq, Debug)]
 /// A token is a placeholder for the operation to be performed on the input value.
-pub enum Token<'a> {
+pub enum Token {
     /// An argument is simply a collection of characters that are not placeholders.
-    Argument(Cow<'a, str>),
+    Argument(Cow<'static, str>),
     /// Takes the basename (file name) of the input with the extension removed.
     BaseAndExt,
     /// Takes the basename (file name) of the input with the directory path removed.
@@ -33,13 +33,13 @@ pub enum Token<'a> {
     Slot
 }
 
-struct Number<'a> {
+struct Number {
     id: usize,
-    token: Token<'a>,
+    token: Token,
 }
 
-impl<'a> Number<'a> {
-    fn new(id: usize, token: Token<'a>) -> Number<'a> {
+impl Number {
+    fn new(id: usize, token: Token) -> Number {
         Number{ id: id, token: token }
     }
 
@@ -64,7 +64,7 @@ impl<'a> Number<'a> {
 
 /// Takes the command arguments as the input and reduces it into tokens,
 /// which allows for easier management of string manipulation later on.
-pub fn tokenize<'a>(tokens: &mut ArrayVec<[Token<'a>; 128]>, template: &'a str, path: &Path, nargs: usize)
+pub fn tokenize(tokens: &mut ArrayVec<[Token; 128]>, template: &'static str, path: &Path, nargs: usize)
     -> Result<(), TokenErr>
 {
     // When set to true, the characters following will be collected into `pattern`.
@@ -130,7 +130,7 @@ pub fn tokenize<'a>(tokens: &mut ArrayVec<[Token<'a>; 128]>, template: &'a str, 
 }
 
 /// Matches a pattern to it's associated token.
-fn match_token<'a>(pattern: &'a str, path: &Path, nargs: usize) -> Result<Option<Token<'a>>, TokenErr> {
+fn match_token(pattern: &'static str, path: &Path, nargs: usize) -> Result<Option<Token>, TokenErr> {
     match pattern {
         "."  => Ok(Some(Token::RemoveExtension)),
         "#"  => Ok(Some(Token::Job)),

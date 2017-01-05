@@ -71,18 +71,35 @@ pub fn outputs_path() -> PathBuf {
 }
 
 #[cfg(not(windows))]
-pub fn job(id: usize) -> (PathBuf, PathBuf) {
-    let stdout = PathBuf::from(format!("/tmp/parallel/stdout_{}", id));
-    let stderr = PathBuf::from(format!("/tmp/parallel/stderr_{}", id));
-    (stdout, stderr)
+pub fn new_job(id: usize) -> (usize, String, String) {
+    let id = id.to_string();
+    let mut stdout = String::from("/tmp/parallel/stdout_");
+    let mut stderr = String::from("/tmp/parallel/stderr_");
+    let truncate_value = stdout.len();
+    stdout.push_str(&id);
+    stderr.push_str(&id);
+    (truncate_value, stdout, stderr)
 }
 
 #[cfg(windows)]
-pub fn job(id: usize) -> (PathBuf, PathBuf) {
-    home_dir().map(|mut stdout| {
+pub fn new_job(id: usize) -> (usize, String, String) {
+    home_dir().map(|home| {
+        let mut stdout = home.to_str().unwrap().to_owned();
         let mut stderr = stdout.clone();
-        stdout.push(format!("AppData/Local/Temp/parallel/stdout_{}", id));
-        stderr.push(format!("AppData/Local/Temp/parallel/stderr_{}", id));
-        (stdout, stderr)
+        stdout.push_str("AppData/Local/Temp/parallel/stdout_");
+        stderr.push_str("AppData/Local/Temp/parallel/stderr_");
+        let truncate_value = stdout.len();
+        let id = id.to_string();
+        stdout.push_str(&id);
+        stderr.push_str(&id);
+        (truncate_value, stdout, stderr)
     }).expect("parallel: unable to open home folder")
+}
+
+pub fn next_job_path(id: usize, truncate: usize, stdout: &mut String, stderr: &mut String) {
+    let id = id.to_string();
+    stdout.truncate(truncate);
+    stdout.push_str(&id);
+    stderr.truncate(truncate);
+    stderr.push_str(&id);
 }

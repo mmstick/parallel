@@ -1,6 +1,7 @@
 use super::disk_buffer::*;
 use super::arguments::errors::{FileErr, InputIteratorErr};
 use std::path::{Path, PathBuf};
+use std::str;
 
 extern crate time;
 
@@ -61,6 +62,40 @@ impl InputIterator {
             time: left * self.average_time,
             average: self.average_time
         }
+    }
+
+    pub fn next_value(&mut self, buffer: &mut String) -> Option<Result<(), InputIteratorErr>> {
+        if self.curr_argument == self.total_arguments {
+            // If all arguments have been depleted, return `None`.
+            return None
+        } else if self.curr_argument == self.input_buffer.end {
+            // If the next argument is not stored in the internal buffer, update the buffer.
+            if let Err(err) = self.buffer() { return Some(Err(err)); }
+        }
+
+        // Obtain the start and end indices to know where to find the input in the array.
+        let end   = self.input_buffer.indices[self.input_buffer.index + 1];
+        let start = if self.input_buffer.index == 0 {
+            self.input_buffer.indices[self.input_buffer.index]
+        } else {
+            self.input_buffer.indices[self.input_buffer.index] + 1
+        };
+
+        // Update times
+        match self.completed {
+            0 => (),
+            1 => self.average_time = time::precise_time_ns() - self.start_time,
+            _ => self.average_time = (time::precise_time_ns() - self.start_time) / self.completed as u64,
+        }
+
+        // Increment the iterator's state.
+        self.curr_argument       += 1;
+        self.input_buffer.index  += 1;
+
+        // Copy the input from the buffer into a `String` and return it
+        buffer.truncate(0);
+        unsafe { buffer.push_str(str::from_utf8_unchecked(&self.input_buffer.disk_buffer.data[start..end])); }
+        Some(Ok(()))
     }
 }
 

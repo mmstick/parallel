@@ -3,38 +3,31 @@ use command;
 use wait_timeout::ChildExt;
 use super::pipe::disk::output as pipe_output;
 use super::pipe::disk::State;
-use super::super::input_iterator::InputIterator;
 use super::super::shell;
-use super::attempt_next;
+use super::InputsLock;
 use verbose;
 
 use std::time::Duration;
 use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 
 pub struct ExecInputs {
     pub num_inputs: usize,
-    pub memory:     u64,
-    pub delay:      Duration,
     pub timeout:    Duration,
-    pub inputs:     Arc<Mutex<InputIterator>>,
+    pub inputs:     InputsLock,
     pub output_tx:  Sender<State>,
 }
 
 impl ExecInputs {
-    pub fn run(&self, mut flags: u16) {
+    pub fn run(&mut self, mut flags: u16) {
         let stdout = io::stdout();
         let stderr = io::stderr();
 
         let job_total   = &self.num_inputs.to_string();
-        let has_delay   = self.delay != Duration::from_millis(0);
         let has_timeout = self.timeout != Duration::from_millis(0);
-        let mut completed = false;
+        let mut input = String::with_capacity(64);
 
-        while let Some((input, job_id, _)) = attempt_next(&self.inputs, &stderr, has_delay, self.delay,
-            &mut completed, self.memory, flags)
-        {
+        while let Some((job_id, _)) = self.inputs.try_next(&mut input) {
             if flags & arguments::VERBOSE_MODE != 0 {
                 verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
             }

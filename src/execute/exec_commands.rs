@@ -5,41 +5,34 @@ use verbose;
 use super::pipe::disk::output as pipe_output;
 use super::pipe::disk::State;
 use super::super::tokenizer::Token;
-use super::super::input_iterator::InputIterator;
-use super::attempt_next;
+use super::InputsLock;
 
 use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
 pub struct ExecCommands<'a> {
     pub slot:       usize,
     pub num_inputs: usize,
-    pub memory:     u64,
     pub flags:      u16,
-    pub delay:      Duration,
     pub timeout:    Duration,
-    pub inputs:     Arc<Mutex<InputIterator>>,
+    pub inputs:     InputsLock,
     pub output_tx:  Sender<State>,
-    pub arguments:  &'a [Token<'a>],
+    pub arguments:  &'a [Token],
 }
 
 impl<'a> ExecCommands<'a> {
-    pub fn run(&self) {
+    pub fn run(&mut self) {
         let stdout = io::stdout();
         let stderr = io::stderr();
 
         let slot               = &self.slot.to_string();
         let job_total          = &self.num_inputs.to_string();
         let mut command_buffer = &mut String::with_capacity(64);
-        let has_delay          = self.delay != Duration::from_millis(0);
         let has_timeout        = self.timeout != Duration::from_millis(0);
-        let mut completed      = false;
+        let mut input = String::with_capacity(64);
 
-        while let Some((input, job_id, _)) = attempt_next(&self.inputs, &stderr, has_delay, self.delay,
-            &mut completed, self.memory, self.flags)
-        {
+        while let Some((job_id, _)) = self.inputs.try_next(&mut input) {
             if self.flags & arguments::VERBOSE_MODE != 0  {
                 verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
             }

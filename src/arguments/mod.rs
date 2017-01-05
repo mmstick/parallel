@@ -41,18 +41,18 @@ enum Quoting { None, Basic, Shell }
 
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
-pub struct Args<'a> {
+pub struct Args {
     pub flags:     u16,
     pub ncores:    usize,
     pub ninputs:   usize,
     pub memory:    u64,
     pub delay:     Duration,
     pub timeout:   Duration,
-    pub arguments: ArrayVec<[Token<'a>; 128]>,
+    pub arguments: ArrayVec<[Token; 128]>,
 }
 
-impl<'a> Args<'a> {
-    pub fn new() -> Args<'a> {
+impl Args {
+    pub fn new() -> Args {
         Args {
             ncores:    num_cpus::get(),
             flags:     0,

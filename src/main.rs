@@ -27,12 +27,14 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::mem;
 use std::process::exit;
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 
 use arguments::Args;
+use execute::InputsLock;
 use execute::pipe::disk::State;
-use tokenizer::{TokenErr, tokenize};
+use tokenizer::{Token, TokenErr, tokenize};
 
 /// Coercing the `command` `String` into a `&'static str` is required to share it among all threads.
 /// The command string needs to be available in memory for the entirety of the application, so this
@@ -43,6 +45,9 @@ unsafe fn leak_command(comm: String) -> &'static str {
     static_comm
 }
 
+unsafe fn static_arg(args: &[Token]) -> &'static [Token] {
+    mem::transmute(args)
+}
 
 fn main() {
     // Obtain a handle to standard error's buffer so we can write directly to it.
@@ -77,10 +82,12 @@ fn main() {
         exit(1)
     }
 
+    let arguments = unsafe { static_arg(&args.arguments) };
+
     if args.flags & arguments::DRY_RUN != 0 {
-        execute::dry_run(args.flags, inputs, &args.arguments);
+        execute::dry_run(args.flags, inputs, arguments);
     } else {
-        if shell::required(shell::Kind::Tokens(&args.arguments)) {
+        if shell::required(shell::Kind::Tokens(arguments)) {
             if shell::dash_exists() {
                 args.flags |= arguments::DASH_EXISTS + arguments::SHELL_ENABLED;
             } else {
@@ -104,14 +111,21 @@ fn main() {
         if args.flags & arguments::INPUTS_ARE_COMMANDS != 0 {
             for _ in 0..args.ncores {
                 let flags = args.flags;
-                let exec = execute::ExecInputs {
+
+                let mut exec = execute::ExecInputs {
                     num_inputs: args.ninputs,
-                    delay:      args.delay,
                     timeout:    args.timeout,
-                    memory:     args.memory,
-                    inputs:     shared_input.clone(),
                     output_tx:  output_tx.clone(),
+                    inputs:     InputsLock {
+                        inputs:    shared_input.clone(),
+                        memory:    args.memory,
+                        delay:     args.delay,
+                        has_delay: args.delay != Duration::from_millis(0),
+                        completed: false,
+                        flags:     flags,
+                    }
                 };
+
                 let handle: JoinHandle<()> = thread::spawn(move || {
                     exec.run(flags);
                 });
@@ -121,27 +135,31 @@ fn main() {
             }
         } else {
             for slot in 1..args.ncores+1 {
-                let flags = args.flags;
-                let delay = args.delay;
                 let timeout = args.timeout;
                 let num_inputs = args.ninputs;
-                let memory = args.memory;
-                let inputs = shared_input.clone();
                 let output_tx = output_tx.clone();
-                let arguments = args.arguments.clone();
+
+                let inputs = InputsLock {
+                    inputs:    shared_input.clone(),
+                    memory:    args.memory,
+                    delay:     args.delay,
+                    has_delay: args.delay != Duration::from_millis(0),
+                    completed: false,
+                    flags:     args.flags,
+                };
+
+                let flags = args.flags;
 
                 // The command will be built from the arguments, and inputs will be transferred to the command.
                 let handle: JoinHandle<()> = thread::spawn(move || {
-                    let exec = execute::ExecCommands {
+                    let mut exec = execute::ExecCommands {
                         slot:       slot,
                         num_inputs: num_inputs,
                         flags:      flags,
-                        delay:      delay,
                         timeout:    timeout,
-                        memory:     memory,
                         inputs:     inputs,
                         output_tx:  output_tx,
-                        arguments:  &arguments,
+                        arguments:  arguments
                     };
                     exec.run();
                 });

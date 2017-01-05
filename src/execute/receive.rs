@@ -32,7 +32,7 @@ macro_rules! read_outputs {
 
 macro_rules! remove_job_files {
     ($stdout_path:ident, $stderr_path:ident, $stderr:ident) => {{
-        if let Err(why) = fs::remove_file($stdout_path).and_then(|_| fs::remove_file($stderr_path)) {
+        if let Err(why) = fs::remove_file(&$stdout_path).and_then(|_| fs::remove_file(&$stderr_path)) {
             let _ = write!($stderr, "parallel: I/O error: unable to remove job files: {}\n", why);
         }
     }}
@@ -79,6 +79,8 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
     // A buffer for buffering the outputs of temporary files on disk.
     let mut read_buffer = [0u8; 8192];
 
+    let (truncate_size, mut stdout_path, mut stderr_path) = filepaths::new_job(counter);
+
     // The loop will only quit once all inputs have been processed
     while counter < args.ninputs {
         let mut tail_next = false;
@@ -88,7 +90,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                 if id == counter {
                     let mut stdout = stdout.lock();
                     let mut stderr = stderr.lock();
-                    let (stdout_path, stderr_path) = filepaths::job(counter);
+                    filepaths::next_job_path(counter, truncate_size, &mut stdout_path, &mut stderr_path);
                     let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
                     append_to_processed!(processed_file, name, stderr);
                     read_outputs!(stdout_file, stderr_file, read_buffer, stdout, stderr);
@@ -113,7 +115,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
         }
 
         if tail_next {
-            let (stdout_path, stderr_path) = filepaths::job(counter);
+            filepaths::next_job_path(counter, truncate_size, &mut stdout_path, &mut stderr_path);
             let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
 
             loop {
@@ -164,7 +166,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                     State::Completed(id, ref name) if id == counter => {
                         let mut stdout = stdout.lock();
                         let mut stderr = stderr.lock();
-                        let (stdout_path, stderr_path) = filepaths::job(counter);
+                        filepaths::next_job_path(counter, truncate_size, &mut stdout_path, &mut stderr_path);
                         let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
                         append_to_processed!(processed_file, name, stderr);
                         read_outputs!(stdout_file, stderr_file, read_buffer, stdout, stderr);
