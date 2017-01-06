@@ -34,7 +34,7 @@ impl<'a> ExecCommands<'a> {
 
         while let Some((job_id, _)) = self.inputs.try_next(&mut input) {
             if self.flags & arguments::VERBOSE_MODE != 0  {
-                verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
+                verbose::processing_task(&stdout, job_id+1, job_total, &input);
             }
 
             let command = command::ParallelCommand {
@@ -70,7 +70,7 @@ impl<'a> ExecCommands<'a> {
             }
 
             if self.flags & arguments::VERBOSE_MODE != 0 {
-                verbose::task_complete(&stdout, &job_id.to_string(), job_total, &input);
+                verbose::task_complete(&stdout, job_id, job_total, &input);
             }
         }
     }

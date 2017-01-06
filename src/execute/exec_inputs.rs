@@ -29,7 +29,7 @@ impl ExecInputs {
 
         while let Some((job_id, _)) = self.inputs.try_next(&mut input) {
             if flags & arguments::VERBOSE_MODE != 0 {
-                verbose::processing_task(&stdout, &job_id.to_string(), job_total, &input);
+                verbose::processing_task(&stdout, job_id+1, job_total, &input);
             }
 
             if shell::required(shell::Kind::Input(&input)) {
@@ -59,7 +59,7 @@ impl ExecInputs {
             }
 
             if flags & arguments::VERBOSE_MODE != 0 {
-                verbose::task_complete(&stdout, &job_id.to_string(), job_total, &input);
+                verbose::task_complete(&stdout, job_id, job_total, &input);
             }
         }
     }

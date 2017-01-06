@@ -3,6 +3,7 @@ pub mod errors;
 mod jobs;
 mod man;
 mod quote;
+mod redirection;
 
 use std::env;
 use std::fs;
@@ -206,7 +207,9 @@ impl Args {
                 }
             }
 
-            if let Mode::Command = mode {
+            if let Some(path) = redirection::input_was_redirected() {
+                file_parse(&mut current_inputs, path.to_str().ok_or_else(|| ParseErr::RedirFile(path.clone()))?)?;
+            } else if let Mode::Command = mode {
                 while let Some(argument) = arguments.get(index) {
                     index += 1;
                     match argument.as_str() {
@@ -223,14 +226,20 @@ impl Args {
                     }
                     break
                 }
-            }
 
-            if shebang {
-                file_parse(&mut current_inputs, &arguments.last().unwrap())?;
+                if shebang {
+                    file_parse(&mut current_inputs, &arguments.last().unwrap())?;
+                } else {
+                    parse_inputs(arguments, index, &mut current_inputs, &mut lists, &mut mode)?;
+                }
             } else {
                 parse_inputs(arguments, index, &mut current_inputs, &mut lists, &mut mode)?;
             }
 
+            number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, &mut disk_buffer)?;
+        } else if let Some(path) = redirection::input_was_redirected() {
+            self.flags |= INPUTS_ARE_COMMANDS;
+            file_parse(&mut current_inputs, path.to_str().ok_or_else(|| ParseErr::RedirFile(path.clone()))?)?;
             number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, &mut disk_buffer)?;
         }
 

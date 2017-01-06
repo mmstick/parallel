@@ -1,5 +1,6 @@
 use std::env::home_dir;
 use std::path::PathBuf;
+use itoa_array::itoa;
 
 #[cfg(not(windows))]
 pub fn base() -> Option<PathBuf> {
@@ -82,24 +83,30 @@ pub fn new_job(id: usize) -> (usize, String, String) {
 }
 
 #[cfg(windows)]
-pub fn new_job(id: usize) -> (usize, String, String) {
+pub fn new_job(id: usize, buffer: &mut [u8; 64]) -> (usize, String, String) {
     home_dir().map(|home| {
         let mut stdout = home.to_str().unwrap().to_owned();
         let mut stderr = stdout.clone();
         stdout.push_str("AppData/Local/Temp/parallel/stdout_");
         stderr.push_str("AppData/Local/Temp/parallel/stderr_");
         let truncate_value = stdout.len();
-        let id = id.to_string();
-        stdout.push_str(&id);
-        stderr.push_str(&id);
+
+        let length = itoa(buffer, id, 10);
+        for byte in &buffer[0..length] {
+            stdout.push(*byte as char);
+            stderr.push(*byte as char);
+        }
+
         (truncate_value, stdout, stderr)
     }).expect("parallel: unable to open home folder")
 }
 
-pub fn next_job_path(id: usize, truncate: usize, stdout: &mut String, stderr: &mut String) {
-    let id = id.to_string();
+pub fn next_job_path(id: usize, truncate: usize, buffer: &mut [u8; 64], stdout: &mut String, stderr: &mut String) {
     stdout.truncate(truncate);
-    stdout.push_str(&id);
     stderr.truncate(truncate);
-    stderr.push_str(&id);
+    let length = itoa(buffer, id, 10);
+    for byte in &buffer[0..length] {
+        stdout.push(*byte as char);
+        stderr.push(*byte as char);
+    }
 }

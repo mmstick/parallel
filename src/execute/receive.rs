@@ -78,6 +78,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
     let mut error_file     = DiskBuffer::new(errors_path).write().unwrap();
     // A buffer for buffering the outputs of temporary files on disk.
     let mut read_buffer = [0u8; 8192];
+    let mut id_buffer = [0u8; 64];
 
     let (truncate_size, mut stdout_path, mut stderr_path) = filepaths::new_job(counter);
 
@@ -90,7 +91,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                 if id == counter {
                     let mut stdout = stdout.lock();
                     let mut stderr = stderr.lock();
-                    filepaths::next_job_path(counter, truncate_size, &mut stdout_path, &mut stderr_path);
+                    filepaths::next_job_path(counter, truncate_size, &mut id_buffer, &mut stdout_path, &mut stderr_path);
                     let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
                     append_to_processed!(processed_file, name, stderr);
                     read_outputs!(stdout_file, stderr_file, read_buffer, stdout, stderr);
@@ -115,7 +116,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
         }
 
         if tail_next {
-            filepaths::next_job_path(counter, truncate_size, &mut stdout_path, &mut stderr_path);
+            filepaths::next_job_path(counter, truncate_size, &mut id_buffer, &mut stdout_path, &mut stderr_path);
             let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
 
             loop {
@@ -166,7 +167,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                     State::Completed(id, ref name) if id == counter => {
                         let mut stdout = stdout.lock();
                         let mut stderr = stderr.lock();
-                        filepaths::next_job_path(counter, truncate_size, &mut stdout_path, &mut stderr_path);
+                        filepaths::next_job_path(counter, truncate_size, &mut id_buffer, &mut stdout_path, &mut stderr_path);
                         let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
                         append_to_processed!(processed_file, name, stderr);
                         read_outputs!(stdout_file, stderr_file, read_buffer, stdout, stderr);

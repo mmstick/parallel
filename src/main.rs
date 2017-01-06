@@ -5,6 +5,7 @@
 #![feature(alloc_system)]
 extern crate alloc_system;
 extern crate arrayvec;
+extern crate itoa;
 extern crate num_cpus;
 extern crate permutate;
 extern crate sys_info;
@@ -17,6 +18,7 @@ mod execute;
 mod filepaths;
 mod init;
 mod input_iterator;
+mod itoa_array;
 mod tokenizer;
 mod shell;
 mod verbose;

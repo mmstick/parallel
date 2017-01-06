@@ -42,6 +42,7 @@ pub enum ParseErr {
     MemNoValue,
     /// No arguments were given, so no action can be taken.
     NoArguments,
+    RedirFile(PathBuf),
     TimeoutNaN(usize),
     TimeoutNoValue,
 }
@@ -114,6 +115,9 @@ impl ParseErr {
             },
             ParseErr::NoArguments => {
                 let _ = write!(stderr, "no input arguments were given.\n");
+            },
+            ParseErr::RedirFile(path) => {
+                let _ = write!(stderr, "an error occurred while redirecting file: {:?}\n", path);
             },
             ParseErr::TimeoutNaN(index) => {
                 let _ = write!(stderr, "invalid timeout value: {}\n", arguments[index]);

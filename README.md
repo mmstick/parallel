@@ -1,4 +1,10 @@
-# Parallel: A Command-line CPU Load Balancer Written in Rust [![](https://tokei.rs/b1/github/mmstick/parallel)](https://github.com/mmstick/parallel)
+# MIT/Rust Parallel: A Command-line CPU Load Balancer Written in Rust
+[![Crates.io](https://img.shields.io/crates/v/parallel.svg)](https://github.com/mmstick/parallel)
+[![Tokei SLoC Count](https://tokei.rs/b1/github/mmstick/parallel)](https://github.com/mmstic
+    k/parallel)
+[![OpenHub Statistics](https://www.openhub.net/p/rust-parallel/widgets/project_thin_badge?format=gif&ref=Thin+badge)](https://www.openhub.net/p/rust-parallel/)
+[![AUR](https://img.shields.io/aur/version/parallel-rust.svg)](https://github.com/mmstick/parallel)
+
 This is an attempt at recreating the functionality of [GNU Parallel](https://www.gnu.org/software/parallel/), a work-stealer for the command-line, in Rust under a MIT license. The end goal will be to support much of the functionality of `GNU Parallel` and then to extend the functionality further for the next generation of command-line utilities written in Rust. While functionality is important, with the application being developed in Rust, the goal is to also be as fast and efficient as possible.
 
 ## Note
