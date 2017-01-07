@@ -35,7 +35,8 @@ pub const QUIET_MODE:          u16 = 8;
 pub const VERBOSE_MODE:        u16 = 16;
 pub const DASH_EXISTS:         u16 = 32;
 pub const DRY_RUN:             u16 = 64;
-pub const ETA:                 u16 = 128;
+pub const SHELL_QUOTE:         u16 = 128;
+pub const ETA:                 u16 = 256;
 
 /// Defines what quoting mode to use when expanding the command.
 enum Quoting { None, Basic, Shell }
@@ -154,7 +155,10 @@ impl Args {
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
                                 "quote" => quote = Quoting::Basic,
-                                "shellquote" => quote = Quoting::Shell,
+                                "shellquote" => {
+                                    quote = Quoting::Shell;
+                                    self.flags |= DRY_RUN + SHELL_QUOTE;
+                                },
                                 "timeout" => {
                                     let val = arguments.get(index).ok_or(ParseErr::TimeoutNoValue)?;
                                     let seconds = val.parse::<f64>().map_err(|_| ParseErr::TimeoutNaN(index))?;
@@ -253,11 +257,7 @@ impl Args {
         disk_buffer.flush().map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
 
         // Expand the command if quoting is enabled
-        match quote {
-            Quoting::None  => (),
-            Quoting::Basic => *comm = quote::basic(comm.as_str()),
-            Quoting::Shell => *comm = quote::shell(comm.as_str()),
-        }
+        if let Quoting::Basic = quote { *comm = quote::basic(comm.as_str()); }
 
         // Return an `InputIterator` of the arguments contained within the unprocessed file.
         let inputs = InputIterator::new(unprocessed_path, number_of_arguments).map_err(ParseErr::File)?;

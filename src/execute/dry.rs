@@ -6,14 +6,16 @@ use super::super::input_iterator::InputIterator;
 use std::io::{self, Write};
 
 pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
-    let stderr = io::stderr();
-    let mut stderr = stderr.lock();
+    let stdout             = io::stdout();
+    let mut stdout         = stdout.lock();
+    let stderr             = io::stderr();
+    let mut stderr         = stderr.lock();
     let mut command_buffer = String::new();
-    let slot      = "{SLOT_ID}";
-    let job_total = "{TOTAL_JOBS}";
-    let job_id    = "{JOB_ID}";
+    let slot               = "{SLOT_ID}";
+    let job_total          = "{TOTAL_JOBS}";
+    let job_id             = "{JOB_ID}";
+    let shell              = flags & arguments::SHELL_QUOTE != 0;
+    let pipe               = flags & arguments::PIPE_IS_ENABLED != 0;
 
     for input in inputs {
         match input {
@@ -24,14 +26,19 @@ pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
                     job_total:        job_total,
                     input:            &input,
                     command_template: arguments,
+                    flags:            flags,
                 };
 
-                let pipe_enabled = flags & arguments::PIPE_IS_ENABLED != 0;
-                command.build_arguments(&mut command_buffer, pipe_enabled);
-                if !pipe_enabled {
+                command.build_arguments(&mut command_buffer);
+                if !pipe {
                     command::append_argument(&mut command_buffer, command.command_template, command.input);
                 }
-                let _ = writeln!(stdout, "{}", command_buffer);
+                if shell {
+                    let _ = stdout.write(shell_quote(&command_buffer).as_bytes());
+                } else {
+                    let _ = stdout.write(command_buffer.as_bytes());
+                }
+                let _ = stdout.write(b"\n");
                 command_buffer.clear();
             },
             Err(why) => {
@@ -43,4 +50,19 @@ pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
             }
         }
     }
+}
+
+fn shell_quote(command: &str) -> String {
+    let mut output = String::with_capacity(command.len() << 1);
+    for character in command.chars() {
+        match character {
+            '$' | ' ' | '\\' | '>' | '<' | '^' | '&' | '#' | '!' | '*' |
+            '\'' | '\"' | '`' | '~' | '{' | '}' | '[' | ']' | '(' | ')' |
+            ';' | '|' | '?' => output.push('\\'),
+            _ => ()
+        }
+        output.push(character);
+    }
+
+    output
 }

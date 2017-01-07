@@ -9,6 +9,7 @@ pub enum CommandErr {
     IO(io::Error)
 }
 
+
 /// If no placeholder tokens are in use, then the input will be appended at the end of the the command.
 pub fn append_argument(arguments: &mut String, command_template: &[Token], input: &str) {
     // Check to see if any placeholder tokens are in use.
@@ -30,19 +31,19 @@ pub struct ParallelCommand<'a> {
     pub job_no:           &'a str,
     pub job_total:        &'a str,
     pub input:            &'a str,
+    pub flags:            u16,
     pub command_template: &'a [Token],
 }
 
 impl<'a> ParallelCommand<'a> {
-    pub fn exec(&self, arguments: &mut String, flags: u16) -> Result<Child, CommandErr> {
-        let pipe_enabled = flags & arguments::PIPE_IS_ENABLED != 0;
-        self.build_arguments(arguments, pipe_enabled);
+    pub fn exec(&self, arguments: &mut String) -> Result<Child, CommandErr> {
+        self.build_arguments(arguments);
 
-        if !pipe_enabled {
+        if self.flags & arguments::PIPE_IS_ENABLED == 0 {
             append_argument(arguments, self.command_template, self.input);
-            get_command_output(arguments.as_str(), flags).map_err(CommandErr::IO)
+            get_command_output(arguments.as_str(), self.flags).map_err(CommandErr::IO)
         } else {
-            let mut child = get_command_output(arguments.as_str(), flags).map_err(CommandErr::IO)?;
+            let mut child = get_command_output(arguments.as_str(), self.flags).map_err(CommandErr::IO)?;
 
             {   // Grab a handle to the child's stdin and write the input argument to the child's stdin.
                 let stdin = child.stdin.as_mut().unwrap();
@@ -59,8 +60,8 @@ impl<'a> ParallelCommand<'a> {
 
     /// Builds arguments using the `tokens` template with the current `input` value.
     /// The arguments will be stored within a `Vec<String>`
-    pub fn build_arguments(&self, arguments: &mut String, pipe: bool) {
-        if pipe {
+    pub fn build_arguments(&self, arguments: &mut String) {
+        if self.flags & arguments::PIPE_IS_ENABLED != 0 {
             for arg in self.command_template {
                 match *arg {
                     Token::Argument(ref arg) => arguments.push_str(arg),

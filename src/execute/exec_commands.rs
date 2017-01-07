@@ -43,10 +43,11 @@ impl<'a> ExecCommands<'a> {
                 job_total:        job_total,
                 input:            &input,
                 command_template: self.arguments,
+                flags:            self.flags
             };
 
             command_buffer.clear();
-            match command.exec(command_buffer, self.flags) {
+            match command.exec(command_buffer) {
                 Ok(mut child) => {
                     if has_timeout && child.wait_timeout(self.timeout).unwrap().is_none() {
                         let _ = child.kill();
