@@ -256,7 +256,6 @@ operates:
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
 - **-p**, **--pipe**: Instead of supplying arguments as arguments to child processes,
         instead supply the arguments directly to the standard input of each child process.
-- **-q**, **--quote**: Retains backslashes that are supplied as the command input.
 - **-s**, **--silent**, **--quiet**: Disables printing the standard output of running processes.
 - **--shebang**: Grants ability to utilize the parallel command as an interpreter via calling it within a shebang line.
 - **--shellquote**: Expands upon quote mode by escaping a wide variety of special characters.

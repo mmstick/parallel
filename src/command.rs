@@ -2,8 +2,8 @@ use std::convert::AsRef;
 use std::ffi::OsStr;
 use std::io::{self, Write};
 use std::process::{Child, Command, Stdio};
-use super::tokenizer::*;
-use super::arguments;
+use arguments;
+use tokenizer::*;
 
 pub enum CommandErr {
     IO(io::Error)

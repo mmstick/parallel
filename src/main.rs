@@ -8,6 +8,7 @@ extern crate arrayvec;
 extern crate itoa;
 extern crate num_cpus;
 extern crate permutate;
+extern crate smallvec;
 extern crate sys_info;
 extern crate wait_timeout;
 
@@ -34,8 +35,8 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 
 use arguments::Args;
-use execute::InputsLock;
 use execute::pipe::disk::State;
+use input_iterator::InputsLock;
 use tokenizer::{Token, TokenErr, tokenize};
 
 /// Coercing the `command` `String` into a `&'static str` is required to share it among all threads.
@@ -89,13 +90,8 @@ fn main() {
     if args.flags & arguments::DRY_RUN != 0 {
         execute::dry_run(args.flags, inputs, arguments);
     } else {
-        if shell::required(shell::Kind::Tokens(arguments)) {
-            if shell::dash_exists() {
-                args.flags |= arguments::DASH_EXISTS + arguments::SHELL_ENABLED;
-            } else {
-                args.flags |= arguments::SHELL_ENABLED;
-            }
-        }
+        if shell::dash_exists() { args.flags |= arguments::DASH_EXISTS; }
+        if shell::required(shell::Kind::Tokens(arguments)) { args.flags |= arguments::SHELL_ENABLED; }
 
         let shared_input = Arc::new(Mutex::new(inputs));
 
@@ -111,6 +107,8 @@ fn main() {
 
         // The `slot` variable is required by the {%} token.
         if args.flags & arguments::INPUTS_ARE_COMMANDS != 0 {
+            if shell::dash_exists() { args.flags |= arguments::DASH_EXISTS; }
+
             for _ in 0..args.ncores {
                 let flags = args.flags;
 
@@ -136,6 +134,14 @@ fn main() {
                 threads.push(handle);
             }
         } else {
+            if shell::required(shell::Kind::Tokens(arguments)) {
+                if shell::dash_exists() {
+                    args.flags |= arguments::SHELL_ENABLED + arguments::DASH_EXISTS;
+                } else {
+                    args.flags |= arguments::SHELL_ENABLED;
+                }
+            }
+
             for slot in 1..args.ncores+1 {
                 let timeout = args.timeout;
                 let num_inputs = args.ninputs;

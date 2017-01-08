@@ -1,5 +1,6 @@
 use super::errors::ParseErr;
 use num_cpus;
+
 /// Receives an input that is either an integer, or percent. If the string ends with `%`, it will
 /// be calculated as a percent of the total number of CPU cores. Otherwise, the number provided
 /// will be considered the number of jobs to run in parallel.

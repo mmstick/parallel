@@ -5,11 +5,13 @@ use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
 
-use super::arguments::Args;
-use super::super::disk_buffer::DiskBuffer;
-use super::super::filepaths;
+use disk_buffer::DiskBuffer;
+use filepaths;
+use arguments::Args;
 use super::pipe::disk::State;
+use smallvec::SmallVec;
 
+/// Reads the standard output and error files of the current unit, writing them to the standard output/error.
 macro_rules! read_outputs {
     ($stdout:ident, $stderr:ident, $buffer:ident, $stdout_out:ident, $stderr_out:ident) => {
         let mut bytes_read = $stdout.read(&mut $buffer).unwrap_or(0);
@@ -30,6 +32,7 @@ macro_rules! read_outputs {
     }
 }
 
+/// Removes both the standard output and error file of the current job
 macro_rules! remove_job_files {
     ($stdout_path:ident, $stderr_path:ident, $stderr:ident) => {{
         if let Err(why) = fs::remove_file(&$stdout_path).and_then(|_| fs::remove_file(&$stderr_path)) {
@@ -38,6 +41,7 @@ macro_rules! remove_job_files {
     }}
 }
 
+/// Opens the standard output and error files of the next job, attempting repeatedly until a success.
 macro_rules! open_job_files {
     ($stdout_path:ident, $stderr_path:ident) => {{
         let stdout_file = loop {
@@ -54,6 +58,7 @@ macro_rules! open_job_files {
     }}
 }
 
+/// Append the current job to the processed file
 macro_rules! append_to_processed {
     ($processed:ident, $input:ident, $stderr:ident) => {{
         if let Err(why) = $processed.write($input.as_bytes()).and_then(|_| $processed.write(b"\n")) {
@@ -63,23 +68,26 @@ macro_rules! append_to_processed {
 }
 
 #[allow(cyclomatic_complexity)]
+/// Tail and print the standard output and error of each process in the correct order
 pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &Path, errors_path: &Path) {
     let stdout = io::stdout();
     let stderr = io::stderr();
 
     // Keeps track of which job is currently allowed to print to standard output/error.
     let mut counter = 0;
-    // Messages received that are not to be printed will be stored for later use.
-    let mut buffer = Vec::with_capacity(64);
-    // Store a list of indexes we need to drop from `buffer` after a match has been found.
-    let mut drop = Vec::with_capacity(args.ncores);
-    // Store a list of completed inputs in the event that the user may need to resume processing.
+    // The following `buffer` is used to store completed jobs that are awaiting processing.
+    let mut buffer = SmallVec::<[State; 32]>::new();
+    // Store a list of indexes that we need to drop from `buffer` after a match has been found.
+    let mut drop = SmallVec::<[usize; 32]>::new();
+    // An opened disk buffer pointing to the processed file.
     let mut processed_file = DiskBuffer::new(processed_path).write().unwrap();
+    // An opened disk buffer pointing to the error file.
     let mut error_file     = DiskBuffer::new(errors_path).write().unwrap();
     // A buffer for buffering the outputs of temporary files on disk.
     let mut read_buffer = [0u8; 8192];
+    // A buffer for converting job ID's into a byte array representation of a string.
     let mut id_buffer = [0u8; 64];
-
+    // Generates the stdout and stderr paths, along with a truncation value to truncate the job ID from the paths.
     let (truncate_size, mut stdout_path, mut stderr_path) = filepaths::new_job(counter);
 
     // The loop will only quit once all inputs have been processed
@@ -202,9 +210,9 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
     }
 }
 
-fn drop_used_values(buffer: &mut Vec<State>, drop: &mut Vec<usize>) {
+fn drop_used_values(buffer: &mut SmallVec<[State; 32]>, drop: &mut SmallVec<[usize; 32]>) {
     drop.sort();
-    for id in drop.drain(0..).rev() {
+    for id in drop.drain().rev() {
         let _ = buffer.remove(id);
     }
 }

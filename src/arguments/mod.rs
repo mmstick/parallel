@@ -2,7 +2,6 @@
 pub mod errors;
 mod jobs;
 mod man;
-mod quote;
 mod redirection;
 
 use std::env;
@@ -14,12 +13,11 @@ use std::process::exit;
 use std::time::Duration;
 
 use arrayvec::ArrayVec;
+use disk_buffer::{self, DiskBufferTrait, DiskBufferWriter};
+use input_iterator::InputIterator;
 use permutate::Permutator;
+use tokenizer::Token;
 use num_cpus;
-
-use super::disk_buffer::{self, DiskBufferTrait, DiskBufferWriter};
-use super::input_iterator::InputIterator;
-use super::tokenizer::Token;
 use self::errors::ParseErr;
 
 // Re-export key items from internal modules.
@@ -37,9 +35,6 @@ pub const DASH_EXISTS:         u16 = 32;
 pub const DRY_RUN:             u16 = 64;
 pub const SHELL_QUOTE:         u16 = 128;
 pub const ETA:                 u16 = 256;
-
-/// Defines what quoting mode to use when expanding the command.
-enum Quoting { None, Basic, Shell }
 
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
@@ -66,31 +61,41 @@ impl Args {
         }
     }
 
-    pub fn parse(&mut self, comm: &mut String, arguments: &[String], unprocessed_path: &Path) -> Result<InputIterator, ParseErr> {
+    /// Performs all the work related to parsing program arguments
+    pub fn parse(&mut self, comm: &mut String, arguments: &[String], unprocessed_path: &Path)
+        -> Result<InputIterator, ParseErr>
+    {
         // Create a write buffer that automatically writes data to the disk when the buffer is full.
         let mut disk_buffer = disk_buffer::DiskBuffer::new(unprocessed_path).write()
             .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.to_owned(), why)))?;
 
-        // Temporary stores for input arguments.
+        // Each list will consist of a series of input arguments
         let mut lists: Vec<Vec<String>>     = Vec::new();
+        // The `current_inputs` variable will contain all the inputs that have been collected for the first list.
         let mut current_inputs: Vec<String> = Vec::with_capacity(1024);
-        let mut number_of_arguments = 0;
+        // If this value is set, input arguments will be grouped into pairs defined by `max_args` value.
         let mut max_args = 0;
-        let mut quote = Quoting::None;
+        // It is important for the custom `InputIterator` to know how many input arguments are to be processed.
+        let mut number_of_arguments = 0;
 
+        // If no arguments were passed, we can assume that the standard input will be parsing commands.
+        // Otherwise, we will parse all the arguments and take actions based on these inputs.
         if env::args().len() > 1 {
-            // The purpose of this is to set the initial parsing mode.
+            // The first argument defines which `mode` to shift into and which argument `index` to start from.
             let (mut mode, mut index) = match arguments[1].as_str() {
-                ":::"  => { self.flags |= INPUTS_ARE_COMMANDS; (Mode::Inputs, 2) },
-                "::::" => { self.flags |= INPUTS_ARE_COMMANDS; (Mode::Files, 2) },
+                ":::"  | ":::+"  => { self.flags |= INPUTS_ARE_COMMANDS; (Mode::Inputs, 2) },
+                "::::" | "::::+" => { self.flags |= INPUTS_ARE_COMMANDS; (Mode::Files, 2) },
                 _  => (Mode::Arguments, 1)
             };
 
+            // If the `--shebang` parameter was passed, this will be set to `true`.
             let mut shebang = false;
 
             if let Mode::Arguments = mode {
+                // Parse arguments until the command has been found.
                 while let Some(argument) = arguments.get(index) {
                     index += 1;
+
                     let mut char_iter = argument.chars();
 
                     // If the first character is a '-' then it will be processed as an argument.
@@ -110,7 +115,6 @@ impl Args {
                                         exit(0);
                                     },
                                     'p' => self.flags |= PIPE_IS_ENABLED,
-                                    'q' => quote = Quoting::Basic,
                                     's' => self.flags |= QUIET_MODE,
                                     'v' => self.flags |= VERBOSE_MODE,
                                     _ => {
@@ -154,11 +158,7 @@ impl Args {
                                 }
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
-                                "quote" => quote = Quoting::Basic,
-                                "shellquote" => {
-                                    quote = Quoting::Shell;
-                                    self.flags |= DRY_RUN + SHELL_QUOTE;
-                                },
+                                "shellquote" => self.flags |= DRY_RUN + SHELL_QUOTE,
                                 "timeout" => {
                                     let val = arguments.get(index).ok_or(ParseErr::TimeoutNoValue)?;
                                     let seconds = val.parse::<f64>().map_err(|_| ParseErr::TimeoutNaN(index))?;
@@ -167,19 +167,7 @@ impl Args {
                                 }
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
-                                    println!("parallel 0.9.0\n\nCrate Dependencies:");
-                                    println!("    arrayvec     0.3.20");
-                                    println!("    gcc          0.3.41");
-                                    println!("    kernel32-sys 0.2.2");
-                                    println!("    libc         0.2.18");
-                                    println!("    num_cpus     1.2.1");
-                                    println!("    nodrop       0.1.8");
-                                    println!("    odds         0.2.25");
-                                    println!("    permutate    0.2.0");
-                                    println!("    sys-info     0.4.1");
-                                    println!("    wait-timeout 0.1.3");
-                                    println!("    winapi       0.2.8");
-                                    println!("    winapi-build 0.1.1");
+                                    println!("MIT/Rust Parallel 0.9.0\n");
                                     exit(0);
                                 }
                                 _ if &argument[2..9] == "shebang" => {
@@ -256,15 +244,13 @@ impl Args {
         // Flush the contents of the buffer to the disk before tokenizing the command argument.
         disk_buffer.flush().map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
 
-        // Expand the command if quoting is enabled
-        if let Quoting::Basic = quote { *comm = quote::basic(comm.as_str()); }
-
         // Return an `InputIterator` of the arguments contained within the unprocessed file.
         let inputs = InputIterator::new(unprocessed_path, number_of_arguments).map_err(ParseErr::File)?;
         Ok(inputs)
     }
 }
 
+/// Write all arguments from standard input to the disk, recording the number of arguments that were read.
 fn write_stdin_to_disk(disk_buffer: &mut DiskBufferWriter, max_args: usize) -> Result<usize, ParseErr> {
     let mut number_of_arguments = 0;
 
@@ -309,6 +295,7 @@ fn write_stdin_to_disk(disk_buffer: &mut DiskBufferWriter, max_args: usize) -> R
     Ok(number_of_arguments)
 }
 
+/// Write all input arguments buffered in memory to the disk, recording the number of arguments that were read.
 fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, max_args: usize,
     disk_buffer: &mut DiskBufferWriter) -> Result<usize, ParseErr> {
     let mut number_of_arguments = 0;
@@ -339,7 +326,6 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
             number_of_arguments += 1;
         }
 
-        // Reuse that buffer for each successive permutation
         if max_args < 2 {
             disk_buffer.write_byte(b'\n').map_err(|why| FileErr::Write(disk_buffer.path.clone(), why))?;
             while let Ok(true) = permutator.next_with_buffer(&mut permutation_buffer) {
@@ -422,8 +408,10 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
     Ok(number_of_arguments)
 }
 
-fn parse_inputs(arguments: &[String], mut index: usize, current_inputs: &mut Vec<String>, lists: &mut Vec<Vec<String>>,
-    mode: &mut Mode) -> Result<(), ParseErr> {
+/// Collects all the provided inputs that were passed as command line arguments into the program.
+fn parse_inputs(arguments: &[String], mut index: usize, current_inputs: &mut Vec<String>,
+    lists: &mut Vec<Vec<String>>, mode: &mut Mode) -> Result<(), ParseErr>
+{
     let mut append_list = &mut Vec::new();
 
     macro_rules! switch_mode {
@@ -507,6 +495,8 @@ fn merge_lists(original: &mut Vec<String>, append: &mut Vec<String>) {
     }
 }
 
+/// When the `--memfree` option has been selected, this will attempt to parse the unit's value, multiplying
+/// that value by the unit's multiplier.
 fn parse_memory(input: &str) -> Result<u64, ParseIntError> {
     let result = match input.chars().last().unwrap() {
         'k' => &input[..input.len()-1].parse::<u64>()? * 1_000,

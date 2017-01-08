@@ -1,16 +1,19 @@
 use arguments;
 use command;
+use input_iterator::InputsLock;
+use shell;
+use verbose;
 use wait_timeout::ChildExt;
 use super::pipe::disk::output as pipe_output;
 use super::pipe::disk::State;
-use super::super::shell;
-use super::InputsLock;
-use verbose;
 
+use std::u16;
 use std::time::Duration;
 use std::io::{self, Write};
 use std::sync::mpsc::Sender;
 
+/// Contains all the required data needed for executing commands in parallel.
+/// The inputs will be executed as commands themselves.
 pub struct ExecInputs {
     pub num_inputs: usize,
     pub timeout:    Duration,
@@ -32,14 +35,13 @@ impl ExecInputs {
                 verbose::processing_task(&stdout, job_id+1, job_total, &input);
             }
 
+            // Checks the current command to determine if a shell will be required.
             if shell::required(shell::Kind::Input(&input)) {
-                if shell::dash_exists() {
-                    flags |= arguments::DASH_EXISTS + arguments::SHELL_ENABLED;
-                } else {
-                    flags |= arguments::SHELL_ENABLED;
-                }
+                flags |= arguments::SHELL_ENABLED;
+            } else {
+                flags &= u16::MAX ^ arguments::SHELL_ENABLED;
             }
-
+            
             match command::get_command_output(&input, flags) {
                 Ok(mut child) => {
                     if has_timeout && child.wait_timeout(self.timeout).unwrap().is_none() {

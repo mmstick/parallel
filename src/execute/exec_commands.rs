@@ -1,16 +1,19 @@
-use arguments;
+use arguments::{QUIET_MODE, VERBOSE_MODE};
 use command::{self, CommandErr};
+use input_iterator::InputsLock;
+use tokenizer::Token;
 use wait_timeout::ChildExt;
 use verbose;
 use super::pipe::disk::output as pipe_output;
 use super::pipe::disk::State;
-use super::super::tokenizer::Token;
-use super::InputsLock;
 
 use std::io::{self, Write};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
+/// Contains all the required data needed for executing commands in parallel.
+/// Commands will be generated based on a template of argument tokens combined
+/// with the current input argument.
 pub struct ExecCommands<'a> {
     pub slot:       usize,
     pub num_inputs: usize,
@@ -33,7 +36,7 @@ impl<'a> ExecCommands<'a> {
         let mut input = String::with_capacity(64);
 
         while let Some((job_id, _)) = self.inputs.try_next(&mut input) {
-            if self.flags & arguments::VERBOSE_MODE != 0  {
+            if self.flags & VERBOSE_MODE != 0  {
                 verbose::processing_task(&stdout, job_id+1, job_total, &input);
             }
 
@@ -51,9 +54,9 @@ impl<'a> ExecCommands<'a> {
                 Ok(mut child) => {
                     if has_timeout && child.wait_timeout(self.timeout).unwrap().is_none() {
                         let _ = child.kill();
-                        pipe_output(&mut child, job_id, input.clone(), &self.output_tx, self.flags & arguments::QUIET_MODE != 0);
+                        pipe_output(&mut child, job_id, input.clone(), &self.output_tx, self.flags & QUIET_MODE != 0);
                     } else {
-                        pipe_output(&mut child, job_id, input.clone(), &self.output_tx, self.flags & arguments::QUIET_MODE != 0);
+                        pipe_output(&mut child, job_id, input.clone(), &self.output_tx, self.flags & QUIET_MODE != 0);
                         let _ = child.wait();
                     }
                 },
@@ -70,7 +73,7 @@ impl<'a> ExecCommands<'a> {
                 }
             }
 
-            if self.flags & arguments::VERBOSE_MODE != 0 {
+            if self.flags & VERBOSE_MODE != 0 {
                 verbose::task_complete(&stdout, job_id, job_total, &input);
             }
         }

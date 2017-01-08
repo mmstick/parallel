@@ -3,7 +3,7 @@ pub mod disk {
     use std::io::{Read, Write};
     use std::process::Child;
     use std::sync::mpsc::Sender;
-    use super::super::super::filepaths;
+    use filepaths;
 
     /// When using grouped mode, the `State` will tell the program whether the program is still
     /// processing, or if it has completed.

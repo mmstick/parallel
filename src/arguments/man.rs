@@ -108,9 +108,6 @@ OPTIONS
         Instead of supplying arguments as arguments to child processes, apply
         them to the standard input of each child process.
 
-    -q, --quote:
-        Retains backslashes that are supplied as the command input.
-
     -s, --silent, --quiet:
         Disables printing the standard output of running processes.
 
@@ -118,12 +115,12 @@ OPTIONS
         Grants ability to utilize the parallel command as an interpreter via
         calling it within a shebang line.
 
+    --shellquote:
+        Expands upon quote mode by escaping a wide variety of special characters.
+
     --timeout:
         If a command runs for longer than a specified number of seconds, it will be
         killed with a SIGKILL.
-
-    --shellquote:
-        Expands upon quote mode by escaping a wide variety of special characters.
 
     -v, --verbose:
         Print information about running processes.

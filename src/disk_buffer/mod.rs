@@ -98,11 +98,16 @@ impl DiskBufferWriter {
     /// Write a byte slice to the buffer and mark the new size.
     pub fn write(&mut self, data: &[u8]) -> Result<(), Error> {
         let cap = data.len();
+
+        // If the input `data`'s capacity would overrun the internal buffer, append the internal buffer's data
+        // to the file and clear it before adding the input's data into the buffer.
         if cap + self.capacity > BUFFER_SIZE {
             fs::OpenOptions::new().write(true).append(true).open(&self.path)
                 .and_then(|mut file| file.write(self.get_ref()))?;
             self.clear();
         }
+
+        // Copy the input's data into the internal buffer and mark the new size of the internal buffer.
         self.data[self.capacity..self.capacity + cap].clone_from_slice(data);
         self.capacity += cap;
         Ok(())
@@ -110,11 +115,15 @@ impl DiskBufferWriter {
 
     /// Append an individual byte to the buffer, typically a space or newline.
     pub fn write_byte(&mut self, data: u8) -> Result<(), Error> {
+        // If the input `data`'s capacity would overrun the internal buffer, append the internal buffer's data
+        // to the file and clear it before adding the input's data into the buffer.
         if self.capacity + 1 > BUFFER_SIZE {
             fs::OpenOptions::new().write(true).append(true).open(&self.path)
                 .and_then(|mut file| file.write(self.get_ref()))?;
             self.clear();
         }
+
+        // Copy the input's data into the internal buffer and mark the new size of the internal buffer.
         self.data[self.capacity] = data;
         self.capacity += 1;
         Ok(())
