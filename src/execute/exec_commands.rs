@@ -1,6 +1,7 @@
 use arguments::{QUIET_MODE, VERBOSE_MODE};
-use command::{self, CommandErr};
+use execute::command::{self, CommandErr};
 use input_iterator::InputsLock;
+use itoa_array::itoa;
 use tokenizer::Token;
 use wait_timeout::ChildExt;
 use verbose;
@@ -30,19 +31,24 @@ impl<'a> ExecCommands<'a> {
         let stderr = io::stderr();
 
         let slot               = &self.slot.to_string();
-        let job_total          = &self.num_inputs.to_string();
         let mut command_buffer = &mut String::with_capacity(64);
         let has_timeout        = self.timeout != Duration::from_millis(0);
-        let mut input = String::with_capacity(64);
+        let mut input          = String::with_capacity(64);
+        let mut id_buffer      = [0u8; 64];
+
+        let mut total_buffer   = [0u8; 64];
+        let truncate           = itoa(&mut total_buffer, self.num_inputs, 10);
+        let job_total          = &total_buffer[0..truncate];
 
         while let Some((job_id, _)) = self.inputs.try_next(&mut input) {
             if self.flags & VERBOSE_MODE != 0  {
-                verbose::processing_task(&stdout, job_id+1, job_total, &input);
+                verbose::processing_task(&stdout, job_id+1, self.num_inputs, &input);
             }
 
+            let truncate = itoa(&mut id_buffer, job_id+1, 10);
             let command = command::ParallelCommand {
                 slot_no:          slot,
-                job_no:           &(job_id + 1).to_string(),
+                job_no:           &id_buffer[0..truncate],
                 job_total:        job_total,
                 input:            &input,
                 command_template: self.arguments,
@@ -68,13 +74,13 @@ impl<'a> ExecCommands<'a> {
                     };
 
                     let _ = stderr.write(message.as_bytes());
-                    let message = format!("{}: {}: {}", command.job_no, command.input, message);
+                    let message = format!("{}: {}: {}", job_id+1, command.input, message);
                     let _ = self.output_tx.send(State::Error(job_id, message));
                 }
             }
 
             if self.flags & VERBOSE_MODE != 0 {
-                verbose::task_complete(&stdout, job_id, job_total, &input);
+                verbose::task_complete(&stdout, job_id, self.num_inputs, &input);
             }
         }
     }

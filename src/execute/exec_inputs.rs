@@ -1,5 +1,5 @@
 use arguments;
-use command;
+use execute::command;
 use input_iterator::InputsLock;
 use shell;
 use verbose;
@@ -26,13 +26,12 @@ impl ExecInputs {
         let stdout = io::stdout();
         let stderr = io::stderr();
 
-        let job_total   = &self.num_inputs.to_string();
         let has_timeout = self.timeout != Duration::from_millis(0);
         let mut input = String::with_capacity(64);
 
         while let Some((job_id, _)) = self.inputs.try_next(&mut input) {
             if flags & arguments::VERBOSE_MODE != 0 {
-                verbose::processing_task(&stdout, job_id+1, job_total, &input);
+                verbose::processing_task(&stdout, job_id+1, self.num_inputs, &input);
             }
 
             // Checks the current command to determine if a shell will be required.
@@ -41,7 +40,7 @@ impl ExecInputs {
             } else {
                 flags &= u16::MAX ^ arguments::SHELL_ENABLED;
             }
-            
+
             match command::get_command_output(&input, flags) {
                 Ok(mut child) => {
                     if has_timeout && child.wait_timeout(self.timeout).unwrap().is_none() {
@@ -61,7 +60,7 @@ impl ExecInputs {
             }
 
             if flags & arguments::VERBOSE_MODE != 0 {
-                verbose::task_complete(&stdout, job_id, job_total, &input);
+                verbose::task_complete(&stdout, job_id, self.num_inputs, &input);
             }
         }
     }

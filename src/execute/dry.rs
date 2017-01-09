@@ -1,7 +1,8 @@
 use input_iterator::InputIterator;
+use itoa_array::itoa;
 use tokenizer::Token;
 use arguments::{self, InputIteratorErr};
-use command;
+use execute::command;
 
 use std::io::{self, StdoutLock, Write};
 
@@ -14,9 +15,11 @@ pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
     let stderr             = &mut stderr.lock();
     let mut command_buffer = String::new();
     let slot               = "{SLOT_ID}";
-    let job_total          = "{TOTAL_JOBS}";
-    let job_id             = "{JOB_ID}";
     let pipe               = flags & arguments::PIPE_IS_ENABLED != 0;
+    let mut id_buffer      = [0u8; 64];
+    let mut total_buffer   = [0u8; 64];
+    let truncate           = itoa(&mut total_buffer, inputs.total_arguments, 10);
+    let job_total          = &total_buffer[0..truncate];
 
     // If `SHELL_QUOTE` is enabled then the quoted command will be printed, otherwise the command will be
     // printed unmodified. The correct function to execute will be assigned here in advance.
@@ -34,12 +37,13 @@ pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
         })
     };
 
-    for input in inputs {
+    for (job_id, input) in inputs.enumerate() {
         match input {
             Ok(input) => {
+                let truncate = itoa(&mut id_buffer, job_id, 10);
                 let command = command::ParallelCommand {
                     slot_no:          slot,
-                    job_no:           job_id,
+                    job_no:           &id_buffer[0..truncate],
                     job_total:        job_total,
                     input:            &input,
                     command_template: arguments,

@@ -9,7 +9,6 @@ pub enum CommandErr {
     IO(io::Error)
 }
 
-
 /// If no placeholder tokens are in use, then the input will be appended at the end of the the command.
 pub fn append_argument(arguments: &mut String, command_template: &[Token], input: &str) {
     // Check to see if any placeholder tokens are in use.
@@ -26,16 +25,18 @@ pub fn append_argument(arguments: &mut String, command_template: &[Token], input
     }
 }
 
+/// A structure for generating commands to be executed.
 pub struct ParallelCommand<'a> {
     pub slot_no:          &'a str,
-    pub job_no:           &'a str,
-    pub job_total:        &'a str,
+    pub job_no:           &'a [u8],
+    pub job_total:        &'a [u8],
     pub input:            &'a str,
     pub flags:            u16,
     pub command_template: &'a [Token],
 }
 
 impl<'a> ParallelCommand<'a> {
+    /// Builds and execute commands based on given flags, supplied inputs and token arguments.
     pub fn exec(&self, arguments: &mut String) -> Result<Child, CommandErr> {
         self.build_arguments(arguments);
 
@@ -65,7 +66,7 @@ impl<'a> ParallelCommand<'a> {
             for arg in self.command_template {
                 match *arg {
                     Token::Argument(ref arg) => arguments.push_str(arg),
-                    Token::Job               => arguments.push_str(self.job_no),
+                    Token::Job               => for character in self.job_no { arguments.push(*character as char); },
                     Token::Slot              => arguments.push_str(self.slot_no),
                     _ => ()
                 }
@@ -77,7 +78,7 @@ impl<'a> ParallelCommand<'a> {
                     Token::Basename          => arguments.push_str(basename(self.input)),
                     Token::BaseAndExt        => arguments.push_str(basename(remove_extension(self.input))),
                     Token::Dirname           => arguments.push_str(dirname(self.input)),
-                    Token::Job               => arguments.push_str(self.job_no),
+                    Token::Job               => for character in self.job_no { arguments.push(*character as char); },
                     Token::Placeholder       => arguments.push_str(self.input),
                     Token::RemoveExtension   => arguments.push_str(remove_extension(self.input)),
                     Token::Slot              => arguments.push_str(self.slot_no)
@@ -87,6 +88,9 @@ impl<'a> ParallelCommand<'a> {
     }
 }
 
+/// Handles shell execution and returns a handle to the underlying `Child` process.
+/// If the command requires to be executed in a shell, it will be executed within a shell.
+/// Otherwise, the arguments will be split and the command will run without a shell.
 pub fn get_command_output(command: &str, flags: u16) -> io::Result<Child> {
     if flags & arguments::SHELL_ENABLED != 0 && flags & arguments::PIPE_IS_ENABLED == 0 {
         shell_output(command, flags)
@@ -121,6 +125,7 @@ pub fn get_command_output(command: &str, flags: u16) -> io::Result<Child> {
     }
 }
 
+/// Executes the command within a shell
 fn shell_output<S: AsRef<OsStr>>(args: S, flags: u16) -> io::Result<Child> {
     let (cmd, flag) = if cfg!(windows) {
         ("cmd".to_owned(), "/C")
@@ -150,6 +155,7 @@ const DOUBLE: u8 = 1;
 const SINGLE: u8 = 2;
 const BACK:   u8 = 4;
 
+/// An efficient `Iterator` structure for splitting arguments
 struct ArgumentSplitter<'a> {
     buffer:       String,
     data:         &'a str,

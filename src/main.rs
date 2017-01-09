@@ -13,7 +13,6 @@ extern crate sys_info;
 extern crate wait_timeout;
 
 mod arguments;
-mod command;
 mod disk_buffer;
 mod execute;
 mod filepaths;
@@ -134,13 +133,7 @@ fn main() {
                 threads.push(handle);
             }
         } else {
-            if shell::required(shell::Kind::Tokens(arguments)) {
-                if shell::dash_exists() {
-                    args.flags |= arguments::SHELL_ENABLED + arguments::DASH_EXISTS;
-                } else {
-                    args.flags |= arguments::SHELL_ENABLED;
-                }
-            }
+            shell::set_flags(&mut args.flags, arguments);
 
             for slot in 1..args.ncores+1 {
                 let timeout = args.timeout;
@@ -177,6 +170,7 @@ fn main() {
             }
         }
 
+        /// Prints messages from executed commands in the correct order.
         execute::receive_messages(input_rx, args, &processed_path, &errors_path);
         for thread in threads { thread.join().unwrap(); }
 

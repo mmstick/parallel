@@ -1,4 +1,5 @@
-use super::tokenizer::Token;
+use arguments;
+use tokenizer::Token;
 use std::env;
 use std::fs;
 use std::ffi::OsStr;
@@ -42,4 +43,16 @@ pub fn dash_exists() -> bool {
         }
     }
     false
+}
+
+/// Sets the corresponding flags if a shell is required and if dash exists.
+pub fn set_flags(flags: &mut u16, arguments: &[Token]) {
+    if required(Kind::Tokens(arguments)) {
+        println!("Required");
+        if dash_exists() {
+            *flags |= arguments::SHELL_ENABLED + arguments::DASH_EXISTS;
+        } else {
+            *flags |= arguments::SHELL_ENABLED;
+        }
+    }
 }

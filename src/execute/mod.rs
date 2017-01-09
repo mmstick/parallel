@@ -1,8 +1,10 @@
 mod dry;
 mod exec_commands;
 mod exec_inputs;
-pub mod pipe;
 mod receive;
+
+pub mod command;
+pub mod pipe;
 
 pub use self::dry::dry_run;
 pub use self::exec_commands::ExecCommands;
