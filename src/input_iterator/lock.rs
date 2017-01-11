@@ -1,5 +1,5 @@
 use arguments::{self, InputIteratorErr};
-use super::{ETA, InputIterator};
+use super::InputIterator;
 use sys_info;
 
 use std::thread;
@@ -17,11 +17,11 @@ pub struct InputsLock {
 }
 
 impl InputsLock {
-    pub fn try_next(&mut self, input: &mut String) -> Option<(usize, ETA)> {
+    pub fn try_next(&mut self, input: &mut String) -> Option<(usize)> {
         let mut inputs = self.inputs.lock().unwrap();
         let job_id = inputs.curr_argument;
-        let eta = inputs.eta();
         if self.flags & arguments::ETA != 0 {
+            let eta = inputs.eta();
             if self.completed {
                 inputs.completed += 1;
             } else {
@@ -47,7 +47,7 @@ impl InputsLock {
 
         match inputs.next_value(input) {
             None            => None,
-            Some(Ok(()))    => Some((job_id, eta)),
+            Some(Ok(()))    => Some(job_id),
             Some(Err(why))  => {
                 let stderr = io::stderr();
                 let stderr = &mut stderr.lock();

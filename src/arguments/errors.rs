@@ -28,6 +28,7 @@ pub enum ParseErr {
     DelayNoValue,
     /// An error occurred with accessing the unprocessed file.
     File(FileErr),
+    JoblogNoValue,
     /// The value of jobs was not set to a number.
     JobsNaN(String),
     /// No value was provided for the jobs flag.
@@ -91,6 +92,9 @@ impl ParseErr {
             },
             ParseErr::DelayNoValue => {
                 let _ = stderr.write(b"no delay parameter was defined.\n");
+            },
+            ParseErr::JoblogNoValue => {
+                let _ = stderr.write(b"no joblog parameter was defined.\n");
             },
             ParseErr::JobsNaN(value) => {
                 let _ = write!(stderr, "jobs parameter, '{}', is not a number.\n", value);

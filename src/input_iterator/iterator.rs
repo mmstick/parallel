@@ -1,9 +1,8 @@
 use disk_buffer::*;
 use arguments::errors::{FileErr, InputIteratorErr};
+use time;
 use std::path::{Path, PathBuf};
 use std::str;
-
-extern crate time;
 
 pub struct ETA {
     pub left:    u64,
@@ -89,8 +88,8 @@ impl InputIterator {
         }
 
         // Increment the iterator's state.
-        self.curr_argument       += 1;
-        self.input_buffer.index  += 1;
+        self.curr_argument      += 1;
+        self.input_buffer.index += 1;
 
         // Copy the input from the buffer into a `String` and return it
         buffer.truncate(0);

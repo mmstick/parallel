@@ -4,6 +4,7 @@ pub mod disk {
     use std::process::Child;
     use std::sync::mpsc::Sender;
     use filepaths;
+    use super::super::job_log::JobLog;
 
     /// When using grouped mode, the `State` will tell the program whether the program is still
     /// processing, or if it has completed.
@@ -12,6 +13,8 @@ pub mod disk {
         Completed(usize, String),
         /// An error occurred, so the error will be marked.
         Error(usize, String),
+        /// (job_id, start_time, runtime, exit_value, signal, command)
+        JobLog(JobLog),
     }
 
     /// Sends messages received by a `Child` process's standard output and error and sends them

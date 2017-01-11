@@ -5,7 +5,6 @@ use std::process::exit;
 
 use super::arguments::{FileErr, Args};
 use super::filepaths;
-use super::input_iterator::InputIterator;
 
 fn remove_preexisting_files() -> Result<(PathBuf, PathBuf, PathBuf), FileErr> {
     // Initialize the base directories of the unprocessed and processed files.
@@ -66,12 +65,9 @@ pub fn cleanup(stderr: &mut StderrLock) -> (PathBuf, PathBuf, PathBuf) {
     }
 }
 
-pub fn parse(args: &mut Args, comm: &mut String, arguments: &[String], unprocessed: &Path) -> InputIterator {
+pub fn parse(args: &mut Args, comm: &mut String, arguments: &[String], unprocessed: &Path) -> usize {
     match args.parse(comm, arguments, unprocessed) {
-        Ok(inputs) => {
-            args.ninputs = inputs.total_arguments;
-            inputs
-        },
+        Ok(inputs) => inputs,
         Err(why) => why.handle(arguments)
     }
 }

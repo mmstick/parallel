@@ -1,5 +1,5 @@
-#![deny(dead_code)]
-#![deny(unused_imports)]
+// #![deny(dead_code)]
+// #![deny(unused_imports)]
 #![allow(unknown_lints)]
 #![feature(loop_break_value)]
 #![feature(alloc_system)]
@@ -10,6 +10,7 @@ extern crate num_cpus;
 extern crate permutate;
 extern crate smallvec;
 extern crate sys_info;
+extern crate time;
 extern crate wait_timeout;
 
 mod arguments;
@@ -18,7 +19,7 @@ mod execute;
 mod filepaths;
 mod init;
 mod input_iterator;
-mod itoa_array;
+mod misc;
 mod tokenizer;
 mod shell;
 mod verbose;
@@ -35,7 +36,7 @@ use std::sync::mpsc::channel;
 
 use arguments::Args;
 use execute::pipe::disk::State;
-use input_iterator::InputsLock;
+use input_iterator::{InputIterator, InputsLock};
 use tokenizer::{Token, TokenErr, tokenize};
 
 /// Coercing the `command` `String` into a `&'static str` is required to share it among all threads.
@@ -63,7 +64,11 @@ fn main() {
     let mut args = Args::new();
     let mut comm = String::with_capacity(128);
     let raw_arguments = env::args().collect::<Vec<String>>();
-    let inputs = init::parse(&mut args, &mut comm, &raw_arguments, &unprocessed_path);
+    args.ninputs = init::parse(&mut args, &mut comm, &raw_arguments, &unprocessed_path);
+
+    // Initialize the `InputIterator` structure, which iterates through all inputs.
+    let inputs = InputIterator::new(&unprocessed_path, args.ninputs)
+        .expect("unable to initialize the InputIterator structure");
 
     // Coerce the `comm` `String` into a `&'static str` so that it may be shared by all threads.
     // This is safe because the original `comm` may no longer be modified due to shadowing rules.
@@ -139,6 +144,7 @@ fn main() {
                 let timeout = args.timeout;
                 let num_inputs = args.ninputs;
                 let output_tx = output_tx.clone();
+                let flags = args.flags;
 
                 let inputs = InputsLock {
                     inputs:    shared_input.clone(),
@@ -146,10 +152,8 @@ fn main() {
                     delay:     args.delay,
                     has_delay: args.delay != Duration::from_millis(0),
                     completed: false,
-                    flags:     args.flags,
+                    flags:     flags,
                 };
-
-                let flags = args.flags;
 
                 // The command will be built from the arguments, and inputs will be transferred to the command.
                 let handle: JoinHandle<()> = thread::spawn(move || {
@@ -160,7 +164,7 @@ fn main() {
                         timeout:    timeout,
                         inputs:     inputs,
                         output_tx:  output_tx,
-                        arguments:  arguments
+                        arguments:  arguments,
                     };
                     exec.run();
                 });

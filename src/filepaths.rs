@@ -1,6 +1,6 @@
 use std::env::home_dir;
 use std::path::PathBuf;
-use itoa_array::itoa;
+use misc::NumToA;
 
 #[cfg(not(windows))]
 pub fn base() -> Option<PathBuf> {
@@ -104,7 +104,7 @@ pub fn new_job(id: usize, buffer: &mut [u8; 64]) -> (usize, String, String) {
 pub fn next_job_path(id: usize, truncate: usize, buffer: &mut [u8; 64], stdout: &mut String, stderr: &mut String) {
     stdout.truncate(truncate);
     stderr.truncate(truncate);
-    let length = itoa(buffer, id, 10);
+    let length = id.numtoa(10, buffer);
     for byte in &buffer[0..length] {
         stdout.push(*byte as char);
         stderr.push(*byte as char);

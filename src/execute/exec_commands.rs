@@ -1,12 +1,15 @@
-use arguments::{QUIET_MODE, VERBOSE_MODE};
+use arguments::{QUIET_MODE, VERBOSE_MODE, JOBLOG};
 use execute::command::{self, CommandErr};
 use input_iterator::InputsLock;
-use itoa_array::itoa;
+use misc::NumToA;
+use time::{self, Timespec};
 use tokenizer::Token;
 use wait_timeout::ChildExt;
 use verbose;
 use super::pipe::disk::output as pipe_output;
 use super::pipe::disk::State;
+use super::job_log::JobLog;
+use super::signals;
 
 use std::io::{self, Write};
 use std::sync::mpsc::Sender;
@@ -37,15 +40,15 @@ impl<'a> ExecCommands<'a> {
         let mut id_buffer      = [0u8; 64];
 
         let mut total_buffer   = [0u8; 64];
-        let truncate           = itoa(&mut total_buffer, self.num_inputs, 10);
+        let truncate           = self.num_inputs.numtoa(10, &mut total_buffer);
         let job_total          = &total_buffer[0..truncate];
 
-        while let Some((job_id, _)) = self.inputs.try_next(&mut input) {
+        while let Some(job_id) = self.inputs.try_next(&mut input) {
             if self.flags & VERBOSE_MODE != 0  {
                 verbose::processing_task(&stdout, job_id+1, self.num_inputs, &input);
             }
 
-            let truncate = itoa(&mut id_buffer, job_id+1, 10);
+            let truncate = (job_id+1).numtoa(10, &mut id_buffer);
             let command = command::ParallelCommand {
                 slot_no:          slot,
                 job_no:           &id_buffer[0..truncate],
@@ -56,14 +59,22 @@ impl<'a> ExecCommands<'a> {
             };
 
             command_buffer.clear();
-            match command.exec(command_buffer) {
+            let (start_time, end_time, exit_value, signal) = match command.exec(command_buffer) {
                 Ok(mut child) => {
+                    let start_time = time::get_time();
                     if has_timeout && child.wait_timeout(self.timeout).unwrap().is_none() {
                         let _ = child.kill();
                         pipe_output(&mut child, job_id, input.clone(), &self.output_tx, self.flags & QUIET_MODE != 0);
+                        (start_time, time::get_time(), -1, 15)
                     } else {
                         pipe_output(&mut child, job_id, input.clone(), &self.output_tx, self.flags & QUIET_MODE != 0);
-                        let _ = child.wait();
+                        match child.wait() {
+                            Ok(status) => match status.code() {
+                                Some(exit) => (start_time, time::get_time(), exit, 0),
+                                None       => (start_time, time::get_time(), -1, signals::get(status))
+                            },
+                            Err(_) => (start_time, time::get_time(), -1, 0),
+                        }
                     }
                 },
                 Err(cmd_err) => {
@@ -76,7 +87,20 @@ impl<'a> ExecCommands<'a> {
                     let _ = stderr.write(message.as_bytes());
                     let message = format!("{}: {}: {}", job_id+1, command.input, message);
                     let _ = self.output_tx.send(State::Error(job_id, message));
+                    (Timespec::new(0, 0), Timespec::new(0, 0), -1, 0)
                 }
+            };
+
+            if self.flags & JOBLOG != 0 {
+                let runtime = end_time - start_time;
+                let _ = self.output_tx.send(State::JobLog(JobLog {
+                    job_id:     job_id,
+                    start_time: start_time,
+                    runtime:    runtime.num_nanoseconds().unwrap_or(0) as u64,
+                    exit_value: exit_value,
+                    signal:     signal,
+                    command:    command_buffer.clone(),
+                }));
             }
 
             if self.flags & VERBOSE_MODE != 0 {

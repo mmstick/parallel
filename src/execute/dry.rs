@@ -1,8 +1,8 @@
 use input_iterator::InputIterator;
-use itoa_array::itoa;
 use tokenizer::Token;
 use arguments::{self, InputIteratorErr};
 use execute::command;
+use misc::NumToA;
 
 use std::io::{self, StdoutLock, Write};
 
@@ -18,7 +18,7 @@ pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
     let pipe               = flags & arguments::PIPE_IS_ENABLED != 0;
     let mut id_buffer      = [0u8; 64];
     let mut total_buffer   = [0u8; 64];
-    let truncate           = itoa(&mut total_buffer, inputs.total_arguments, 10);
+    let truncate           = inputs.total_arguments.numtoa(10, &mut total_buffer);
     let job_total          = &total_buffer[0..truncate];
 
     // If `SHELL_QUOTE` is enabled then the quoted command will be printed, otherwise the command will be
@@ -40,7 +40,7 @@ pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
     for (job_id, input) in inputs.enumerate() {
         match input {
             Ok(input) => {
-                let truncate = itoa(&mut id_buffer, job_id, 10);
+                let truncate = job_id.numtoa(10, &mut id_buffer);
                 let command = command::ParallelCommand {
                     slot_no:          slot,
                     job_no:           &id_buffer[0..truncate],

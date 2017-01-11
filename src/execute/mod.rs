@@ -1,6 +1,8 @@
 mod dry;
 mod exec_commands;
 mod exec_inputs;
+mod job_log;
+mod signals;
 mod receive;
 
 pub mod command;
