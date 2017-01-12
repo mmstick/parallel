@@ -91,6 +91,9 @@ OPTIONS
         Values may be written as a number (12) or as a percent (150%).
         The default value is the number of CPU cores in the system.
 
+    --joblog:
+        Logs job statistics to a designated file as they are completed.
+
     --memfree:
         Defines the minimum amount of memory available before starting the next job.
 
@@ -116,7 +119,7 @@ OPTIONS
         calling it within a shebang line.
 
     --shellquote:
-        Expands upon quote mode by escaping a wide variety of special characters.
+        Prints commands that will be executed, with the commands quoted.
 
     --timeout:
         If a command runs for longer than a specified number of seconds, it will be

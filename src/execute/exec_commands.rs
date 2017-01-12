@@ -1,15 +1,13 @@
-use arguments::{QUIET_MODE, VERBOSE_MODE, JOBLOG};
+use arguments::{VERBOSE_MODE, JOBLOG};
 use execute::command::{self, CommandErr};
 use input_iterator::InputsLock;
 use misc::NumToA;
 use time::{self, Timespec};
 use tokenizer::Token;
-use wait_timeout::ChildExt;
 use verbose;
-use super::pipe::disk::output as pipe_output;
 use super::pipe::disk::State;
 use super::job_log::JobLog;
-use super::signals;
+use super::child::handle_child;
 
 use std::io::{self, Write};
 use std::sync::mpsc::Sender;
@@ -57,25 +55,11 @@ impl<'a> ExecCommands<'a> {
                 command_template: self.arguments,
                 flags:            self.flags
             };
-
+            
             command_buffer.clear();
             let (start_time, end_time, exit_value, signal) = match command.exec(command_buffer) {
-                Ok(mut child) => {
-                    let start_time = time::get_time();
-                    if has_timeout && child.wait_timeout(self.timeout).unwrap().is_none() {
-                        let _ = child.kill();
-                        pipe_output(&mut child, job_id, input.clone(), &self.output_tx, self.flags & QUIET_MODE != 0);
-                        (start_time, time::get_time(), -1, 15)
-                    } else {
-                        pipe_output(&mut child, job_id, input.clone(), &self.output_tx, self.flags & QUIET_MODE != 0);
-                        match child.wait() {
-                            Ok(status) => match status.code() {
-                                Some(exit) => (start_time, time::get_time(), exit, 0),
-                                None       => (start_time, time::get_time(), -1, signals::get(status))
-                            },
-                            Err(_) => (start_time, time::get_time(), -1, 0),
-                        }
-                    }
+                Ok(child) => {
+                    handle_child(child, &self.output_tx, self.flags, job_id, input.clone(), has_timeout, self.timeout)
                 },
                 Err(cmd_err) => {
                     let mut stderr = stderr.lock();
@@ -92,7 +76,7 @@ impl<'a> ExecCommands<'a> {
             };
 
             if self.flags & JOBLOG != 0 {
-                let runtime = end_time - start_time;
+                let runtime: time::Duration = end_time - start_time;
                 let _ = self.output_tx.send(State::JobLog(JobLog {
                     job_id:     job_id,
                     start_time: start_time,

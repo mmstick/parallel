@@ -85,9 +85,9 @@ impl Args {
         if env::args().len() > 1 {
             // The first argument defines which `mode` to shift into and which argument `index` to start from.
             let (mut mode, mut index) = match arguments[1].as_str() {
-                ":::"  | ":::+"  => { self.flags |= INPUTS_ARE_COMMANDS; (Mode::Inputs, 2) },
-                "::::" | "::::+" => { self.flags |= INPUTS_ARE_COMMANDS; (Mode::Files, 2) },
-                _  => (Mode::Arguments, 1)
+                ":::"  | ":::+"  => (Mode::Inputs, 2),
+                "::::" | "::::+" => (Mode::Files, 2),
+                _                => (Mode::Arguments, 1)
             };
 
             // If the `--shebang` parameter was passed, this will be set to `true`.
@@ -175,7 +175,7 @@ impl Args {
                                 }
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
-                                    println!("MIT/Rust Parallel 0.9.0\n");
+                                    println!("MIT/Rust Parallel 0.10.0\n");
                                     exit(0);
                                 }
                                 _ if &argument[2..9] == "shebang" => {
@@ -188,14 +188,8 @@ impl Args {
                         }
                     } else {
                         match argument.as_str() {
-                            ":::" => {
-                                mode = Mode::Inputs;
-                                self.flags |= INPUTS_ARE_COMMANDS;
-                            },
-                            "::::" => {
-                                mode = Mode::Files;
-                                self.flags |= INPUTS_ARE_COMMANDS;
-                            }
+                            ":::" => mode = Mode::Inputs,
+                            "::::" => mode = Mode::Files,
                             _ => {
                                 // The command has been supplied, and argument parsing is over.
                                 comm.push_str(argument);
@@ -238,7 +232,6 @@ impl Args {
 
             number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, &mut disk_buffer, unprocessed_path)?;
         } else if let Some(path) = redirection::input_was_redirected() {
-            self.flags |= INPUTS_ARE_COMMANDS;
             file_parse(&mut current_inputs, path.to_str().ok_or_else(|| ParseErr::RedirFile(path.clone()))?)?;
             number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, &mut disk_buffer, unprocessed_path)?;
         }
@@ -252,6 +245,8 @@ impl Args {
         // Flush the contents of the buffer to the disk before tokenizing the command argument.
         let _ = disk_buffer.flush();
 
+        if comm.is_empty() { self.flags |= INPUTS_ARE_COMMANDS; }
+
         Ok(number_of_arguments)
     }
 }
@@ -260,6 +255,7 @@ impl Args {
 fn write_stdin_to_disk(disk_buffer: &mut BufWriter<File>, max_args: usize, unprocessed_path: &Path)
     -> Result<usize, ParseErr>
 {
+    println!("parallel: reading inputs from standard input");
     let mut number_of_arguments = 0;
 
     let stdin = io::stdin();

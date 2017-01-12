@@ -251,6 +251,7 @@ operates:
 - **--eta**: Prints the estimated time to complete based on average runtime of running processes.
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
+- **--joblog**: Logs job statistics to a designated file as they are completed.
 - **--memfree**: Defines the minimum amount of memory available before starting the next job.
 - **-n**, **--max-args**: Groups up to a certain number of arguments together in the same command line.
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
@@ -258,7 +259,7 @@ operates:
         instead supply the arguments directly to the standard input of each child process.
 - **-s**, **--silent**, **--quiet**: Disables printing the standard output of running processes.
 - **--shebang**: Grants ability to utilize the parallel command as an interpreter via calling it within a shebang line.
-- **--shellquote**: Expands upon quote mode by escaping a wide variety of special characters.
+- **--shellquote**: Prints commands that will be executed, with the commands quoted.
 - **--timeout**: If a command runs for longer than a specified number of seconds, it will be killed with a SIGKILL.
 - **-v**, **--verbose**: Prints information about running processes.
 - **--version**: Prints the current version of the application and it's dependencies.

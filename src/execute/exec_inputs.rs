@@ -1,14 +1,12 @@
-use arguments::{self, JOBLOG, QUIET_MODE};
+use arguments::{self, JOBLOG};
 use execute::command;
 use input_iterator::InputsLock;
 use shell;
-use time::{self, Timespec};
+use time::Timespec;
 use verbose;
-use wait_timeout::ChildExt;
 use super::job_log::JobLog;
-use super::pipe::disk::output as pipe_output;
 use super::pipe::disk::State;
-use super::signals;
+use super::child::handle_child;
 
 use std::u16;
 use std::time::Duration;
@@ -45,22 +43,8 @@ impl ExecInputs {
             }
 
             let (start_time, end_time, exit_value, signal) = match command::get_command_output(&input, flags) {
-                Ok(mut child) => {
-                    let start_time = time::get_time();
-                    if has_timeout && child.wait_timeout(self.timeout).unwrap().is_none() {
-                        let _ = child.kill();
-                        pipe_output(&mut child, job_id, input.clone(), &self.output_tx, flags & QUIET_MODE != 0);
-                        (start_time, time::get_time(), -1, 15)
-                    } else {
-                        pipe_output(&mut child, job_id, input.clone(), &self.output_tx, flags & QUIET_MODE != 0);
-                        match child.wait() {
-                            Ok(status) => match status.code() {
-                                Some(exit) => (start_time, time::get_time(), exit, 0),
-                                None       => (start_time, time::get_time(), -1, signals::get(status))
-                            },
-                            Err(_) => (start_time, time::get_time(), -1, 0),
-                        }
-                    }
+                Ok(child) => {
+                    handle_child(child, &self.output_tx, flags, job_id, input.clone(), has_timeout, self.timeout)
                 },
                 Err(why) => {
                     let mut stderr = stderr.lock();

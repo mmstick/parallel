@@ -1,3 +1,4 @@
+mod child;
 mod dry;
 mod exec_commands;
 mod exec_inputs;

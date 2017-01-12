@@ -1,5 +1,4 @@
-// #![deny(dead_code)]
-// #![deny(unused_imports)]
+#![deny(dead_code)]
 #![allow(unknown_lints)]
 #![feature(loop_break_value)]
 #![feature(alloc_system)]
@@ -39,13 +38,14 @@ use execute::pipe::disk::State;
 use input_iterator::{InputIterator, InputsLock};
 use tokenizer::{Token, TokenErr, tokenize};
 
-/// Coercing the `command` `String` into a `&'static str` is required to share it among all threads.
 /// The command string needs to be available in memory for the entirety of the application, so this
-/// is achievable by leaking the memory so it attains a `'static` lifetime.
-unsafe fn leak_command(comm: String) -> &'static str {
-    let static_comm = mem::transmute(&comm as &str);
+/// is achievable by transmuting the lifetime of the reference into a static lifetime. To guarantee
+/// that this is perfectly safe, and that the reference will live outside the scope, the value will
+/// also be leaked so that it is forced to remain in memory for the remainder of the application.
+unsafe fn leak_string(comm: String) -> &'static str {
+    let new_comm = mem::transmute(&comm as &str);
     mem::forget(comm);
-    static_comm
+    new_comm
 }
 
 unsafe fn static_arg(args: &[Token]) -> &'static [Token] {
@@ -73,10 +73,10 @@ fn main() {
     // Coerce the `comm` `String` into a `&'static str` so that it may be shared by all threads.
     // This is safe because the original `comm` may no longer be modified due to shadowing rules.
     // It is also safe because `comm` lives to the end of the program.
-    let comm = unsafe { leak_command(comm) };
+    let static_comm = unsafe { leak_string(comm) };
 
     // Attempt to tokenize the command argument into simple primitive placeholders.
-    if let Err(error) = tokenize(&mut args.arguments, comm, &unprocessed_path, args.ninputs) {
+    if let Err(error) = tokenize(&mut args.arguments, static_comm, &unprocessed_path, args.ninputs) {
         let mut stderr = stderr.lock();
         match error {
             TokenErr::File(why) => {
