@@ -1,6 +1,5 @@
 use std::fs::{self, File};
 use std::io::{self, Write, Read, BufWriter};
-use std::mem;
 use std::path::Path;
 use std::sync::mpsc::Receiver;
 use std::thread;
@@ -101,18 +100,14 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
     // Generates the stdout and stderr paths, along with a truncation value to truncate the job ID from the paths.
     let (truncate_size, mut stdout_path, mut stderr_path) = filepaths::new_job(counter);
     // If the joblog parameter was passed, open the file for writing.
-    let mut joblog = match args.joblog {
-        Some(path) => {
-            job_counter = 0;
-            if id_pad_length < 10 { id_pad_length = 10; }
-            let _ = fs::remove_file(&path);
-            let mut file = fs::OpenOptions::new().create(true).write(true).open(path).unwrap();
-            job_log::create(&mut file, id_pad_length);
-            file
-        },
-        /// This is OK because the `joblog` variable will never be used unless `joblog` was set.
-        None => unsafe { mem::uninitialized::<File>() }
-    };
+    let mut joblog = args.joblog.map(|path| {
+        job_counter = 0;
+        if id_pad_length < 10 { id_pad_length = 10; }
+        let _ = fs::remove_file(&path);
+        let mut file = fs::OpenOptions::new().create(true).write(true).open(path).unwrap();
+        job_log::create(&mut file, id_pad_length);
+        file
+    });
 
     // The loop will only quit once all inputs have been processed
     while counter < args.ninputs || job_counter < args.ninputs {
@@ -143,6 +138,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
             State::Error(id, message) => buffer.push(State::Error(id, message)),
             State::JobLog(ref data) if data.job_id == job_counter => {
                 job_counter += 1;
+                let mut joblog = joblog.as_mut().unwrap();
                 data.write_entry(&mut joblog, &mut id_buffer, id_pad_length);
             },
             State::JobLog(data) => job_buffer.push(data),
@@ -174,6 +170,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
                     Ok(State::Error(id, message)) => buffer.push(State::Error(id, message)),
                     Ok(State::JobLog(ref data)) if data.job_id == job_counter => {
                         job_counter += 1;
+                        let mut joblog = joblog.as_mut().unwrap();
                         data.write_entry(&mut joblog, &mut id_buffer, id_pad_length);
                     },
                     Ok(State::JobLog(data)) => job_buffer.push(data),
@@ -220,15 +217,17 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
             }
         }
 
-        changed = true;
-        while changed {
-            changed = false;
-            for (index, log) in job_buffer.iter().enumerate() {
-                if log.job_id == job_counter {
-                    job_counter += 1;
-                    job_drop.push(index);
-                    changed = true;
-                    log.write_entry(&mut joblog, &mut id_buffer, id_pad_length);
+        if let Some(ref mut joblog) = joblog {
+            changed = true;
+            while changed {
+                changed = false;
+                for (index, log) in job_buffer.iter().enumerate() {
+                    if log.job_id == job_counter {
+                        job_counter += 1;
+                        job_drop.push(index);
+                        changed = true;
+                        log.write_entry(joblog, &mut id_buffer, id_pad_length);
+                    }
                 }
             }
         }
@@ -237,9 +236,11 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
         drop_used_logs(&mut job_buffer, &mut job_drop);
     }
 
-    if let Err(why) = joblog.flush() {
-        let mut stderr = stderr.lock();
-        let _ = write!(stderr, "parallel: I/O error: {}", why);
+    if let Some(mut joblog) = joblog {
+        if let Err(why) = joblog.flush() {
+            let mut stderr = stderr.lock();
+            let _ = write!(stderr, "parallel: I/O error: {}", why);
+        }
     }
 
     if let Err(why) = processed_file.flush() {
