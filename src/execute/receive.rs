@@ -69,7 +69,9 @@ macro_rules! append_to_processed {
 
 #[allow(cyclomatic_complexity)]
 /// Tail and print the standard output and error of each process in the correct order
-pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &Path, errors_path: &Path) {
+pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, processed_path: &Path,
+    errors_path: &Path)
+{
     let stdout = io::stdout();
     let stderr = io::stderr();
 
@@ -98,7 +100,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, processed_path: &
     // A buffer for converting job ID's into a byte array representation of a string.
     let mut id_buffer = [0u8; 64];
     // Generates the stdout and stderr paths, along with a truncation value to truncate the job ID from the paths.
-    let (truncate_size, mut stdout_path, mut stderr_path) = filepaths::new_job(counter);
+    let (truncate_size, mut stdout_path, mut stderr_path) = filepaths::new_job(base, counter);
     // If the joblog parameter was passed, open the file for writing.
     let mut joblog = args.joblog.map(|path| {
         job_counter = 0;

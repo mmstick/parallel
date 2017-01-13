@@ -16,17 +16,18 @@ use std::time::Duration;
 /// Contains all the required data needed for executing commands in parallel.
 /// Commands will be generated based on a template of argument tokens combined
 /// with the current input argument.
-pub struct ExecCommands<'a> {
+pub struct ExecCommands {
     pub slot:       usize,
     pub num_inputs: usize,
     pub flags:      u16,
     pub timeout:    Duration,
     pub inputs:     InputsLock,
     pub output_tx:  Sender<State>,
-    pub arguments:  &'a [Token],
+    pub arguments:  &'static [Token],
+    pub tempdir:    String,
 }
 
-impl<'a> ExecCommands<'a> {
+impl ExecCommands {
     pub fn run(&mut self) {
         let stdout = io::stdout();
         let stderr = io::stderr();
@@ -55,11 +56,12 @@ impl<'a> ExecCommands<'a> {
                 command_template: self.arguments,
                 flags:            self.flags
             };
-            
+
             command_buffer.clear();
             let (start_time, end_time, exit_value, signal) = match command.exec(command_buffer) {
                 Ok(child) => {
-                    handle_child(child, &self.output_tx, self.flags, job_id, input.clone(), has_timeout, self.timeout)
+                    handle_child(child, &self.output_tx, self.flags, job_id, input.clone(), has_timeout, self.timeout,
+                        &self.tempdir)
                 },
                 Err(cmd_err) => {
                     let mut stderr = stderr.lock();

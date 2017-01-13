@@ -5,7 +5,7 @@ mod man;
 mod redirection;
 
 use std::env;
-use std::fs::{self, File};
+use std::fs;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::num::ParseIntError;
 use std::path::{Path, PathBuf};
@@ -46,6 +46,7 @@ pub struct Args {
     pub timeout:   Duration,
     pub arguments: ArrayVec<[Token; 128]>,
     pub joblog:    Option<String>,
+    pub tempdir:   Option<PathBuf>,
 }
 
 impl Args {
@@ -59,18 +60,13 @@ impl Args {
             delay:     Duration::from_millis(0),
             timeout:   Duration::from_millis(0),
             joblog:    None,
+            tempdir:   None,
         }
     }
 
     /// Performs all the work related to parsing program arguments
-    pub fn parse(&mut self, comm: &mut String, arguments: &[String], unprocessed_path: &Path)
-        -> Result<usize, ParseErr>
-    {
-        // Create a write buffer that automatically writes data to the disk when the buffer is full.
-        let disk_buffer = fs::OpenOptions::new().write(true).append(true).open(unprocessed_path)
-            .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.to_owned(), why)))?;
-        let mut disk_buffer = BufWriter::new(disk_buffer);
-
+    pub fn parse(&mut self, comm: &mut String, arguments: &[String], base_path: &mut PathBuf)
+        -> Result<usize, ParseErr> {
         // Each list will consist of a series of input arguments
         let mut lists: Vec<Vec<String>>     = Vec::new();
         // The `current_inputs` variable will contain all the inputs that have been collected for the first list.
@@ -158,12 +154,12 @@ impl Args {
                                     let val = arguments.get(index).ok_or(ParseErr::MaxArgsNoValue)?;
                                     max_args = val.parse::<usize>().map_err(|_| ParseErr::MaxArgsNaN(index))?;
                                     index += 1;
-                                }
+                                },
                                 "mem-free" => {
                                     let val = arguments.get(index).ok_or(ParseErr::MemNoValue)?;
                                     self.memory = parse_memory(val).map_err(|_| ParseErr::MemInvalid(index))?;
                                     index += 1;
-                                }
+                                },
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
                                 "shellquote" => self.flags |= DRY_RUN + SHELL_QUOTE,
@@ -172,11 +168,15 @@ impl Args {
                                     let seconds = val.parse::<f64>().map_err(|_| ParseErr::TimeoutNaN(index))?;
                                     self.timeout = Duration::from_millis((seconds * 1000f64) as u64);
                                     index += 1;
-                                }
+                                },
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
-                                    println!("MIT/Rust Parallel 0.10.0\n");
+                                    println!("MIT/Rust Parallel 0.10.1\n");
                                     exit(0);
+                                },
+                                "tmpdir" | "tempdir" => {
+                                    *base_path = PathBuf::from(arguments.get(index).ok_or(ParseErr::WorkDirNoValue)?);
+                                    index += 1;
                                 }
                                 _ if &argument[2..9] == "shebang" => {
                                         shebang = true;
@@ -188,7 +188,7 @@ impl Args {
                         }
                     } else {
                         match argument.as_str() {
-                            ":::" => mode = Mode::Inputs,
+                            ":::"  => mode = Mode::Inputs,
                             "::::" => mode = Mode::Files,
                             _ => {
                                 // The command has been supplied, and argument parsing is over.
@@ -208,7 +208,7 @@ impl Args {
                     index += 1;
                     match argument.as_str() {
                         // Arguments after `:::` are input values.
-                        ":::" | ":::+" => mode = Mode::Inputs,
+                        ":::" | ":::+"   => mode = Mode::Inputs,
                         // Arguments after `::::` are files with inputs.
                         "::::" | "::::+" => mode = Mode::Files,
                         // All other arguments are command arguments.
@@ -230,20 +230,17 @@ impl Args {
                 parse_inputs(arguments, index, &mut current_inputs, &mut lists, &mut mode)?;
             }
 
-            number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, &mut disk_buffer, unprocessed_path)?;
+            number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, base_path.clone())?;
         } else if let Some(path) = redirection::input_was_redirected() {
             file_parse(&mut current_inputs, path.to_str().ok_or_else(|| ParseErr::RedirFile(path.clone()))?)?;
-            number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, &mut disk_buffer, unprocessed_path)?;
+            number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, base_path.clone())?;
         }
 
         if number_of_arguments == 0 {
-            number_of_arguments = write_stdin_to_disk(&mut disk_buffer, max_args, unprocessed_path)?;
+            number_of_arguments = write_stdin_to_disk(max_args, base_path.clone())?;
         }
 
         if number_of_arguments == 0 { return Err(ParseErr::NoArguments); }
-
-        // Flush the contents of the buffer to the disk before tokenizing the command argument.
-        let _ = disk_buffer.flush();
 
         if comm.is_empty() { self.flags |= INPUTS_ARE_COMMANDS; }
 
@@ -252,10 +249,12 @@ impl Args {
 }
 
 /// Write all arguments from standard input to the disk, recording the number of arguments that were read.
-fn write_stdin_to_disk(disk_buffer: &mut BufWriter<File>, max_args: usize, unprocessed_path: &Path)
-    -> Result<usize, ParseErr>
-{
+fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf) -> Result<usize, ParseErr> {
     println!("parallel: reading inputs from standard input");
+    unprocessed_path.push("unprocessed");
+    let disk_buffer = fs::OpenOptions::new().write(true).create(true).open(&unprocessed_path)
+        .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.clone(), why)))?;
+    let mut disk_buffer = BufWriter::new(disk_buffer);
     let mut number_of_arguments = 0;
 
     let stdin = io::stdin();
@@ -263,7 +262,7 @@ fn write_stdin_to_disk(disk_buffer: &mut BufWriter<File>, max_args: usize, unpro
         for line in stdin.lock().lines() {
             if let Ok(line) = line {
                 disk_buffer.write(line.as_bytes()).and_then(|_| disk_buffer.write(b"\n"))
-                    .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                    .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 number_of_arguments += 1;
             }
         }
@@ -275,24 +274,24 @@ fn write_stdin_to_disk(disk_buffer: &mut BufWriter<File>, max_args: usize, unpro
                     max_args_index -= 1;
                     number_of_arguments += 1;
                     disk_buffer.write(line.as_bytes())
-                        .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                        .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 } else if max_args_index == 1 {
                     max_args_index = max_args;
                     disk_buffer.write(b" ")
                         .and_then(|_| disk_buffer.write(line.as_bytes()))
                         .and_then(|_| disk_buffer.write(b"\n"))
-                        .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                        .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 } else {
                     max_args_index -= 1;
                     disk_buffer.write(b" ")
                         .and_then(|_| disk_buffer.write(line.as_bytes()))
-                        .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                        .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 }
             }
         }
         if max_args_index != max_args {
             disk_buffer.write(b"\n")
-                .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
         }
     }
 
@@ -301,7 +300,12 @@ fn write_stdin_to_disk(disk_buffer: &mut BufWriter<File>, max_args: usize, unpro
 
 /// Write all input arguments buffered in memory to the disk, recording the number of arguments that were read.
 fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, max_args: usize,
-    disk_buffer: &mut BufWriter<File>, unprocessed_path: &Path) -> Result<usize, ParseErr> {
+    mut unprocessed_path: PathBuf) -> Result<usize, ParseErr>
+{
+    unprocessed_path.push("unprocessed");
+    let disk_buffer = fs::OpenOptions::new().write(true).create(true).open(&unprocessed_path)
+        .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.to_owned(), why)))?;
+    let mut disk_buffer = BufWriter::new(disk_buffer);
     let mut number_of_arguments = 0;
 
     if lists.len() > 1 {
@@ -321,27 +325,27 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
         {
             let mut iter = permutation_buffer.iter();
             disk_buffer.write(iter.next().unwrap().as_bytes())
-                .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
             for element in iter {
                 disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
-                    .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                    .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
             }
 
             number_of_arguments += 1;
         }
 
         if max_args < 2 {
-            disk_buffer.write(b"\n").map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+            disk_buffer.write(b"\n").map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
             while let Ok(true) = permutator.next_with_buffer(&mut permutation_buffer) {
                 let mut iter = permutation_buffer.iter();
                 disk_buffer.write(iter.next().unwrap().as_bytes())
-                    .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                    .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 for element in iter {
                     disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
-                        .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                        .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 }
                 disk_buffer.write(b"\n")
-                    .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                    .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 number_of_arguments += 1;
             }
         } else {
@@ -353,34 +357,34 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
                     number_of_arguments += 1;
 
                     disk_buffer.write(iter.next().unwrap().as_bytes())
-                        .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                        .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
 
                     for element in iter {
                         disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
-                            .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                            .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                     }
                 } else if max_args_index == 1 {
                     max_args_index = max_args;
                     disk_buffer.write(b" ")
                         .and_then(|_| disk_buffer.write(iter.next().unwrap().as_bytes()))
-                        .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                        .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
 
                     for element in iter {
                         disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
-                            .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                            .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                     }
 
                     disk_buffer.write(b"\n")
-                        .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                        .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 } else {
                     max_args_index -= 1;
                     disk_buffer.write(b" ")
                         .and_then(|_| disk_buffer.write(iter.next().unwrap().as_bytes()))
-                        .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                        .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
 
                     for element in iter {
                         disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
-                            .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                            .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                     }
                 }
             }
@@ -389,7 +393,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
         for input in current_inputs {
             disk_buffer.write(input.as_bytes())
                 .and_then(|_| disk_buffer.write(b"\n"))
-                .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
             number_of_arguments += 1;
         }
     } else {
@@ -401,12 +405,12 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
             while index != max_index {
                 disk_buffer.write(chunk[index].as_bytes())
                     .and_then(|_| disk_buffer.write(b" "))
-                    .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                    .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 index += 1;
             }
             disk_buffer.write(chunk[max_index].as_bytes())
                 .and_then(|_| disk_buffer.write(b"\n"))
-                .map_err(|why| FileErr::Write(PathBuf::from(unprocessed_path), why))?;
+                .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
         }
     }
     Ok(number_of_arguments)
@@ -444,9 +448,9 @@ fn parse_inputs(arguments: &[String], mut index: usize, current_inputs: &mut Vec
         index += 1;
         match argument.as_str() {
             // `:::` denotes that the next set of inputs will be added to a new list.
-            ":::"  => switch_mode!(Mode::Inputs),
+            ":::"   => switch_mode!(Mode::Inputs),
             // `:::+` denotes that the next set of inputs will be added to the current list.
-            ":::+" => switch_mode!(append Mode::InputsAppend),
+            ":::+"  => switch_mode!(append Mode::InputsAppend),
             // `::::` denotes that the next set of inputs will be added to a new list.
             "::::"  => switch_mode!(Mode::Files),
             // `:::+` denotes that the next set of inputs will be added to the current list.
@@ -513,7 +517,7 @@ fn parse_memory(input: &str) -> Result<u64, ParseIntError> {
         'T' => &input[..input.len()-1].parse::<u64>()? * 1_099_511_627_776,
         'p' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000_000_000,
         'P' => &input[..input.len()-1].parse::<u64>()? * 1_125_899_906_842_624,
-        _ => input.parse::<u64>()?
+        _   => input.parse::<u64>()?
     };
     Ok(result)
 }
@@ -532,8 +536,8 @@ fn parse_jobs(argument: &str, next_argument: Option<&String>, index: &mut usize)
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.
 fn file_parse<P: AsRef<Path>>(inputs: &mut Vec<String>, path: P) -> Result<(), ParseErr> {
-    let path = path.as_ref();
-    let file = fs::File::open(path).map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err)))?;
+    let path       = path.as_ref();
+    let file       = fs::File::open(path).map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err)))?;
     let mut buffer = BufReader::new(file).lines();
     if let Some(line) = buffer.next() {
         if let Ok(line) = line {

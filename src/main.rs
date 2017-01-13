@@ -16,7 +16,6 @@ mod arguments;
 mod disk_buffer;
 mod execute;
 mod filepaths;
-mod init;
 mod input_iterator;
 mod misc;
 mod tokenizer;
@@ -48,23 +47,49 @@ unsafe fn leak_string(comm: String) -> &'static str {
     new_comm
 }
 
-unsafe fn static_arg(args: &[Token]) -> &'static [Token] {
-    mem::transmute(args)
-}
+/// The tokens will live throughout the entirety of the application, so it's OK to mark it with
+/// a static lifetime. Prevents needing to copy the token vector to each thread.
+unsafe fn static_arg(args: &[Token]) -> &'static [Token] { mem::transmute(args) }
 
 fn main() {
     // Obtain a handle to standard error's buffer so we can write directly to it.
     let stdout = io::stdout();
     let stderr = io::stderr();
 
-    // Cleanup pre-existing files from the filesystem before continuing.
-    let (unprocessed_path, processed_path, errors_path) = init::cleanup(&mut stderr.lock());
-
     // Parse arguments and collect flags and statistics.
-    let mut args = Args::new();
-    let mut comm = String::with_capacity(128);
+    let mut args      = Args::new();
+    let mut comm      = String::with_capacity(128);
     let raw_arguments = env::args().collect::<Vec<String>>();
-    args.ninputs = init::parse(&mut args, &mut comm, &raw_arguments, &unprocessed_path);
+    let mut base  = match filepaths::base() {
+        Some(base) => base,
+        None => {
+            let mut stderr = stderr.lock();
+            let _ = stderr.write(b"parallel: unable to open home directory");
+            exit(1);
+        }
+    };
+
+    args.ninputs = match args.parse(&mut comm, &raw_arguments, &mut base) {
+        Ok(inputs) => inputs,
+        Err(why) => why.handle(&raw_arguments)
+    };
+
+    let base_path = match base.to_str() {
+        Some(base) => String::from(base),
+        None => {
+            let mut stderr = stderr.lock();
+            let _ = stderr.write(b"parallel: tempdir path is invalid");
+            exit(1);
+        }
+    };
+    println!("base_path: '{}'", base_path);
+
+    let mut unprocessed_path = base.clone();
+    let mut processed_path   = base.clone();
+    let mut errors_path      = base;
+    unprocessed_path.push("unprocessed");
+    processed_path.push("processed");
+    errors_path.push("errors");
 
     // Initialize the `InputIterator` structure, which iterates through all inputs.
     let inputs = InputIterator::new(&unprocessed_path, args.ninputs)
@@ -99,7 +124,7 @@ fn main() {
 
         let shared_input = Arc::new(Mutex::new(inputs));
 
-        // If grouping is enabled, stdout and stderr will be buffered.
+        // A channel for passing job state info to the receiving thread.
         let (output_tx, input_rx) = channel::<State>();
 
         // Will contain handles to the upcoming threads to know when the threads are finished.
@@ -120,6 +145,7 @@ fn main() {
                     num_inputs: args.ninputs,
                     timeout:    args.timeout,
                     output_tx:  output_tx.clone(),
+                    tempdir:    base_path.clone(),
                     inputs:     InputsLock {
                         inputs:    shared_input.clone(),
                         memory:    args.memory,
@@ -130,9 +156,7 @@ fn main() {
                     }
                 };
 
-                let handle: JoinHandle<()> = thread::spawn(move || {
-                    exec.run(flags);
-                });
+                let handle: JoinHandle<()> = thread::spawn(move || exec.run(flags));
 
                 // Add the thread handle to the `threads` vector to know when to quit the program.
                 threads.push(handle);
@@ -141,10 +165,11 @@ fn main() {
             shell::set_flags(&mut args.flags, arguments);
 
             for slot in 1..args.ncores+1 {
-                let timeout = args.timeout;
+                let timeout    = args.timeout;
                 let num_inputs = args.ninputs;
-                let output_tx = output_tx.clone();
-                let flags = args.flags;
+                let output_tx  = output_tx.clone();
+                let flags      = args.flags;
+                let base_path  = base_path.clone();
 
                 let inputs = InputsLock {
                     inputs:    shared_input.clone(),
@@ -165,6 +190,7 @@ fn main() {
                         inputs:     inputs,
                         output_tx:  output_tx,
                         arguments:  arguments,
+                        tempdir:    base_path,
                     };
                     exec.run();
                 });
@@ -175,7 +201,7 @@ fn main() {
         }
 
         /// Prints messages from executed commands in the correct order.
-        execute::receive_messages(input_rx, args, &processed_path, &errors_path);
+        execute::receive_messages(input_rx, args, &base_path, &processed_path, &errors_path);
         for thread in threads { thread.join().unwrap(); }
 
         // If errors have occurred, re-print these errors at the end.

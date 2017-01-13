@@ -260,6 +260,7 @@ operates:
 - **-s**, **--silent**, **--quiet**: Disables printing the standard output of running processes.
 - **--shebang**: Grants ability to utilize the parallel command as an interpreter via calling it within a shebang line.
 - **--shellquote**: Prints commands that will be executed, with the commands quoted.
+- **--tmpdir**: Defines the directory to use for temporary files
 - **--timeout**: If a command runs for longer than a specified number of seconds, it will be killed with a SIGKILL.
 - **-v**, **--verbose**: Prints information about running processes.
 - **--version**: Prints the current version of the application and it's dependencies.

@@ -121,6 +121,9 @@ OPTIONS
     --shellquote:
         Prints commands that will be executed, with the commands quoted.
 
+    --tmpdir:
+        Defines the directory to use for temporary files.
+
     --timeout:
         If a command runs for longer than a specified number of seconds, it will be
         killed with a SIGKILL.

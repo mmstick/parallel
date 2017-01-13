@@ -20,6 +20,7 @@ pub struct ExecInputs {
     pub timeout:    Duration,
     pub inputs:     InputsLock,
     pub output_tx:  Sender<State>,
+    pub tempdir:    String,
 }
 
 impl ExecInputs {
@@ -44,7 +45,8 @@ impl ExecInputs {
 
             let (start_time, end_time, exit_value, signal) = match command::get_command_output(&input, flags) {
                 Ok(child) => {
-                    handle_child(child, &self.output_tx, flags, job_id, input.clone(), has_timeout, self.timeout)
+                    handle_child(child, &self.output_tx, flags, job_id, input.clone(), has_timeout, self.timeout,
+                        &self.tempdir)
                 },
                 Err(why) => {
                     let mut stderr = stderr.lock();

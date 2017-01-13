@@ -5,9 +5,7 @@ The list is actively updated with each successful pull request.
     - Re-integrate the original memory-buffered implementation
 - Implement `retries`, `resume`, `resume-failed`, and `retry-failed`
     - Will require comparing the processed and unprocessed files
-    - Generate a new unprocessed file and remove the originals\
-- Implement `workdir` and `tempdir`
-    - Allow the ability to change the default location of the temp and work directories
+    - Generate a new unprocessed file and remove the originals
 - Fix quoting issues
     - `shell-quote` should infer `dry-run`
     - input tokens should be quoted

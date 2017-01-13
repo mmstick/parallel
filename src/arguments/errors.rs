@@ -5,13 +5,8 @@ use std::process::exit;
 /// A list of all the possible errors that may happen when working with files.
 #[derive(Debug)]
 pub enum FileErr {
-    DirectoryCreate(PathBuf, io::Error),
-    DirectoryRead(PathBuf, io::Error),
-    Create(PathBuf, io::Error),
     Open(PathBuf, io::Error),
     Read(PathBuf, io::Error),
-    Remove(PathBuf, io::Error),
-    Path,
     Write(PathBuf, io::Error),
 }
 
@@ -46,6 +41,7 @@ pub enum ParseErr {
     RedirFile(PathBuf),
     TimeoutNaN(usize),
     TimeoutNoValue,
+    WorkDirNoValue,
 }
 
 impl From<FileErr> for ParseErr {
@@ -62,26 +58,11 @@ impl ParseErr {
         let _ = stderr.write(b"parallel: parsing error: ");
         match self {
             ParseErr::File(file_err) => match file_err {
-                FileErr::Create(path, why) => {
-                    let _ = write!(stderr, "unable to create file: {:?}: {}\n", path, why);
-                },
-                FileErr::DirectoryCreate(path, why) => {
-                    let _ = write!(stderr, "unable to create directory: {:?}: {}\n", path, why);
-                },
-                FileErr::DirectoryRead(path, why) => {
-                    let _ = write!(stderr, "unable to create directory: {:?}: {}\n", path, why);
-                },
                 FileErr::Open(file, why) => {
                     let _ = write!(stderr, "unable to open file: {:?}: {}\n", file, why);
                 },
                 FileErr::Read(file, why) => {
                     let _ = write!(stderr, "unable to read file: {:?}: {}\n", file, why);
-                },
-                FileErr::Remove(file, why) => {
-                    let _ = write!(stderr, "unable to remove file: {:?}: {}\n", file, why);
-                },
-                FileErr::Path => {
-                    let _ = write!(stderr, "unable to obtain input paths\n");
                 },
                 FileErr::Write(file, why) => {
                     let _ = write!(stderr, "unable to write to file: {:?}: {}\n", file, why);
@@ -128,6 +109,9 @@ impl ParseErr {
             },
             ParseErr::TimeoutNoValue => {
                 let _ = stderr.write(b"no timeout parameter was defined.\n");
+            },
+            ParseErr::WorkDirNoValue => {
+                let _ = stderr.write(b"no workdir parameter was defined.\n");
             }
         };
         let _ = stdout.write(b"For help on command-line usage, execute `parallel -h`\n");
