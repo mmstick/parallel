@@ -82,7 +82,6 @@ fn main() {
             exit(1);
         }
     };
-    println!("base_path: '{}'", base_path);
 
     let mut unprocessed_path = base.clone();
     let mut processed_path   = base.clone();

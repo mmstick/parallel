@@ -37,10 +37,11 @@ impl ExecCommands {
         let has_timeout        = self.timeout != Duration::from_millis(0);
         let mut input          = String::with_capacity(64);
         let mut id_buffer      = [0u8; 64];
-
+        let mut job_buffer     = [0u8; 64];
         let mut total_buffer   = [0u8; 64];
         let truncate           = self.num_inputs.numtoa(10, &mut total_buffer);
         let job_total          = &total_buffer[0..truncate];
+
 
         while let Some(job_id) = self.inputs.try_next(&mut input) {
             if self.flags & VERBOSE_MODE != 0  {
@@ -61,7 +62,7 @@ impl ExecCommands {
             let (start_time, end_time, exit_value, signal) = match command.exec(command_buffer) {
                 Ok(child) => {
                     handle_child(child, &self.output_tx, self.flags, job_id, input.clone(), has_timeout, self.timeout,
-                        &self.tempdir)
+                        &self.tempdir, &mut job_buffer)
                 },
                 Err(cmd_err) => {
                     let mut stderr = stderr.lock();

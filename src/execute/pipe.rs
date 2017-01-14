@@ -20,9 +20,9 @@ pub mod disk {
     /// Sends messages received by a `Child` process's standard output and error and sends them
     /// to be handled by the grouped output channel.
     pub fn output(child: &mut Child, job_id: usize, name: String, output_tx: &Sender<State>, quiet: bool,
-        base: &str)
+        base: &str, buffer: &mut [u8])
     {
-        let (_, stdout_path, stderr_path) = filepaths::new_job(base, job_id);
+        let (_, stdout_path, stderr_path) = filepaths::new_job(base, job_id, buffer);
         let mut stdout_file = File::create(stdout_path).expect("unable to create job stdout file");
         let mut stderr_file = File::create(stderr_path).expect("unable to create job stderr file");
 
