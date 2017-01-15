@@ -1,6 +1,9 @@
 use disk_buffer::*;
-use arguments::errors::{FileErr, InputIteratorErr};
+use arguments::errors::{FileErr};
+use super::InputIteratorErr;
+use itoa;
 use time;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -8,6 +11,34 @@ pub struct ETA {
     pub left:    u64,
     pub time:    u64,
     pub average: u64,
+}
+
+impl ETA {
+    pub fn write_to_stderr(&self, completed: usize) {
+        let stderr = io::stderr();
+        let mut stderr = &mut stderr.lock();
+
+        // Write the ETA to the standard error
+        let _ = stderr.write(b"ETA: ");
+        let _ = itoa::write(stderr, self.time / 1_000_000_000);
+
+        // Write the number of inputs left to process to standard error
+        let _ = stderr.write(b"s Left: ");
+        let _ = itoa::write(stderr, self.left);
+
+        // Write the average runtime of processes (with two decimal places) to standard error
+        let _ = stderr.write(b" AVG: ");
+        let _ = itoa::write(stderr, self.average / 1_000_000_000);
+        let _ = stderr.write(b".");
+        let remainder = (self.average % 1_000_000_000) / 10_000_000;
+        let _ = itoa::write(stderr, remainder);
+        if remainder < 10 { let _ = stderr.write(b"0"); }
+
+        // Write the number of completed units so far to standard error
+        let _ = stderr.write(b"s Completed: ");
+        let _ = itoa::write(stderr, completed);
+        let _ = stderr.write(b"\n");
+    }
 }
 
 /// The `InputIterator` tracks the total number of arguments, the current argument counter, and

@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::{self, Write, stderr, stdout};
 use std::path::PathBuf;
 use std::process::exit;
@@ -10,23 +11,30 @@ pub enum FileErr {
     Write(PathBuf, io::Error),
 }
 
-/// The `InputIterator` may possibly encounter an error with reading from the unprocessed file.
-#[derive(Debug)]
-pub enum InputIteratorErr {
-    FileRead(PathBuf, io::Error),
+impl fmt::Display for FileErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            FileErr::Open(ref path, ref io)  => write!(f, "unable to open {:?}: {}", path, io),
+            FileErr::Read(ref path, ref io)  => write!(f, "unable to read {:?}: {}", path, io),
+            FileErr::Write(ref path, ref io) => write!(f, "unable to write {:?}: {}", path, io)
+        }
+    }
 }
 
 /// The error type for the argument module.
 #[derive(Debug)]
 pub enum ParseErr {
+    /// The value of the job delay parameter is not set to a number.
     DelayNaN(usize),
+    /// The job delay parameter was not set.
     DelayNoValue,
     /// An error occurred with accessing the unprocessed file.
     File(FileErr),
+    /// The joblog parameter was not set.
     JoblogNoValue,
-    /// The value of jobs was not set to a number.
+    /// The jobs number parameter was not set to a number.
     JobsNaN(String),
-    /// No value was provided for the jobs flag.
+    /// The jobs number parameter was not set.
     JobsNoValue,
     /// An invalid argument flag was provided.
     InvalidArgument(usize),
@@ -34,13 +42,19 @@ pub enum ParseErr {
     MaxArgsNaN(usize),
     /// No value was provided for the `max_args` flag.
     MaxArgsNoValue,
+    /// The memfree parameter was invalid.
     MemInvalid(usize),
+    /// The memfree parameter was not set.
     MemNoValue,
     /// No arguments were given, so no action can be taken.
     NoArguments,
+    /// The standard input could not be redirected to the given file
     RedirFile(PathBuf),
+    /// The timeout parameter was not set to a number.
     TimeoutNaN(usize),
+    /// The timeout parameter was not set.
     TimeoutNoValue,
+    /// The workdir parameter was not set.
     WorkDirNoValue,
 }
 
@@ -57,17 +71,9 @@ impl ParseErr {
         let stdout = &mut stdout.lock();
         let _ = stderr.write(b"parallel: parsing error: ");
         match self {
-            ParseErr::File(file_err) => match file_err {
-                FileErr::Open(file, why) => {
-                    let _ = write!(stderr, "unable to open file: {:?}: {}\n", file, why);
-                },
-                FileErr::Read(file, why) => {
-                    let _ = write!(stderr, "unable to read file: {:?}: {}\n", file, why);
-                },
-                FileErr::Write(file, why) => {
-                    let _ = write!(stderr, "unable to write to file: {:?}: {}\n", file, why);
-                },
-            },
+            ParseErr::File(file_err) => {
+                let _ = writeln!(stderr, "{}", file_err);
+            }
             ParseErr::DelayNaN(index) => {
                 let _ = write!(stderr, "delay parameter, '{}', is not a number.\n", arguments[index]);
             },

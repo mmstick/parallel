@@ -36,9 +36,9 @@ impl ExecCommands {
         let mut command_buffer = &mut String::with_capacity(64);
         let has_timeout        = self.timeout != Duration::from_millis(0);
         let mut input          = String::with_capacity(64);
-        let mut id_buffer      = [0u8; 64];
-        let mut job_buffer     = [0u8; 64];
-        let mut total_buffer   = [0u8; 64];
+        let mut id_buffer      = [0u8; 20];
+        let mut job_buffer     = [0u8; 20];
+        let mut total_buffer   = [0u8; 20];
         let truncate           = self.num_inputs.numtoa(10, &mut total_buffer);
         let job_total          = &total_buffer[0..truncate];
 

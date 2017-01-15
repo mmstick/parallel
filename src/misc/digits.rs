@@ -4,14 +4,29 @@ pub trait Digits {
     fn digits(&self) -> Self;
 }
 
-impl Digits for usize {
-    fn digits(&self) -> usize {
-        let mut digits = if *self == 1 || *self % 10 == 0 { 1 } else { 0 };
-        let mut temp = 1;
-        while temp < *self {
-            digits += 1;
-            temp = (temp << 3) + (temp << 1);
+macro_rules! impl_digits_for {
+    ($t:ty) => {
+        impl Digits for $t {
+            fn digits(&self) -> $t {
+                let mut digits = if *self == 1 || *self % 10 == 0 { 1 } else { 0 };
+                let mut temp = 1;
+                while temp < *self {
+                    digits += 1;
+                    temp = (temp << 3) + (temp << 1);
+                }
+                digits
+            }
         }
-        digits
     }
 }
+
+impl_digits_for!(isize);
+impl_digits_for!(i8);
+impl_digits_for!(i16);
+impl_digits_for!(i32);
+impl_digits_for!(i64);
+impl_digits_for!(usize);
+impl_digits_for!(u8);
+impl_digits_for!(u16);
+impl_digits_for!(u32);
+impl_digits_for!(u64);

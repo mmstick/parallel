@@ -1,6 +1,6 @@
-use input_iterator::InputIterator;
+use input_iterator::{InputIterator, InputIteratorErr};
 use tokenizer::Token;
-use arguments::{self, InputIteratorErr};
+use arguments;
 use execute::command;
 use misc::NumToA;
 
@@ -16,8 +16,8 @@ pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
     let mut command_buffer = String::new();
     let slot               = "{SLOT_ID}";
     let pipe               = flags & arguments::PIPE_IS_ENABLED != 0;
-    let mut id_buffer      = [0u8; 64];
-    let mut total_buffer   = [0u8; 64];
+    let mut id_buffer      = [0u8; 20];
+    let mut total_buffer   = [0u8; 20];
     let truncate           = inputs.total_arguments.numtoa(10, &mut total_buffer);
     let job_total          = &total_buffer[0..truncate];
 

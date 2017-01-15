@@ -22,73 +22,76 @@ pub trait NumToA<T> {
     fn numtoa(self, base: T, string: &mut [u8]) -> usize;
 }
 
-impl NumToA<i32> for i32 {
-    fn numtoa(mut self, base: i32, string: &mut [u8]) -> usize {
-        let mut index = 0;
-        let mut is_negative = false;
+// A lookup table to prevent the need for conditional branching
+// The value of the remainder of each step will be used as the index
+const LOOKUP: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-        if self < 0 {
-            is_negative = true;
-            self = self.abs();
-        } else if self == 0 {
-            string[0] = b'0';
-            return 1;
+macro_rules! impl_unsized_numtoa_for {
+    ($t:ty) => {
+        impl NumToA<$t> for $t {
+            fn numtoa(mut self, base: $t, string: &mut [u8]) -> usize {
+                if self == 0 {
+                    string[0] = b'0';
+                    return 1;
+                }
+
+                let mut index = 0;
+                while self != 0 {
+                    let rem = self % base;
+                    string[index] = LOOKUP[rem as usize];
+                    index += 1;
+                    self /= base;
+                }
+
+                reverse(string, index);
+                index
+            }
         }
-
-        while self != 0 {
-            let rem = (self % base) as u8;
-            string[index] = if rem > 9 { (rem - 10) + b'a' } else { (rem + b'0')  };
-            index += 1;
-            self /= base;
-        }
-
-        if is_negative {
-            string[index] = b'-';
-            index += 1;
-        }
-
-        reverse(string, index);
-        index
     }
 }
 
-impl NumToA<usize> for usize {
-    fn numtoa(mut self, base: usize, string: &mut [u8]) -> usize {
-        if self == 0 {
-            string[0] = b'0';
-            return 1;
+macro_rules! impl_sized_numtoa_for {
+    ($t:ty) => {
+        impl NumToA<$t> for $t {
+            fn numtoa(mut self, base: $t, string: &mut [u8]) -> usize {
+                let mut index = 0;
+                let mut is_negative = false;
+
+                if self < 0 {
+                    is_negative = true;
+                    self = self.abs();
+                } else if self == 0 {
+                    string[0] = b'0';
+                    return 1;
+                }
+
+                while self != 0 {
+                    let rem = self % base;
+                    string[index] = LOOKUP[rem as usize];
+                    index += 1;
+                    self /= base;
+                }
+
+                if is_negative {
+                    string[index] = b'-';
+                    index += 1;
+                }
+
+                reverse(string, index);
+                index
+            }
         }
 
-        let mut index = 0;
-        while self != 0 {
-            let rem = (self % base) as u8;
-            string[index] = if rem > 9 { (rem - 10) + b'a' } else { (rem + b'0')  };
-            index += 1;
-            self /= base;
-        }
-
-        reverse(string, index);
-        index
     }
 }
 
-
-impl NumToA<u64> for u64 {
-    fn numtoa(mut self, base: u64, string: &mut [u8]) -> usize {
-        if self == 0 {
-            string[0] = b'0';
-            return 1;
-        }
-
-        let mut index = 0;
-        while self != 0 {
-            let rem = (self % base) as u8;
-            string[index] = if rem > 9 { (rem - 10) + b'a' } else { (rem + b'0')  };
-            index += 1;
-            self /= base;
-        }
-
-        reverse(string, index);
-        index
-    }
-}
+impl_sized_numtoa_for!(i8);
+impl_sized_numtoa_for!(i16);
+impl_sized_numtoa_for!(i32);
+impl_sized_numtoa_for!(i64);
+impl_sized_numtoa_for!(isize);
+impl_unsized_numtoa_for!(u8);
+impl_unsized_numtoa_for!(u16);
+impl_unsized_numtoa_for!(u32);
+impl_unsized_numtoa_for!(u64);
+impl_unsized_numtoa_for!(usize);

@@ -46,12 +46,12 @@ macro_rules! open_job_files {
     ($stdout_path:ident, $stderr_path:ident) => {{
         let stdout_file = loop {
             if let Ok(file) = File::open(&$stdout_path) { break file }
-            thread::sleep(Duration::from_millis(1));
+            thread::sleep(Duration::from_millis(100));
         };
 
         let stderr_file = loop {
             if let Ok(file) = File::open(&$stderr_path) { break file }
-            thread::sleep(Duration::from_millis(1));
+            thread::sleep(Duration::from_millis(100));
         };
 
         (stdout_file, stderr_file)
@@ -98,7 +98,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
     // A buffer for buffering the outputs of temporary files on disk.
     let mut read_buffer = [0u8; 8192];
     // A buffer for converting job ID's into a byte array representation of a string.
-    let mut id_buffer = [0u8; 64];
+    let mut id_buffer = [0u8; 20];
     // Generates the stdout and stderr paths, along with a truncation value to truncate the job ID from the paths.
     let (truncate_size, mut stdout_path, mut stderr_path) = filepaths::new_job(base, counter, &mut id_buffer);
     // If the joblog parameter was passed, open the file for writing.
@@ -113,9 +113,12 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
 
     // The loop will only quit once all inputs have been processed
     while counter < args.ninputs || job_counter < args.ninputs {
+        // Tracks whether the next file in the queue should be trailed.
         let mut tail_next = false;
 
+        // First receive the next input signal from the running jobs
         match input_rx.recv().unwrap() {
+            // If the job's id matches the current counter, there's no need to buffer it -- print immediately
             State::Completed(id, ref name) if id == counter => {
                 let mut stdout = stdout.lock();
                 let mut stderr = stderr.lock();
@@ -126,10 +129,12 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
                 remove_job_files!(stdout_path, stderr_path, stderr);
                 counter += 1;
             },
+            // Otherwise, add the job to the job complete buffer and mark the current job for trailing
             State::Completed(id, name) => {
                 buffer.push(State::Completed(id, name));
                 tail_next = true;
             },
+            // If an error occured and the id matches the counter, print the error immediately.
             State::Error(id, ref message) if id == counter => {
                 counter += 1;
                 if let Err(why) = error_file.write(message.as_bytes()) {
@@ -137,21 +142,29 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
                     let _ = write!(stderr, "parallel: I/O error: {}", why);
                 }
             },
+            // Otherwise add that error to the job complete buffer as well.
             State::Error(id, message) => buffer.push(State::Error(id, message)),
+            // If the joblog parameter was set, a joblog signal can be received.
+            // If the job ID matches the current job counter, write the log to the job log.
             State::JobLog(ref data) if data.job_id == job_counter => {
                 job_counter += 1;
                 let mut joblog = joblog.as_mut().unwrap();
                 data.write_entry(&mut joblog, &mut id_buffer, id_pad_length);
             },
+            // Otherwise, add it to the job buffer.
             State::JobLog(data) => job_buffer.push(data),
         }
 
+        // If the received job ID doesn't match the ID that we wanted, we should trail the current job's files
+        // and print new messages as they come available, until the completion signal has been received.
         if tail_next {
             filepaths::next_job_path(counter, truncate_size, &mut id_buffer, &mut stdout_path, &mut stderr_path);
             let (mut stdout_file, mut stderr_file) = open_job_files!(stdout_path, stderr_path);
 
             loop {
+                // If no message is received then tail the file, else handle the message
                 match input_rx.try_recv() {
+                    // When the completion signal is received, print remaining messages and break the loop
                     Ok(State::Completed(id, ref name)) if id == counter => {
                         let mut stdout = stdout.lock();
                         let mut stderr = stderr.lock();
@@ -161,21 +174,28 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
                         counter += 1;
                         break
                     },
+                    // We are only concerned about the current job ID
                     Ok(State::Completed(id, name)) => buffer.push(State::Completed(id, name)),
+                    // If an error occured, print the error and break
                     Ok(State::Error(id, ref message)) if id == counter => {
                         counter += 1;
                         if let Err(why) = error_file.write(message.as_bytes()) {
                             let mut stderr = stderr.lock();
                             let _ = write!(stderr, "parallel: I/O error: {}", why);
                         }
+                        break
                     },
+                    // We are only concerned about the current job ID
                     Ok(State::Error(id, message)) => buffer.push(State::Error(id, message)),
+                    // If the job ID matches the current job counter, write the log to the job log.
                     Ok(State::JobLog(ref data)) if data.job_id == job_counter => {
                         job_counter += 1;
                         let mut joblog = joblog.as_mut().unwrap();
                         data.write_entry(&mut joblog, &mut id_buffer, id_pad_length);
                     },
+                    // Otherwise, add it to the job buffer.
                     Ok(State::JobLog(data)) => job_buffer.push(data),
+                    // Tail the file and wait a specified time before checking for the next message
                     _ => {
                         let mut stdout = stdout.lock();
                         let mut stderr = stderr.lock();
@@ -190,6 +210,8 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
             }
         }
 
+        // Attempt to process results that have been buffered in the queue. Repeatedly check for the next sequence
+        // in the queue until no changes have been made.
         let mut changed = true;
         while changed {
             changed = false;
@@ -219,6 +241,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
             }
         }
 
+        // If the joblog parameter was set, also check for job buffer for entries that can be written.
         if let Some(ref mut joblog) = joblog {
             changed = true;
             while changed {
@@ -256,6 +279,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
     }
 }
 
+/// Drops states that have been processed and are no longer required
 fn drop_used_states(buffer: &mut SmallVec<[State; 32]>, drop: &mut SmallVec<[usize; 32]>) {
     drop.sort();
     for id in drop.drain().rev() {
@@ -263,6 +287,7 @@ fn drop_used_states(buffer: &mut SmallVec<[State; 32]>, drop: &mut SmallVec<[usi
     }
 }
 
+/// Drops job logs that have been processed and are no longer required
 fn drop_used_logs(buffer: &mut SmallVec<[JobLog; 32]>, drop: &mut SmallVec<[usize; 32]>) {
     drop.sort();
     for id in drop.drain().rev() {

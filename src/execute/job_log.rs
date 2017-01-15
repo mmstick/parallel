@@ -3,16 +3,24 @@ use std::fs::File;
 use std::io::{Write, BufWriter};
 use time::Timespec;
 
+// Each `JobLog` consists of a single job's statistics ready to be written to the job log file.
 pub struct JobLog {
+    /// The `job_id` is used to keep jobs written to the job log file in the correct order
     pub job_id:     usize,
+    /// The `start_time` is a measurement of when the job started, since the 1970 UNIX epoch
     pub start_time: Timespec,
+    /// The `runtime` is the actual time the application ran, in nanoseconds
     pub runtime:    u64,
+    /// The `exit_value` contains the exit value that the job's process quit with
     pub exit_value: i32,
+    /// The `signal` contains a non-zero value if the job was killed by a signal
     pub signal:     i32,
+    /// The actual `command` that was executed for this job
     pub command:    String
 }
 
 impl JobLog {
+    /// Writes an individual job log to the job log file, efficiently.
     pub fn write_entry(&self, joblog: &mut File, id_buffer: &mut [u8], pad: usize) {
         // 1: JobID
         let mut joblog = BufWriter::new(joblog);
@@ -22,11 +30,11 @@ impl JobLog {
             let _ = joblog.write(b" ");
         }
 
-        // 2: StartTime in seconds
-        let bytes_written = (self.start_time.sec as u64).numtoa(10, id_buffer);
+        // 2: StartTime in seconds, with up to two decimal places
+        let bytes_written = self.start_time.sec.numtoa(10, id_buffer);
         let _ = joblog.write(&id_buffer[0..bytes_written]);
         let _ = joblog.write(b".");
-        let decimal = (self.start_time.nsec as u64 % 1_000_000_000) / 1_000_000;
+        let decimal = (self.start_time.nsec % 1_000_000_000) / 1_000_000;
         if decimal == 0 {
             let _ = joblog.write(b"000");
         } else {
@@ -42,7 +50,7 @@ impl JobLog {
             let _ = joblog.write(b" ");
         }
 
-        // 3: Runtime in seconds
+        // 3: Runtime in seconds, with up to three decimal places.
         let bytes_written = (self.runtime / 1_000_000_000).numtoa(10, id_buffer);
         for _ in 0..10-(bytes_written + 4) {
             let _ = joblog.write(b" ");
@@ -83,6 +91,7 @@ impl JobLog {
     }
 }
 
+/// Creates the column headers in the first line of the job log file
 pub fn create(file: &mut File, padding: usize) {
     let mut joblog = BufWriter::new(file);
 

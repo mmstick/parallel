@@ -35,7 +35,7 @@ use std::sync::mpsc::channel;
 use arguments::Args;
 use execute::pipe::disk::State;
 use input_iterator::{InputIterator, InputsLock};
-use tokenizer::{Token, TokenErr, tokenize};
+use tokenizer::{Token, tokenize};
 
 /// The command string needs to be available in memory for the entirety of the application, so this
 /// is achievable by transmuting the lifetime of the reference into a static lifetime. To guarantee
@@ -60,6 +60,8 @@ fn main() {
     let mut args      = Args::new();
     let mut comm      = String::with_capacity(128);
     let raw_arguments = env::args().collect::<Vec<String>>();
+
+    // Attempt to obtain the default tempdir base path.
     let mut base  = match filepaths::base() {
         Some(base) => base,
         None => {
@@ -69,11 +71,13 @@ fn main() {
         }
     };
 
+    // Collect the command, arguments, and tempdir base path.
     args.ninputs = match args.parse(&mut comm, &raw_arguments, &mut base) {
         Ok(inputs) => inputs,
         Err(why) => why.handle(&raw_arguments)
     };
 
+    // Attempt to convert the base path into a string slice.
     let base_path = match base.to_str() {
         Some(base) => String::from(base),
         None => {
@@ -83,6 +87,7 @@ fn main() {
         }
     };
 
+    // Construct the paths of each of the required files using the base tempdir path.
     let mut unprocessed_path = base.clone();
     let mut processed_path   = base.clone();
     let mut errors_path      = base;
@@ -101,15 +106,8 @@ fn main() {
 
     // Attempt to tokenize the command argument into simple primitive placeholders.
     if let Err(error) = tokenize(&mut args.arguments, static_comm, &unprocessed_path, args.ninputs) {
-        let mut stderr = stderr.lock();
-        match error {
-            TokenErr::File(why) => {
-                let _ = write!(stderr, "unable to obtain Nth input: {}\n", why);
-            },
-            TokenErr::OutOfBounds => {
-                let _ = write!(stderr, "input token out of bounds\n");
-            }
-        }
+        let stderr = &mut stderr.lock();
+        let _ = writeln!(stderr, "{}", error);
         exit(1)
     }
 

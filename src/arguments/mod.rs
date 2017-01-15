@@ -19,7 +19,7 @@ use num_cpus;
 use self::errors::ParseErr;
 
 // Re-export key items from internal modules.
-pub use self::errors::{FileErr, InputIteratorErr};
+pub use self::errors::FileErr;
 
 #[derive(PartialEq)]
 enum Mode { Arguments, Command, Inputs, InputsAppend, Files, FilesAppend }
@@ -66,7 +66,8 @@ impl Args {
 
     /// Performs all the work related to parsing program arguments
     pub fn parse(&mut self, comm: &mut String, arguments: &[String], base_path: &mut PathBuf)
-        -> Result<usize, ParseErr> {
+        -> Result<usize, ParseErr>
+    {
         // Each list will consist of a series of input arguments
         let mut lists: Vec<Vec<String>>     = Vec::new();
         // The `current_inputs` variable will contain all the inputs that have been collected for the first list.

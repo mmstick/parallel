@@ -8,6 +8,8 @@ use super::signals;
 use super::pipe::disk::output as pipe_output;
 use super::pipe::disk::State;
 
+/// Receives a `Child` and handles the child according. If a `timeout` is specified then the process will be killed
+/// if it exceeds the `timeout` value. Job stats are also gathered in case the `--joblog` parameter was supplied.
 pub fn handle_child(mut child: Child, output: &Sender<State>, flags: u16, job_id: usize, input: String,
     has_timeout: bool, timeout: Duration, base: &str, buffer: &mut [u8]) -> (Timespec, Timespec, i32, i32)
 {

@@ -1,3 +1,4 @@
+mod argument_splitter;
 mod child;
 mod dry;
 mod exec_commands;

@@ -1,6 +1,7 @@
 pub mod functions;
 
 use arrayvec::ArrayVec;
+use std::fmt;
 use std::io;
 use std::path::Path;
 use std::borrow::Cow;
@@ -10,6 +11,15 @@ pub use self::functions::*;
 pub enum TokenErr {
     File(io::Error),
     OutOfBounds,
+}
+
+impl fmt::Display for TokenErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            TokenErr::File(ref io) => write!(f, "parallel: unable to obtain the Nth input: {}", io),
+            TokenErr::OutOfBounds  => write!(f, "parallel: input token out of bounds")
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]

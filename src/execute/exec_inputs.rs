@@ -30,7 +30,7 @@ impl ExecInputs {
 
         let has_timeout   = self.timeout != Duration::from_millis(0);
         let mut input     = String::with_capacity(64);
-        let mut id_buffer = [0u8; 64];
+        let mut id_buffer = [0u8; 20];
 
         while let Some(job_id) = self.inputs.try_next(&mut input) {
             if flags & arguments::VERBOSE_MODE != 0 {

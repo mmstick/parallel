@@ -1,5 +1,5 @@
-use arguments::{self, InputIteratorErr};
-use super::InputIterator;
+use arguments;
+use super::{InputIterator, InputIteratorErr};
 use sys_info;
 
 use std::thread;
@@ -17,21 +17,18 @@ pub struct InputsLock {
 }
 
 impl InputsLock {
+    /// Attempts to obtain the next input in the queue, returning `None` when it is finished.
+    /// It works the same as the `Iterator` trait's `next()` method, only re-using the same input buffer.
     pub fn try_next(&mut self, input: &mut String) -> Option<(usize)> {
         let mut inputs = self.inputs.lock().unwrap();
         let job_id = inputs.curr_argument;
         if self.flags & arguments::ETA != 0 {
-            let eta = inputs.eta();
             if self.completed {
                 inputs.completed += 1;
             } else {
                 self.completed = true;
             }
-            let stderr = io::stderr();
-            let mut stderr = &mut stderr.lock();
-            let message = format!("ETA: {}s Left: {} AVG: {:.2}s Completed: {}\n", eta.time / 1_000_000_000,
-                eta.left, eta.average as f64 / 1_000_000_000f64, inputs.completed);
-            let _ = stderr.write(message.as_bytes());
+            inputs.eta().write_to_stderr(inputs.completed);
         }
 
         if self.has_delay { thread::sleep(self.delay); }
