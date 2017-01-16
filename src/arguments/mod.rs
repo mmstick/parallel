@@ -5,7 +5,7 @@ mod man;
 mod redirection;
 
 use std::env;
-use std::fs;
+use std::fs::{self, create_dir_all};
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::num::ParseIntError;
 use std::path::{Path, PathBuf};
@@ -174,12 +174,20 @@ impl Args {
                                 },
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
-                                    println!("MIT/Rust Parallel 0.10.3\n");
+                                    println!("MIT/Rust Parallel 0.10.4\n");
                                     exit(0);
                                 },
                                 "tmpdir" | "tempdir" => {
                                     *base_path = PathBuf::from(arguments.get(index).ok_or(ParseErr::WorkDirNoValue)?);
                                     index += 1;
+
+                                    // Create the base directory if it does not exist
+                                    if let Err(why) = create_dir_all(base_path.as_path()) {
+                                        let stderr = io::stderr();
+                                        let stderr = &mut stderr.lock();
+                                        let _ = writeln!(stderr, "parallel: unable to create tempdir {:?}: {}", base_path.as_path(), why);
+                                        exit(1);
+                                    }
                                 }
                                 _ if &argument[2..9] == "shebang" => {
                                         shebang = true;

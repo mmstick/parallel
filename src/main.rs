@@ -23,7 +23,7 @@ mod shell;
 mod verbose;
 
 use std::env;
-use std::fs::File;
+use std::fs::{create_dir_all, File};
 use std::io::{self, BufRead, BufReader, Write};
 use std::mem;
 use std::process::exit;
@@ -71,6 +71,13 @@ fn main() {
         }
     };
 
+    // Create the base directory if it does not exist
+    if let Err(why) = create_dir_all(&base) {
+        let stderr = &mut stderr.lock();
+        let _ = writeln!(stderr, "parallel: unable to create tempdir {:?}: {}", base, why);
+        exit(1);
+    }
+
     // Collect the command, arguments, and tempdir base path.
     args.ninputs = match args.parse(&mut comm, &raw_arguments, &mut base) {
         Ok(inputs) => inputs,
@@ -81,8 +88,8 @@ fn main() {
     let base_path = match base.to_str() {
         Some(base) => String::from(base),
         None => {
-            let mut stderr = stderr.lock();
-            let _ = stderr.write(b"parallel: tempdir path is invalid");
+            let stderr = &mut stderr.lock();
+            let _ = writeln!(stderr, "parallel: tempdir path, {:?}, is invalid", base);
             exit(1);
         }
     };
