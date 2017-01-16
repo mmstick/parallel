@@ -252,6 +252,7 @@ operates:
 - **-h**, **--help**: Prints the manual for the application (recommended to pipe it to `less`).
 - **-j**, **--jobs**: Defines the number of jobs/threads to run in parallel.
 - **--joblog**: Logs job statistics to a designated file as they are completed.
+- **--joblog-8601**: Writes the start time in the ISO 8601 format: `YYYY-MM-DD hh:mm:ss`
 - **--memfree**: Defines the minimum amount of memory available before starting the next job.
 - **-n**, **--max-args**: Groups up to a certain number of arguments together in the same command line.
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.

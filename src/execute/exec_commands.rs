@@ -86,6 +86,7 @@ impl ExecCommands {
                     runtime:    runtime.num_nanoseconds().unwrap_or(0) as u64,
                     exit_value: exit_value,
                     signal:     signal,
+                    flags:      self.flags,
                     command:    command_buffer.clone(),
                 }));
             }

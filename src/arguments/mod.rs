@@ -34,6 +34,7 @@ pub const DRY_RUN:             u16 = 64;
 pub const SHELL_QUOTE:         u16 = 128;
 pub const ETA:                 u16 = 256;
 pub const JOBLOG:              u16 = 512;
+pub const JOBLOG_8601:         u16 = 1024;
 
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
@@ -142,6 +143,7 @@ impl Args {
                                     index += 1;
                                     self.flags |= JOBLOG;
                                 },
+                                "joblog-8601" => self.flags |= JOBLOG_8601,
                                 "jobs" => {
                                     let val = arguments.get(index).ok_or(ParseErr::JobsNoValue)?;
                                     self.ncores = jobs::parse(val)?;
@@ -172,7 +174,7 @@ impl Args {
                                 },
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
-                                    println!("MIT/Rust Parallel 0.10.1\n");
+                                    println!("MIT/Rust Parallel 0.10.3\n");
                                     exit(0);
                                 },
                                 "tmpdir" | "tempdir" => {

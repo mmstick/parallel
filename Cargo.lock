@@ -1,6 +1,6 @@
 [root]
 name = "parallel"
-version = "0.10.2"
+version = "0.10.3"
 dependencies = [
  "arrayvec 0.3.20 (registry+https://github.com/rust-lang/crates.io-index)",
  "itoa 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",

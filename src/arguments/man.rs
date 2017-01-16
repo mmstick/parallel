@@ -94,6 +94,9 @@ OPTIONS
     --joblog:
         Logs job statistics to a designated file as they are completed.
 
+    --joblog-8601:
+        Writes the start time in the ISO 8601 format: `YYYY-MM-DD hh:mm:ss`
+
     --memfree:
         Defines the minimum amount of memory available before starting the next job.
 

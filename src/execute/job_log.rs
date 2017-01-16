@@ -1,7 +1,8 @@
+use arguments::JOBLOG_8601;
 use misc::NumToA;
 use std::fs::File;
 use std::io::{Write, BufWriter};
-use time::Timespec;
+use time::{at, Timespec};
 
 // Each `JobLog` consists of a single job's statistics ready to be written to the job log file.
 pub struct JobLog {
@@ -15,6 +16,8 @@ pub struct JobLog {
     pub exit_value: i32,
     /// The `signal` contains a non-zero value if the job was killed by a signal
     pub signal:     i32,
+    /// Contains the configuration parameters for the joblog
+    pub flags:      u16,
     /// The actual `command` that was executed for this job
     pub command:    String
 }
@@ -30,29 +33,37 @@ impl JobLog {
             let _ = joblog.write(b" ");
         }
 
-        // 2: StartTime in seconds, with up to two decimal places
-        let bytes_written = self.start_time.sec.numtoa(10, id_buffer);
-        let _ = joblog.write(&id_buffer[0..bytes_written]);
-        let _ = joblog.write(b".");
-        let decimal = (self.start_time.nsec % 1_000_000_000) / 1_000_000;
-        if decimal == 0 {
-            let _ = joblog.write(b"000");
+        // 2: StartTime
+        if self.flags & JOBLOG_8601 != 0 {
+            // ISO 8601 representation of the time
+            let tm = at(self.start_time);
+            let message = format!("{}-{:02}-{:02} {:02}:{:02}:{:02}  ", 1900+tm.tm_year, 1+tm.tm_mon,
+                tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+            let _ = joblog.write(message.as_bytes());
+
         } else {
-            let bytes_written = decimal.numtoa(10, id_buffer);
-            match bytes_written {
-                1 => { let _ = joblog.write(b"00"); },
-                2 => { let _ = joblog.write(b"0"); },
-                _ => (),
-            };
+            // Represented in seconds, with two decimal places
+            let bytes_written = self.start_time.sec.numtoa(10, id_buffer);
             let _ = joblog.write(&id_buffer[0..bytes_written]);
-        }
-        for _ in 0..16-(bytes_written+4) {
-            let _ = joblog.write(b" ");
+            let _ = joblog.write(b".");
+            let decimal = (self.start_time.nsec % 1_000_000_000) / 1_000_000;
+            if decimal == 0 {
+                let _ = joblog.write(b"000");
+            } else {
+                let bytes_written = decimal.numtoa(10, id_buffer);
+                match bytes_written {
+                    1 => { let _ = joblog.write(b"00"); },
+                    2 => { let _ = joblog.write(b"0"); },
+                    _ => (),
+                };
+                let _ = joblog.write(&id_buffer[0..bytes_written]);
+            }
+            let _ = joblog.write(b"  ");
         }
 
         // 3: Runtime in seconds, with up to three decimal places.
         let bytes_written = (self.runtime / 1_000_000_000).numtoa(10, id_buffer);
-        for _ in 0..10-(bytes_written + 4) {
+        for _ in 0..6-bytes_written {
             let _ = joblog.write(b" ");
         }
         let _ = joblog.write(&id_buffer[0..bytes_written]);
@@ -92,7 +103,7 @@ impl JobLog {
 }
 
 /// Creates the column headers in the first line of the job log file
-pub fn create(file: &mut File, padding: usize) {
+pub fn create(file: &mut File, padding: usize, flags: u16) {
     let mut joblog = BufWriter::new(file);
 
     // Sequence column is at least 10 chars long, counting space separator.
@@ -100,8 +111,12 @@ pub fn create(file: &mut File, padding: usize) {
     let _ = joblog.write(b"Sequence  ");
     for _ in 0..id_column_resize { let _ = joblog.write(b" "); }
 
-    // StartTime column is always 17 chars long
-    let _ = joblog.write(b"StartTime(s)    ");
+    if flags & JOBLOG_8601 != 0 {
+        let _ = joblog.write(b"StartTime(ISO-8601)  ");
+    } else {
+        let _ = joblog.write(b"StartTime(s)    ");
+    }
+
 
     // Remaining columns, with the runtim column left-padded.
     let _ = joblog.write(b"Runtime(s)  ExitVal  Signal  Command\n");

@@ -75,6 +75,8 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
     let stdout = io::stdout();
     let stderr = io::stderr();
 
+    // Store the flags value outside of the `args` structure
+    let flags = args.flags;
     // Keeps track of which job is currently allowed to print to standard output/error.
     let mut counter = 0;
     // In the event that the joblog parameter was passed, a counter will be needed for jobs.
@@ -107,7 +109,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
         if id_pad_length < 10 { id_pad_length = 10; }
         let _ = fs::remove_file(&path);
         let mut file = fs::OpenOptions::new().create(true).write(true).open(path).unwrap();
-        job_log::create(&mut file, id_pad_length);
+        job_log::create(&mut file, id_pad_length, flags);
         file
     });
 
