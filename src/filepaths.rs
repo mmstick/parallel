@@ -1,5 +1,5 @@
+use numtoa::NumToA;
 use std::path::PathBuf;
-use misc::NumToA;
 
 #[cfg(not(windows))]
 pub fn base() -> Option<PathBuf> {
@@ -19,8 +19,8 @@ pub fn new_job(base: &str, id: usize, buffer: &mut [u8]) -> (usize, String, Stri
     let mut stdout = String::from(base) + "/stdout_";
     let mut stderr = String::from(base) + "/stderr_";
     let truncate_value = stdout.len();
-    let length = id.numtoa(10, buffer);
-    for byte in &buffer[0..length] {
+    let start_indice = id.numtoa(10, buffer);
+    for byte in &buffer[start_indice..] {
         stdout.push(*byte as char);
         stderr.push(*byte as char);
     }
@@ -30,8 +30,8 @@ pub fn new_job(base: &str, id: usize, buffer: &mut [u8]) -> (usize, String, Stri
 pub fn next_job_path(id: usize, truncate: usize, buffer: &mut [u8], stdout: &mut String, stderr: &mut String) {
     stdout.truncate(truncate);
     stderr.truncate(truncate);
-    let length = id.numtoa(10, buffer);
-    for byte in &buffer[0..length] {
+    let start_indice = id.numtoa(10, buffer);
+    for byte in &buffer[start_indice..] {
         stdout.push(*byte as char);
         stderr.push(*byte as char);
     }

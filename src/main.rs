@@ -5,6 +5,7 @@
 extern crate alloc_system;
 extern crate arrayvec;
 extern crate itoa;
+extern crate numtoa;
 extern crate num_cpus;
 extern crate permutate;
 extern crate smallvec;

@@ -1,5 +1,5 @@
 use arguments::JOBLOG_8601;
-use misc::NumToA;
+use numtoa::NumToA;
 use std::fs::File;
 use std::io::{Write, BufWriter};
 use time::{at, Timespec};
@@ -25,11 +25,12 @@ pub struct JobLog {
 impl JobLog {
     /// Writes an individual job log to the job log file, efficiently.
     pub fn write_entry(&self, joblog: &mut File, id_buffer: &mut [u8], pad: usize) {
+        let mut start_indice;
         // 1: JobID
         let mut joblog = BufWriter::new(joblog);
-        let bytes_written = (self.job_id + 1).numtoa(10, id_buffer);
-        let _ = joblog.write(&id_buffer[0..bytes_written]);
-        for _ in 0..pad-bytes_written {
+        start_indice = (self.job_id + 1).numtoa(10, id_buffer);
+        let _ = joblog.write(&id_buffer[start_indice..]);
+        for _ in 0..pad-id_buffer[start_indice..].len() {
             let _ = joblog.write(b" ");
         }
 
@@ -37,62 +38,64 @@ impl JobLog {
         if self.flags & JOBLOG_8601 != 0 {
             // ISO 8601 representation of the time
             let tm = at(self.start_time);
+            // TODO: Eliminate heap allocation
             let message = format!("{}-{:02}-{:02} {:02}:{:02}:{:02}  ", 1900+tm.tm_year, 1+tm.tm_mon,
                 tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
             let _ = joblog.write(message.as_bytes());
 
         } else {
             // Represented in seconds, with two decimal places
-            let bytes_written = self.start_time.sec.numtoa(10, id_buffer);
-            let _ = joblog.write(&id_buffer[0..bytes_written]);
+            // TODO: write an abstraction for printing decimals
+            start_indice = self.start_time.sec.numtoa(10, id_buffer);
+            let _ = joblog.write(&id_buffer[start_indice..]);
             let _ = joblog.write(b".");
             let decimal = (self.start_time.nsec % 1_000_000_000) / 1_000_000;
             if decimal == 0 {
                 let _ = joblog.write(b"000");
             } else {
-                let bytes_written = decimal.numtoa(10, id_buffer);
-                match bytes_written {
+                start_indice = decimal.numtoa(10, id_buffer);
+                match id_buffer[start_indice..].len() {
                     1 => { let _ = joblog.write(b"00"); },
                     2 => { let _ = joblog.write(b"0"); },
                     _ => (),
                 };
-                let _ = joblog.write(&id_buffer[0..bytes_written]);
+                let _ = joblog.write(&id_buffer[start_indice..]);
             }
             let _ = joblog.write(b"  ");
         }
 
         // 3: Runtime in seconds, with up to three decimal places.
-        let bytes_written = (self.runtime / 1_000_000_000).numtoa(10, id_buffer);
-        for _ in 0..6-bytes_written {
+        start_indice = (self.runtime / 1_000_000_000).numtoa(10, id_buffer);
+        for _ in 0..6-id_buffer[start_indice..].len() {
             let _ = joblog.write(b" ");
         }
-        let _ = joblog.write(&id_buffer[0..bytes_written]);
+        let _ = joblog.write(&id_buffer[start_indice..]);
         let _ = joblog.write(b".");
         let decimal = (self.runtime % 1_000_000_000) / 1_000_000;
         if decimal == 0 {
             let _ = joblog.write(b"000");
         } else {
-            let bytes_written = decimal.numtoa(10, id_buffer);
-            match bytes_written {
+            start_indice = decimal.numtoa(10, id_buffer);
+            match id_buffer[start_indice..].len() {
                 1 => { let _ = joblog.write(b"00"); },
                 2 => { let _ = joblog.write(b"0"); },
                 _ => (),
             };
-            let _ = joblog.write(&id_buffer[0..bytes_written]);
+            let _ = joblog.write(&id_buffer[start_indice..]);
         }
         let _ = joblog.write(b"  ");
 
         // 4: Exit Value
-        let bytes_written = self.exit_value.numtoa(10, id_buffer);
-        let _ = joblog.write(&id_buffer[0..bytes_written]);
-        for _ in 0..9-bytes_written {
+        start_indice = self.exit_value.numtoa(10, id_buffer);
+        let _ = joblog.write(&id_buffer[start_indice..]);
+        for _ in 0..9-id_buffer[start_indice..].len() {
             let _ = joblog.write(b" ");
         }
 
         // 5: Signal
-        let bytes_written = self.signal.numtoa(10, id_buffer);
-        let _ = joblog.write(&id_buffer[0..bytes_written]);
-        for _ in 0..8-bytes_written {
+        start_indice = self.signal.numtoa(10, id_buffer);
+        let _ = joblog.write(&id_buffer[start_indice..]);
+        for _ in 0..8-id_buffer[start_indice..].len() {
             let _ = joblog.write(b" ");
         }
 

@@ -1,7 +1,7 @@
 use arguments::{VERBOSE_MODE, JOBLOG};
 use execute::command::{self, CommandErr};
 use input_iterator::InputsLock;
-use misc::NumToA;
+use numtoa::NumToA;
 use time::{self, Timespec};
 use tokenizer::Token;
 use verbose;
@@ -39,8 +39,8 @@ impl ExecCommands {
         let mut id_buffer      = [0u8; 20];
         let mut job_buffer     = [0u8; 20];
         let mut total_buffer   = [0u8; 20];
-        let truncate           = self.num_inputs.numtoa(10, &mut total_buffer);
-        let job_total          = &total_buffer[0..truncate];
+        let mut start_indice   = self.num_inputs.numtoa(10, &mut total_buffer);
+        let job_total          = &total_buffer[start_indice..];
 
 
         while let Some(job_id) = self.inputs.try_next(&mut input) {
@@ -48,10 +48,10 @@ impl ExecCommands {
                 verbose::processing_task(&stdout, job_id+1, self.num_inputs, &input);
             }
 
-            let truncate = (job_id+1).numtoa(10, &mut id_buffer);
+            start_indice = (job_id+1).numtoa(10, &mut id_buffer);
             let command = command::ParallelCommand {
                 slot_no:          slot,
-                job_no:           &id_buffer[0..truncate],
+                job_no:           &id_buffer[start_indice..],
                 job_total:        job_total,
                 input:            &input,
                 command_template: self.arguments,
