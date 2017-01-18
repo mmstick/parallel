@@ -104,7 +104,8 @@ impl Args {
                         // If the second character exists, everything's OK.
                         let character = char_iter.next().ok_or_else(|| ParseErr::InvalidArgument(index-1))?;
                         if character == 'j' {
-                            self.ncores = parse_jobs(argument, arguments.get(index), &mut index)?;
+                            let val = parse_jobs(argument, arguments.get(index), &mut index)?;
+                            if val != 0 { self.ncores = val; }
                         } else if character == 'n' {
                             max_args = parse_max_args(argument, arguments.get(index), &mut index)?;
                         } else if character != '-' {
@@ -146,8 +147,8 @@ impl Args {
                                 },
                                 "joblog-8601" => self.flags |= JOBLOG_8601,
                                 "jobs" => {
-                                    let val = arguments.get(index).ok_or(ParseErr::JobsNoValue)?;
-                                    self.ncores = jobs::parse(val)?;
+                                    let val = jobs::parse(arguments.get(index).ok_or(ParseErr::JobsNoValue)?)?;
+                                    if val != 0 { self.ncores = val; }
                                     index += 1;
                                 },
                                 "line-buffer" | "lb" => (),
