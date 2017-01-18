@@ -137,6 +137,7 @@ impl Args {
                                     println!("{}", man::MAN_PAGE);
                                     exit(0);
                                 },
+                                "group" => (),
                                 "joblog" => {
                                     let file = arguments.get(index).ok_or(ParseErr::JoblogNoValue)?;
                                     self.joblog = Some(file.to_owned());
@@ -149,6 +150,7 @@ impl Args {
                                     self.ncores = jobs::parse(val)?;
                                     index += 1;
                                 },
+                                "line-buffer" | "lb" => (),
                                 "num-cpu-cores" => {
                                     println!("{}", num_cpus::get());
                                     exit(0);
@@ -163,6 +165,7 @@ impl Args {
                                     self.memory = parse_memory(val).map_err(|_| ParseErr::MemInvalid(index))?;
                                     index += 1;
                                 },
+                                "no-notice" => (),
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
                                 "shellquote" => self.flags |= DRY_RUN + SHELL_QUOTE,
@@ -172,9 +175,10 @@ impl Args {
                                     self.timeout = Duration::from_millis((seconds * 1000f64) as u64);
                                     index += 1;
                                 },
+                                "ungroup" => (),
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
-                                    println!("MIT/Rust Parallel 0.10.4\n");
+                                    println!("MIT/Rust Parallel 0.10.6\n");
                                     exit(0);
                                 },
                                 "tmpdir" | "tempdir" => {
