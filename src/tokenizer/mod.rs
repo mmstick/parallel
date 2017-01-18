@@ -87,7 +87,8 @@ pub fn tokenize(tokens: &mut ArrayVec<[Token; 128]>, template: &'static str, pat
     // Mark the index where the argument's first character begins.
     let mut argument_start = 0;
 
-    for (id, character) in template.chars().enumerate() {
+    let mut id = 0;
+    for character in template.chars() {
         match (character, pattern_matching) {
             // This condition initiates the pattern matching
             ('{', false) => {
@@ -126,6 +127,7 @@ pub fn tokenize(tokens: &mut ArrayVec<[Token; 128]>, template: &'static str, pat
             },
             (_, _) => ()
         }
+        id += character.len_utf8();
     }
 
     // In the event that there is leftover data that was not matched, this will add the final

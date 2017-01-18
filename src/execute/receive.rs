@@ -93,7 +93,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
     let processed_file = fs::OpenOptions::new().create(true).write(true).open(processed_path).unwrap();
     let mut processed_file = BufWriter::new(processed_file);
     // An opened disk buffer pointing to the error file.
-    let error_file = fs::OpenOptions::new().create(true).write(true).open(errors_path).unwrap();
+    let error_file = fs::OpenOptions::new().truncate(true).create(true).write(true).open(errors_path).unwrap();
     let mut error_file = BufWriter::new(error_file);
     // Obtaining the number of digits in the total number of inputs is required for padding purposes.
     let mut id_pad_length = args.ninputs.digits();

@@ -263,7 +263,7 @@ impl Args {
 fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf) -> Result<usize, ParseErr> {
     println!("parallel: reading inputs from standard input");
     unprocessed_path.push("unprocessed");
-    let disk_buffer = fs::OpenOptions::new().write(true).create(true).open(&unprocessed_path)
+    let disk_buffer = fs::OpenOptions::new().truncate(true).write(true).create(true).open(&unprocessed_path)
         .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.clone(), why)))?;
     let mut disk_buffer = BufWriter::new(disk_buffer);
     let mut number_of_arguments = 0;
@@ -314,7 +314,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
     mut unprocessed_path: PathBuf) -> Result<usize, ParseErr>
 {
     unprocessed_path.push("unprocessed");
-    let disk_buffer = fs::OpenOptions::new().write(true).create(true).open(&unprocessed_path)
+    let disk_buffer = fs::OpenOptions::new().truncate(true).write(true).create(true).open(&unprocessed_path)
         .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.to_owned(), why)))?;
     let mut disk_buffer = BufWriter::new(disk_buffer);
     let mut number_of_arguments = 0;
