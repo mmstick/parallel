@@ -3,9 +3,9 @@ pub fn remove_extension(input: &str) -> &str {
     let mut dir_index = 0;
     let mut ext_index = 0;
 
-    for (id, character) in input.chars().enumerate() {
-        if character == '/' { dir_index = id }
-        if character == '.' { ext_index = id; }
+    for (id, character) in input.bytes().enumerate() {
+        if character == b'/' { dir_index = id; }
+        if character == b'.' { ext_index = id; }
     }
 
     // Account for hidden files and directories
@@ -14,16 +14,16 @@ pub fn remove_extension(input: &str) -> &str {
 
 pub fn basename(input: &str) -> &str {
     let mut index = 0;
-    for (id, character) in input.chars().enumerate() {
-        if character == '/' { index = id; }
+    for (id, character) in input.bytes().enumerate() {
+        if character == b'/' { index = id; }
     }
     if index == 0 { input } else { &input[index+1..] }
 }
 
 pub fn dirname(input: &str) -> &str {
     let mut index = 0;
-    for (id, character) in input.chars().enumerate() {
-        if character == '/' { index = id; }
+    for (id, character) in input.bytes().enumerate() {
+        if character == b'/' { index = id; }
     }
     if index == 0 { "." } else { &input[0..index] }
 }
@@ -41,6 +41,11 @@ fn path_remove_ext_dir() {
 #[test]
 fn path_hidden() {
     assert_eq!(remove_extension(".foo"), ".foo")
+}
+
+#[test]
+fn path_remove_ext_utf8() {
+    assert_eq!(remove_extension("💖.txt"), "💖");
 }
 
 #[test]
@@ -64,6 +69,12 @@ fn path_basename_empty() {
 }
 
 #[test]
+fn path_basename_utf8() {
+    assert_eq!(basename("💖/foo.txt"), "foo.txt");
+    assert_eq!(basename("dir/💖.txt"), "💖.txt");
+}
+
+#[test]
 fn path_dirname_simple() {
     assert_eq!(dirname("foo.txt"), ".");
 }
@@ -71,6 +82,12 @@ fn path_dirname_simple() {
 #[test]
 fn path_dirname_dir() {
     assert_eq!(dirname("dir/foo.txt"), "dir");
+}
+
+#[test]
+fn path_dirname_utf8() {
+    assert_eq!(dirname("💖/foo.txt"), "💖");
+    assert_eq!(dirname("dir/💖.txt"), "dir");
 }
 
 #[test]

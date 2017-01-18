@@ -87,11 +87,10 @@ pub fn tokenize(tokens: &mut ArrayVec<[Token; 128]>, template: &'static str, pat
     // Mark the index where the argument's first character begins.
     let mut argument_start = 0;
 
-    let mut id = 0;
-    for character in template.chars() {
+    for (id, character) in template.bytes().enumerate() {
         match (character, pattern_matching) {
             // This condition initiates the pattern matching
-            ('{', false) => {
+            (b'{', false) => {
                 pattern_matching = true;
                 pattern_start    = id;
 
@@ -104,7 +103,7 @@ pub fn tokenize(tokens: &mut ArrayVec<[Token; 128]>, template: &'static str, pat
                 }
             },
             // This condition ends the pattern matching process
-            ('}', true)  => {
+            (b'}', true)  => {
                 pattern_matching = false;
                 if id == pattern_start+1 {
                     // This condition will be met when the pattern is "{}".
@@ -127,7 +126,6 @@ pub fn tokenize(tokens: &mut ArrayVec<[Token; 128]>, template: &'static str, pat
             },
             (_, _) => ()
         }
-        id += character.len_utf8();
     }
 
     // In the event that there is leftover data that was not matched, this will add the final
@@ -152,8 +150,8 @@ fn match_token(pattern: &'static str, path: &Path, nargs: usize) -> Result<Optio
         "/." => Ok(Some(Token::BaseAndExt)),
         "##" => Ok(Some(Token::Argument(Cow::Owned(nargs.to_string())))),
         _    => {
-            let ndigits = pattern.chars().take_while(|&x| x.is_numeric()).count();
-            let nchars  = ndigits + pattern.chars().skip(ndigits).count();
+            let ndigits = pattern.bytes().take_while(|&x| (x as char).is_numeric()).count();
+            let nchars  = ndigits + pattern.bytes().skip(ndigits).count();
             if ndigits != 0 {
                 let number = pattern[0..ndigits].parse::<usize>().unwrap();
                 if ndigits == nchars {

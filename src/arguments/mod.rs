@@ -96,28 +96,28 @@ impl Args {
                 while let Some(argument) = arguments.get(index) {
                     index += 1;
 
-                    let mut char_iter = argument.chars();
+                    let mut char_iter = argument.bytes();
 
                     // If the first character is a '-' then it will be processed as an argument.
                     // We can guarantee that there will always be at least one character.
-                    if char_iter.next().unwrap() == '-' {
+                    if char_iter.next().unwrap() == b'-' {
                         // If the second character exists, everything's OK.
                         let character = char_iter.next().ok_or_else(|| ParseErr::InvalidArgument(index-1))?;
-                        if character == 'j' {
+                        if character == b'j' {
                             let val = parse_jobs(argument, arguments.get(index), &mut index)?;
                             if val != 0 { self.ncores = val; }
-                        } else if character == 'n' {
+                        } else if character == b'n' {
                             max_args = parse_max_args(argument, arguments.get(index), &mut index)?;
-                        } else if character != '-' {
-                            for character in argument[1..].chars() {
+                        } else if character != b'-' {
+                            for character in argument[1..].bytes() {
                                 match character {
-                                    'h' => {
+                                    b'h' => {
                                         println!("{}", man::MAN_PAGE);
                                         exit(0);
                                     },
-                                    'p' => self.flags |= PIPE_IS_ENABLED,
-                                    's' => self.flags |= QUIET_MODE,
-                                    'v' => self.flags |= VERBOSE_MODE,
+                                    b'p' => self.flags |= PIPE_IS_ENABLED,
+                                    b's' => self.flags |= QUIET_MODE,
+                                    b'v' => self.flags |= VERBOSE_MODE,
                                     _ => {
                                         return Err(ParseErr::InvalidArgument(index-1))
                                     }
@@ -522,17 +522,17 @@ fn merge_lists(original: &mut Vec<String>, append: &mut Vec<String>) {
 /// When the `--memfree` option has been selected, this will attempt to parse the unit's value, multiplying
 /// that value by the unit's multiplier.
 fn parse_memory(input: &str) -> Result<u64, ParseIntError> {
-    let result = match input.chars().last().unwrap() {
-        'k' => &input[..input.len()-1].parse::<u64>()? * 1_000,
-        'K' => &input[..input.len()-1].parse::<u64>()? * 1_024,
-        'm' => &input[..input.len()-1].parse::<u64>()? * 1_000_000,
-        'M' => &input[..input.len()-1].parse::<u64>()? * 1_048_576,
-        'g' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000,
-        'G' => &input[..input.len()-1].parse::<u64>()? * 1_073_741_824,
-        't' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000_000,
-        'T' => &input[..input.len()-1].parse::<u64>()? * 1_099_511_627_776,
-        'p' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000_000_000,
-        'P' => &input[..input.len()-1].parse::<u64>()? * 1_125_899_906_842_624,
+    let result = match input.bytes().last().unwrap() {
+        b'k' => &input[..input.len()-1].parse::<u64>()? * 1_000,
+        b'K' => &input[..input.len()-1].parse::<u64>()? * 1_024,
+        b'm' => &input[..input.len()-1].parse::<u64>()? * 1_000_000,
+        b'M' => &input[..input.len()-1].parse::<u64>()? * 1_048_576,
+        b'g' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000,
+        b'G' => &input[..input.len()-1].parse::<u64>()? * 1_073_741_824,
+        b't' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000_000,
+        b'T' => &input[..input.len()-1].parse::<u64>()? * 1_099_511_627_776,
+        b'p' => &input[..input.len()-1].parse::<u64>()? * 1_000_000_000_000_000,
+        b'P' => &input[..input.len()-1].parse::<u64>()? * 1_125_899_906_842_624,
         _   => input.parse::<u64>()?
     };
     Ok(result)
