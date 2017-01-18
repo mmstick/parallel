@@ -178,7 +178,7 @@ impl Args {
                                 "ungroup" => (),
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
-                                    println!("MIT/Rust Parallel 0.10.6\n");
+                                    println!("MIT/Rust Parallel {}", env!("CARGO_PKG_VERSION"));
                                     exit(0);
                                 },
                                 "tmpdir" | "tempdir" => {
