@@ -40,29 +40,11 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
 
 ```
 ~/D/parallel (master) $ seq 1 10000 | time -v /usr/bin/parallel echo > /dev/null
-    Command being timed: "/usr/bin/parallel echo"
     User time (seconds): 194.73
     System time (seconds): 66.49
     Percent of CPU this job got: 230%
     Elapsed (wall clock) time (h:mm:ss or m:ss): 1:53.08
-    Average shared text size (kbytes): 0
-    Average unshared data size (kbytes): 0
-    Average stack size (kbytes): 0
-    Average total size (kbytes): 0
     Maximum resident set size (kbytes): 16140
-    Average resident set size (kbytes): 0
-    Major (requiring I/O) page faults: 0
-    Minor (reclaiming a frame) page faults: 10329017
-    Voluntary context switches: 102095
-    Involuntary context switches: 229910
-    Swaps: 0
-    File system inputs: 0
-    File system outputs: 0
-    Socket messages sent: 0
-    Socket messages received: 0
-    Signals delivered: 0
-    Page size (bytes): 4096
-    Exit status: 0
 ```
 
 #### Cat the contents of every binary in /usr/bin
@@ -73,24 +55,18 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
     System time (seconds): 27.67
     Percent of CPU this job got: 222%
     Elapsed (wall clock) time (h:mm:ss or m:ss): 0:44.62
-    Average shared text size (kbytes): 0
-    Average unshared data size (kbytes): 0
-    Average stack size (kbytes): 0
-    Average total size (kbytes): 0
     Maximum resident set size (kbytes): 17576
-    Average resident set size (kbytes): 0
-    Major (requiring I/O) page faults: 8
-    Minor (reclaiming a frame) page faults: 4112045
-    Voluntary context switches: 51331
-    Involuntary context switches: 101494
-    Swaps: 0
-    File system inputs: 1512
-    File system outputs: 0
-    Socket messages sent: 0
-    Socket messages received: 0
-    Signals delivered: 0
-    Page size (bytes): 4096
-    Exit status: 5
+```
+
+#### Logging echo ::: $(seq 1 1000)
+
+```
+~/D/parallel (master) $ time -v /usr/bin/parallel --joblog log echo ::: $(seq 1 1000) > /dev/null
+User time (seconds): 21.27
+System time (seconds): 7.44
+Percent of CPU this job got: 238%
+Elapsed (wall clock) time (h:mm:ss or m:ss): 0:12.05
+Maximum resident set size (kbytes): 16624
 ```
 
 ### Rust Parallel (Built with MUSL target)
@@ -106,24 +82,7 @@ Command being timed: "target/x86_64-unknown-linux-musl/release/parallel echo"
     System time (seconds): 2.85
     Percent of CPU this job got: 104%
     Elapsed (wall clock) time (h:mm:ss or m:ss): 0:03.20
-    Average shared text size (kbytes): 0
-    Average unshared data size (kbytes): 0
-    Average stack size (kbytes): 0
-    Average total size (kbytes): 0
     Maximum resident set size (kbytes): 1768
-    Average resident set size (kbytes): 0
-    Major (requiring I/O) page faults: 0
-    Minor (reclaiming a frame) page faults: 823754
-    Voluntary context switches: 82723
-    Involuntary context switches: 64834
-    Swaps: 0
-    File system inputs: 0
-    File system outputs: 320
-    Socket messages sent: 0
-    Socket messages received: 0
-    Signals delivered: 0
-    Page size (bytes): 4096
-    Exit status: 0
 ```
 
 #### Cat the contents of every binary in /usr/bin
@@ -134,24 +93,18 @@ Command being timed: "target/x86_64-unknown-linux-musl/release/parallel echo"
     System time (seconds): 4.61
     Percent of CPU this job got: 192%
     Elapsed (wall clock) time (h:mm:ss or m:ss): 0:02.89
-    Average shared text size (kbytes): 0
-    Average unshared data size (kbytes): 0
-    Average stack size (kbytes): 0
-    Average total size (kbytes): 0
     Maximum resident set size (kbytes): 1868
-    Average resident set size (kbytes): 0
-    Major (requiring I/O) page faults: 0
-    Minor (reclaiming a frame) page faults: 350216
-    Voluntary context switches: 68772
-    Involuntary context switches: 40085
-    Swaps: 0
-    File system inputs: 368
-    File system outputs: 416
-    Socket messages sent: 0
-    Socket messages received: 0
-    Signals delivered: 0
-    Page size (bytes): 4096
-    Exit status: 0
+```
+
+#### Logging echo ::: $(seq 1 1000)
+
+```
+~/D/parallel (master) $ time -v target/release/x86_64-unknown-linux-musl/release/parallel --joblog log echo ::: $(seq 1 1000)
+User time (seconds): 0.06
+System time (seconds): 0.29
+Percent of CPU this job got: 70%
+Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.51
+Maximum resident set size (kbytes): 1768
 ```
 
 ## Syntax Examples

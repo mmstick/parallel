@@ -195,9 +195,9 @@ impl Args {
                                     }
                                 }
                                 _ if &argument[2..9] == "shebang" => {
-                                        shebang = true;
-                                        comm.push_str(&argument[10..]);
-                                        break
+                                    shebang = true;
+                                    comm.push_str(&argument[10..]);
+                                    break
                                 },
                                 _ => return Err(ParseErr::InvalidArgument(index-1)),
                             }

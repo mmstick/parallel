@@ -202,10 +202,10 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
                         let mut stdout = stdout.lock();
                         let mut stderr = stderr.lock();
                         let mut bytes_read = stdout_file.read(&mut read_buffer).unwrap();
-                        if bytes_read != 0 { stdout.write(&read_buffer[0..bytes_read]).unwrap(); }
+                        if bytes_read != 0 { stdout.write_all(&read_buffer[0..bytes_read]).unwrap(); }
 
                         bytes_read = stderr_file.read(&mut read_buffer).unwrap();
-                        if bytes_read != 0 { stderr.write(&read_buffer[0..bytes_read]).unwrap(); }
+                        if bytes_read != 0 { stderr.write_all(&read_buffer[0..bytes_read]).unwrap(); }
                         thread::sleep(Duration::from_millis(1));
                     }
                 }
