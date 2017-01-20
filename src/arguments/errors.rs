@@ -48,6 +48,8 @@ pub enum ParseErr {
     MemNoValue,
     /// No arguments were given, so no action can be taken.
     NoArguments,
+    /// An invalid command was supplied whose quotes aren't terminated.
+    NonTerminated(String),
     /// The standard input could not be redirected to the given file
     RedirFile(PathBuf),
     /// The timeout parameter was not set to a number.
@@ -106,6 +108,9 @@ impl ParseErr {
             },
             ParseErr::NoArguments => {
                 let _ = write!(stderr, "no input arguments were given.\n");
+            },
+            ParseErr::NonTerminated(command) => {
+                let _ = write!(stderr, "command is not properly terminated:\n  $ {}\nTip: Try using the --quote parameter to escape your command\n", command);
             },
             ParseErr::RedirFile(path) => {
                 let _ = write!(stderr, "an error occurred while redirecting file: {:?}\n", path);

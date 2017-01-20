@@ -77,6 +77,8 @@ impl Args {
         let mut max_args = 0;
         // It is important for the custom `InputIterator` to know how many input arguments are to be processed.
         let mut number_of_arguments = 0;
+        // If the `--quote` parameter was passed, this will quote the command argument.
+        let mut quote_enabled = false;
 
         // If no arguments were passed, we can assume that the standard input will be parsing commands.
         // Otherwise, we will parse all the arguments and take actions based on these inputs.
@@ -96,6 +98,7 @@ impl Args {
                 while let Some(argument) = arguments.get(index) {
                     index += 1;
 
+                    // Initialize this as an iterator because we're going to borrow it multiple times.
                     let mut char_iter = argument.bytes();
 
                     // If the first character is a '-' then it will be processed as an argument.
@@ -116,6 +119,7 @@ impl Args {
                                         exit(0);
                                     },
                                     b'p' => self.flags |= PIPE_IS_ENABLED,
+                                    b'q' => quote_enabled = true,
                                     b's' => self.flags |= QUIET_MODE,
                                     b'v' => self.flags |= VERBOSE_MODE,
                                     _ => {
@@ -169,6 +173,7 @@ impl Args {
                                 "no-notice" => (),
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
+                                "quote" => quote_enabled = true,
                                 "shellquote" => self.flags |= DRY_RUN + SHELL_QUOTE,
                                 "timeout" => {
                                     let val = arguments.get(index).ok_or(ParseErr::TimeoutNoValue)?;
@@ -208,7 +213,11 @@ impl Args {
                             "::::" => mode = Mode::Files,
                             _ => {
                                 // The command has been supplied, and argument parsing is over.
-                                comm.push_str(argument);
+                                if quote_enabled {
+                                    comm.push_str(&quote_command(argument));
+                                } else {
+                                    comm.push_str(argument);
+                                }
                                 mode = Mode::Command;
                             }
                         }
@@ -217,8 +226,17 @@ impl Args {
                 }
             }
 
+            // If no command was supplied, then inputs are the commands
+            if comm.is_empty() {
+                self.flags |= INPUTS_ARE_COMMANDS;
+            } else {
+                // Ensure that the command has each possible quote terminated
+                if !quote_enabled { check_command(comm.as_str())?; }
+            }
+
             if let Some(path) = redirection::input_was_redirected() {
-                file_parse(&mut current_inputs, path.to_str().ok_or_else(|| ParseErr::RedirFile(path.clone()))?)?;
+                file_parse(&mut current_inputs, path.to_str().ok_or_else(|| ParseErr::RedirFile(path.clone()))?,
+                    self.flags & INPUTS_ARE_COMMANDS != 0)?;
             } else if let Mode::Command = mode {
                 while let Some(argument) = arguments.get(index) {
                     index += 1;
@@ -230,25 +248,42 @@ impl Args {
                         // All other arguments are command arguments.
                         _ => {
                             comm.push(' ');
-                            comm.push_str(argument);
+                            if quote_enabled {
+                                comm.push_str(&quote_inputs(argument));
+                            } else {
+                                comm.push_str(argument);
+                            }
                             continue
                         }
                     }
                     break
                 }
 
-                if shebang {
-                    file_parse(&mut current_inputs, &arguments.last().unwrap())?;
+                // If no command was supplied, then inputs are the commands
+                if comm.is_empty() {
+                    self.flags |= INPUTS_ARE_COMMANDS;
                 } else {
-                    parse_inputs(arguments, index, &mut current_inputs, &mut lists, &mut mode)?;
+                    // Ensure that the command has each possible quote terminated
+                    if !quote_enabled { check_command(comm.as_str())?; }
+                }
+
+                if shebang {
+                    file_parse(&mut current_inputs, &arguments.last().unwrap(),
+                        self.flags & INPUTS_ARE_COMMANDS != 0)?;
+                } else {
+                    parse_inputs(arguments, index, &mut current_inputs, &mut lists, &mut mode,
+                        self.flags & INPUTS_ARE_COMMANDS != 0)?;
                 }
             } else {
-                parse_inputs(arguments, index, &mut current_inputs, &mut lists, &mut mode)?;
+                parse_inputs(arguments, index, &mut current_inputs, &mut lists, &mut mode,
+                    self.flags & INPUTS_ARE_COMMANDS != 0)?;
             }
 
             number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, base_path.clone())?;
         } else if let Some(path) = redirection::input_was_redirected() {
-            file_parse(&mut current_inputs, path.to_str().ok_or_else(|| ParseErr::RedirFile(path.clone()))?)?;
+            // Read inputs as commands
+            let path = path.to_str().ok_or_else(|| ParseErr::RedirFile(path.clone()))?;
+            file_parse(&mut current_inputs, path, true)?;
             number_of_arguments = write_inputs_to_disk(lists, current_inputs, max_args, base_path.clone())?;
         }
 
@@ -258,10 +293,60 @@ impl Args {
 
         if number_of_arguments == 0 { return Err(ParseErr::NoArguments); }
 
-        if comm.is_empty() { self.flags |= INPUTS_ARE_COMMANDS; }
-
         Ok(number_of_arguments)
     }
+}
+
+/// Ensures that the command supplied is properly terminated
+fn check_command(input: &str) -> Result<(), ParseErr> {
+    let (mut single, mut double, mut back) = (false, false, false);
+    for byte in input.bytes() {
+        match byte {
+            _ if back => back = !back,
+            b'\\'     => back = !back,
+            b'"'      => double = !double,
+            b'\''     => single = !single,
+            _         => (),
+        }
+    }
+
+    if double || single { Err(ParseErr::NonTerminated(String::from(input))) } else { Ok(()) }
+}
+
+// Performs the same operation as `quote_inputs`, but doesn't escape the first word found
+fn quote_command(input: &str) -> String {
+    let mut output = Vec::with_capacity(input.len());
+    let mut bytes = input.bytes();
+    while let Some(byte) = bytes.next() {
+        output.push(byte);
+        if byte == b' ' { break }
+    }
+
+    for byte in bytes {
+        match byte {
+            b'"' | b'\\' | b'\'' | b' ' => output.push(b'\\'),
+            _ => ()
+        }
+        output.push(byte);
+    }
+
+    // Don't worry, this is safe!
+    unsafe { String::from_utf8_unchecked(output) }
+}
+
+// Escapes space, backslash, and quote characters
+fn quote_inputs(input: &str) -> String {
+    let mut output = Vec::with_capacity(input.len());
+    for character in input.bytes() {
+        match character {
+            b'"' | b'\\' | b'\'' | b' ' => output.push(b'\\'),
+            _ => ()
+        }
+        output.push(character);
+    }
+
+    // Don't worry, this is safe!
+    unsafe { String::from_utf8_unchecked(output) }
 }
 
 /// Write all arguments from standard input to the disk, recording the number of arguments that were read.
@@ -276,7 +361,7 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf) -> Result
     let stdin = io::stdin();
     if max_args < 2 {
         for line in stdin.lock().lines() {
-            if let Ok(line) = line {
+            if let Ok(line) = line.map(|x| quote_inputs(&x)) {
                 disk_buffer.write(line.as_bytes()).and_then(|_| disk_buffer.write(b"\n"))
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 number_of_arguments += 1;
@@ -285,7 +370,7 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf) -> Result
     } else {
         let mut max_args_index = max_args;
         for line in stdin.lock().lines() {
-            if let Ok(line) = line {
+            if let Ok(line) = line.map(|x| quote_inputs(&x)) {
                 if max_args_index == max_args {
                     max_args_index -= 1;
                     number_of_arguments += 1;
@@ -293,13 +378,13 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf) -> Result
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 } else if max_args_index == 1 {
                     max_args_index = max_args;
-                    disk_buffer.write(b" ")
+                    disk_buffer.write(b"\\ ")
                         .and_then(|_| disk_buffer.write(line.as_bytes()))
                         .and_then(|_| disk_buffer.write(b"\n"))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 } else {
                     max_args_index -= 1;
-                    disk_buffer.write(b" ")
+                    disk_buffer.write(b"\\ ")
                         .and_then(|_| disk_buffer.write(line.as_bytes()))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 }
@@ -343,7 +428,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
             disk_buffer.write(iter.next().unwrap().as_bytes())
                 .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
             for element in iter {
-                disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
             }
 
@@ -357,7 +442,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
                 disk_buffer.write(iter.next().unwrap().as_bytes())
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 for element in iter {
-                    disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                    disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 }
                 disk_buffer.write(b"\n")
@@ -376,17 +461,17 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
 
                     for element in iter {
-                        disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                        disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
                             .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                     }
                 } else if max_args_index == 1 {
                     max_args_index = max_args;
-                    disk_buffer.write(b" ")
+                    disk_buffer.write(b"\\ ")
                         .and_then(|_| disk_buffer.write(iter.next().unwrap().as_bytes()))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
 
                     for element in iter {
-                        disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                        disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
                             .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                     }
 
@@ -394,12 +479,12 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 } else {
                     max_args_index -= 1;
-                    disk_buffer.write(b" ")
+                    disk_buffer.write(b"\\ ")
                         .and_then(|_| disk_buffer.write(iter.next().unwrap().as_bytes()))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
 
                     for element in iter {
-                        disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                        disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
                             .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                     }
                 }
@@ -420,7 +505,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
 
             while index != max_index {
                 disk_buffer.write(chunk[index].as_bytes())
-                    .and_then(|_| disk_buffer.write(b" "))
+                    .and_then(|_| disk_buffer.write(b"\\ "))
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 index += 1;
             }
@@ -434,7 +519,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
 
 /// Collects all the provided inputs that were passed as command line arguments into the program.
 fn parse_inputs(arguments: &[String], mut index: usize, current_inputs: &mut Vec<String>,
-    lists: &mut Vec<Vec<String>>, mode: &mut Mode) -> Result<(), ParseErr>
+    lists: &mut Vec<Vec<String>>, mode: &mut Mode, inputs_are_commands: bool) -> Result<(), ParseErr>
 {
     let mut append_list = &mut Vec::new();
 
@@ -473,10 +558,12 @@ fn parse_inputs(arguments: &[String], mut index: usize, current_inputs: &mut Vec
             "::::+" => switch_mode!(append Mode::FilesAppend),
             // All other arguments will be added to the current list.
             _ => match *mode {
+                Mode::Inputs if inputs_are_commands       => current_inputs.push(quote_command(&argument)),
+                Mode::InputsAppend if inputs_are_commands => append_list.push(quote_command(&argument)),
                 Mode::Inputs       => current_inputs.push(argument.clone()),
                 Mode::InputsAppend => append_list.push(argument.clone()),
-                Mode::Files        => file_parse(current_inputs, argument)?,
-                Mode::FilesAppend  => file_parse(append_list, argument)?,
+                Mode::Files        => file_parse(current_inputs, argument, inputs_are_commands)?,
+                Mode::FilesAppend  => file_parse(append_list, argument, inputs_are_commands)?,
                 _                  => unreachable!()
             }
         }
@@ -551,18 +638,20 @@ fn parse_jobs(argument: &str, next_argument: Option<&String>, index: &mut usize)
 }
 
 /// Attempts to open an input argument and adds each line to the `inputs` list.
-fn file_parse<P: AsRef<Path>>(inputs: &mut Vec<String>, path: P) -> Result<(), ParseErr> {
-    let path       = path.as_ref();
-    let file       = fs::File::open(path).map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err)))?;
-    let mut buffer = BufReader::new(file).lines();
-    if let Some(line) = buffer.next() {
+fn file_parse<P: AsRef<Path>>(inputs: &mut Vec<String>, path: P, inputs_are_commands: bool)
+    -> Result<(), ParseErr>
+{
+    let path = path.as_ref();
+    let file = fs::File::open(path).map_err(|err| ParseErr::File(FileErr::Open(path.to_owned(), err)))?;
+    for line in BufReader::new(file).lines() {
         if let Ok(line) = line {
-            if !line.is_empty() && !line.starts_with("#!") { inputs.push(line); }
-        }
-    }
-    for line in buffer {
-        if let Ok(line) = line {
-            if !line.is_empty() { inputs.push(line); }
+            if !line.is_empty() && !line.starts_with("#") {
+                if inputs_are_commands {
+                    inputs.push(quote_command(&line));
+                } else {
+                    inputs.push(line);
+                }
+            }
         }
     }
     Ok(())

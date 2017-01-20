@@ -114,6 +114,10 @@ OPTIONS
         Instead of supplying arguments as arguments to child processes, apply
         them to the standard input of each child process.
 
+    -q, --quote:
+        Escapes the command argument supplied so that spaces, quotes, and slashes
+        are retained.
+
     -s, --silent, --quiet:
         Disables printing the standard output of running processes.
 

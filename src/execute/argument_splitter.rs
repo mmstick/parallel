@@ -36,7 +36,9 @@ impl<'a> Iterator for ArgumentSplitter<'a> {
                 b'\'' if self.flags & DOUBLE == 0 => self.flags ^= SINGLE,
                 b' '  if !self.buffer.is_empty() & (self.flags & (SINGLE + DOUBLE) == 0) => break,
                 b'\\' if (self.flags & (SINGLE + DOUBLE) == 0) => self.flags ^= BACK,
-                _ => self.buffer.push(character)
+                _ => {
+                    self.buffer.push(character);
+                }
             }
         }
 
@@ -61,8 +63,8 @@ fn test_split_args() {
     let argument = argument.iter().map(|x| str::from_utf8(x).unwrap()).collect::<Vec<&str>>();
     assert_eq!(argument, expected);
 
-    let argument = ArgumentSplitter::new("one\\ two\\\\ three");
-    let expected = vec!["one two\\", "three"];
+    let argument = ArgumentSplitter::new("one\\ two\\\\ a\\\'b\\\"c");
+    let expected = vec!["one two\\", "a\'b\"c"];
     let argument = argument.collect::<Vec<Vec<u8>>>();
     let argument = argument.iter().map(|x| str::from_utf8(x).unwrap()).collect::<Vec<&str>>();
     assert_eq!(argument, expected);

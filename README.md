@@ -77,7 +77,6 @@ It's highly recommend to compile Parallel with MUSL instead of glibc, as this re
 
 ```
 ~/D/parallel (master) $ seq 1 10000 | time -v target/release/x86_64-unknown-linux-musl/parallel echo > /dev/null
-Command being timed: "target/x86_64-unknown-linux-musl/release/parallel echo"
     User time (seconds): 0.48
     System time (seconds): 2.85
     Percent of CPU this job got: 104%
@@ -99,12 +98,12 @@ Command being timed: "target/x86_64-unknown-linux-musl/release/parallel echo"
 #### Logging echo ::: $(seq 1 1000)
 
 ```
-~/D/parallel (master) $ time -v target/release/x86_64-unknown-linux-musl/release/parallel --joblog log echo ::: $(seq 1 1000)
-User time (seconds): 0.06
-System time (seconds): 0.29
-Percent of CPU this job got: 70%
-Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.51
-Maximum resident set size (kbytes): 1768
+~/D/parallel (master) $ time -v target/x86_64-unknown-linux-musl/release/parallel --joblog log echo ::: $(seq 1 1000) > /dev/null
+    User time (seconds): 0.04
+	System time (seconds): 0.29
+	Percent of CPU this job got: 82%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.40
+    Maximum resident set size (kbytes): 1768
 ```
 
 ## Syntax Examples
@@ -211,6 +210,7 @@ operates:
 - **--num-cpu-cores**: Prints the number of CPU cores in the system and exits.
 - **-p**, **--pipe**: Instead of supplying arguments as arguments to child processes,
         instead supply the arguments directly to the standard input of each child process.
+- **-q**, **--quote**: Escapes the command argument supplied so that spaces, quotes, and slashes are retained.
 - **-s**, **--silent**, **--quiet**: Disables printing the standard output of running processes.
 - **--shebang**: Grants ability to utilize the parallel command as an interpreter via calling it within a shebang line.
 - **--shellquote**: Prints commands that will be executed, with the commands quoted.
