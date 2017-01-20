@@ -288,7 +288,16 @@ impl Args {
         }
 
         if number_of_arguments == 0 {
-            number_of_arguments = write_stdin_to_disk(max_args, base_path.clone())?;
+            // If no command was supplied, then inputs are the commands
+            if comm.is_empty() {
+                self.flags |= INPUTS_ARE_COMMANDS;
+            } else {
+                // Ensure that the command has each possible quote terminated
+                if !quote_enabled { check_command(comm.as_str())?; }
+            }
+
+            number_of_arguments = write_stdin_to_disk(max_args, base_path.clone(),
+                self.flags & INPUTS_ARE_COMMANDS != 0)?;
         }
 
         if number_of_arguments == 0 { return Err(ParseErr::NoArguments); }
@@ -350,7 +359,9 @@ fn quote_inputs(input: &str) -> String {
 }
 
 /// Write all arguments from standard input to the disk, recording the number of arguments that were read.
-fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf) -> Result<usize, ParseErr> {
+fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf, inputs_are_commands: bool)
+    -> Result<usize, ParseErr>
+{
     println!("parallel: reading inputs from standard input");
     unprocessed_path.push("unprocessed");
     let disk_buffer = fs::OpenOptions::new().truncate(true).write(true).create(true).open(&unprocessed_path)
@@ -358,10 +369,21 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf) -> Result
     let mut disk_buffer = BufWriter::new(disk_buffer);
     let mut number_of_arguments = 0;
 
+    // If inputs are commands, then inputs should be command escaped, else inputs escaped.
+    let parse_line: Box<Fn(io::Result<String>) -> io::Result<String>> = if inputs_are_commands {
+        Box::new(|input: io::Result<String>| -> io::Result<String> {
+            input.map(|x| quote_command(&x))
+        })
+    } else {
+        Box::new(|input: io::Result<String>| -> io::Result<String> {
+            input.map(|x| quote_inputs(&x))
+        })
+    };
+
     let stdin = io::stdin();
     if max_args < 2 {
         for line in stdin.lock().lines() {
-            if let Ok(line) = line.map(|x| quote_inputs(&x)) {
+            if let Ok(line) = parse_line(line) {
                 disk_buffer.write(line.as_bytes()).and_then(|_| disk_buffer.write(b"\n"))
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 number_of_arguments += 1;
@@ -370,7 +392,7 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf) -> Result
     } else {
         let mut max_args_index = max_args;
         for line in stdin.lock().lines() {
-            if let Ok(line) = line.map(|x| quote_inputs(&x)) {
+            if let Ok(line) = parse_line(line) {
                 if max_args_index == max_args {
                     max_args_index -= 1;
                     number_of_arguments += 1;
@@ -378,13 +400,13 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf) -> Result
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 } else if max_args_index == 1 {
                     max_args_index = max_args;
-                    disk_buffer.write(b"\\ ")
+                    disk_buffer.write(b" ")
                         .and_then(|_| disk_buffer.write(line.as_bytes()))
                         .and_then(|_| disk_buffer.write(b"\n"))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 } else {
                     max_args_index -= 1;
-                    disk_buffer.write(b"\\ ")
+                    disk_buffer.write(b" ")
                         .and_then(|_| disk_buffer.write(line.as_bytes()))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 }
