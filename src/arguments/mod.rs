@@ -137,7 +137,7 @@ impl Args {
                                     index += 1;
                                 },
                                 "dry-run" => self.flags |= DRY_RUN,
-                                "eta" => self.flags |= ETA,
+                                "eta" => self.flags |= ETA + QUIET_MODE,
                                 "help" => {
                                     println!("{}", man::MAN_PAGE);
                                     exit(0);
@@ -297,7 +297,7 @@ impl Args {
             }
 
             number_of_arguments = write_stdin_to_disk(max_args, base_path.clone(),
-                self.flags & INPUTS_ARE_COMMANDS != 0)?;
+                self.flags & INPUTS_ARE_COMMANDS != 0, quote_enabled)?;
         }
 
         if number_of_arguments == 0 { return Err(ParseErr::NoArguments); }
@@ -359,8 +359,8 @@ fn quote_inputs(input: &str) -> String {
 }
 
 /// Write all arguments from standard input to the disk, recording the number of arguments that were read.
-fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf, inputs_are_commands: bool)
-    -> Result<usize, ParseErr>
+fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf, inputs_are_commands: bool,
+    quote_enabled: bool) -> Result<usize, ParseErr>
 {
     println!("parallel: reading inputs from standard input");
     unprocessed_path.push("unprocessed");
@@ -370,13 +370,15 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf, inputs_ar
     let mut number_of_arguments = 0;
 
     // If inputs are commands, then inputs should be command escaped, else inputs escaped.
-    let parse_line: Box<Fn(io::Result<String>) -> io::Result<String>> = if inputs_are_commands {
+    let parse_line: Box<Fn(io::Result<String>) -> io::Result<String>> =
+        if inputs_are_commands && quote_enabled
+    {
         Box::new(|input: io::Result<String>| -> io::Result<String> {
             input.map(|x| quote_command(&x))
         })
     } else {
         Box::new(|input: io::Result<String>| -> io::Result<String> {
-            input.map(|x| quote_inputs(&x))
+            input
         })
     };
 
