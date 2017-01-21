@@ -28,69 +28,73 @@ pub fn dirname(input: &str) -> &str {
     if index == 0 { "." } else { &input[0..index] }
 }
 
-#[test]
-fn path_remove_ext_simple() {
-    assert_eq!(remove_extension("foo.txt"), "foo");
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn path_remove_ext_simple() {
+        assert_eq!(remove_extension("foo.txt"), "foo");
+    }
 
-#[test]
-fn path_remove_ext_dir() {
-    assert_eq!(remove_extension("dir/foo.txt"), "dir/foo");
-}
+    #[test]
+    fn path_remove_ext_dir() {
+        assert_eq!(remove_extension("dir/foo.txt"), "dir/foo");
+    }
 
-#[test]
-fn path_hidden() {
-    assert_eq!(remove_extension(".foo"), ".foo")
-}
+    #[test]
+    fn path_hidden() {
+        assert_eq!(remove_extension(".foo"), ".foo")
+    }
 
-#[test]
-fn path_remove_ext_utf8() {
-    assert_eq!(remove_extension("💖.txt"), "💖");
-}
+    #[test]
+    fn path_remove_ext_utf8() {
+        assert_eq!(remove_extension("💖.txt"), "💖");
+    }
 
-#[test]
-fn path_remove_ext_empty() {
-    assert_eq!(remove_extension(""), "");
-}
+    #[test]
+    fn path_remove_ext_empty() {
+        assert_eq!(remove_extension(""), "");
+    }
 
-#[test]
-fn path_basename_simple() {
-    assert_eq!(basename("foo.txt"), "foo.txt");
-}
+    #[test]
+    fn path_basename_simple() {
+        assert_eq!(basename("foo.txt"), "foo.txt");
+    }
 
-#[test]
-fn path_basename_dir() {
-    assert_eq!(basename("dir/foo.txt"), "foo.txt");
-}
+    #[test]
+    fn path_basename_dir() {
+        assert_eq!(basename("dir/foo.txt"), "foo.txt");
+    }
 
-#[test]
-fn path_basename_empty() {
-    assert_eq!(basename(""), "");
-}
+    #[test]
+    fn path_basename_empty() {
+        assert_eq!(basename(""), "");
+    }
 
-#[test]
-fn path_basename_utf8() {
-    assert_eq!(basename("💖/foo.txt"), "foo.txt");
-    assert_eq!(basename("dir/💖.txt"), "💖.txt");
-}
+    #[test]
+    fn path_basename_utf8() {
+        assert_eq!(basename("💖/foo.txt"), "foo.txt");
+        assert_eq!(basename("dir/💖.txt"), "💖.txt");
+    }
 
-#[test]
-fn path_dirname_simple() {
-    assert_eq!(dirname("foo.txt"), ".");
-}
+    #[test]
+    fn path_dirname_simple() {
+        assert_eq!(dirname("foo.txt"), ".");
+    }
 
-#[test]
-fn path_dirname_dir() {
-    assert_eq!(dirname("dir/foo.txt"), "dir");
-}
+    #[test]
+    fn path_dirname_dir() {
+        assert_eq!(dirname("dir/foo.txt"), "dir");
+    }
 
-#[test]
-fn path_dirname_utf8() {
-    assert_eq!(dirname("💖/foo.txt"), "💖");
-    assert_eq!(dirname("dir/💖.txt"), "dir");
-}
+    #[test]
+    fn path_dirname_utf8() {
+        assert_eq!(dirname("💖/foo.txt"), "💖");
+        assert_eq!(dirname("dir/💖.txt"), "dir");
+    }
 
-#[test]
-fn path_dirname_empty() {
-    assert_eq!(dirname(""), ".");
+    #[test]
+    fn path_dirname_empty() {
+        assert_eq!(dirname(""), ".");
+    }
 }

@@ -73,24 +73,29 @@ impl DiskBufferReader {
     }
 }
 
-#[test]
-fn test_disk_buffer_reader_simple() {
-    let file = include_bytes!("../../tests/buffer.dat");
-    let mut disk_buffer_reader = DiskBuffer::new(Path::new("tests/buffer.dat")).read().unwrap();
-    let _ = disk_buffer_reader.buffer(0);
-    assert_eq!(&file[0..BUFFER_SIZE], &disk_buffer_reader.data[..]);
-    let _ = disk_buffer_reader.buffer(0);
-    assert_eq!(&file[BUFFER_SIZE..BUFFER_SIZE*2], &disk_buffer_reader.data[..]);
-    let _ = disk_buffer_reader.buffer(0);
-    assert_eq!(&file[BUFFER_SIZE*2..], &disk_buffer_reader.data[..2989]);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_disk_buffer_reader_byte_shifting() {
-    let file = include_bytes!("../../tests/buffer.dat");
-    let mut disk_buffer_reader = DiskBuffer::new(Path::new("tests/buffer.dat")).read().unwrap();
-    let _ = disk_buffer_reader.buffer(0);
-    assert_eq!(&file[0..BUFFER_SIZE], &disk_buffer_reader.data[..]);
-    let _ = disk_buffer_reader.buffer(BUFFER_SIZE/2);
-    assert_eq!(&file[BUFFER_SIZE/2+1..BUFFER_SIZE/2+1+BUFFER_SIZE], &disk_buffer_reader.data[0..BUFFER_SIZE]);
+    #[test]
+    fn test_disk_buffer_reader_simple() {
+        let file = include_bytes!("../../tests/buffer.dat");
+        let mut disk_buffer_reader = DiskBuffer::new(Path::new("tests/buffer.dat")).read().unwrap();
+        let _ = disk_buffer_reader.buffer(0);
+        assert_eq!(&file[0..BUFFER_SIZE], &disk_buffer_reader.data[..]);
+        let _ = disk_buffer_reader.buffer(0);
+        assert_eq!(&file[BUFFER_SIZE..BUFFER_SIZE*2], &disk_buffer_reader.data[..]);
+        let _ = disk_buffer_reader.buffer(0);
+        assert_eq!(&file[BUFFER_SIZE*2..], &disk_buffer_reader.data[..2989]);
+    }
+
+    #[test]
+    fn test_disk_buffer_reader_byte_shifting() {
+        let file = include_bytes!("../../tests/buffer.dat");
+        let mut disk_buffer_reader = DiskBuffer::new(Path::new("tests/buffer.dat")).read().unwrap();
+        let _ = disk_buffer_reader.buffer(0);
+        assert_eq!(&file[0..BUFFER_SIZE], &disk_buffer_reader.data[..]);
+        let _ = disk_buffer_reader.buffer(BUFFER_SIZE/2);
+        assert_eq!(&file[BUFFER_SIZE/2+1..BUFFER_SIZE/2+1+BUFFER_SIZE], &disk_buffer_reader.data[0..BUFFER_SIZE]);
+    }
 }

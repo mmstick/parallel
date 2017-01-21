@@ -53,19 +53,24 @@ impl<'a> Iterator for ArgumentSplitter<'a> {
     }
 }
 
-#[test]
-fn test_split_args() {
-    use std::str;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_split_args() {
+        use std::str;
 
-    let argument = ArgumentSplitter::new("ffmpeg -i \"file with spaces\" \"output with spaces\"");
-    let expected = vec!["ffmpeg", "-i", "file with spaces", "output with spaces"];
-    let argument = argument.collect::<Vec<Vec<u8>>>();
-    let argument = argument.iter().map(|x| str::from_utf8(x).unwrap()).collect::<Vec<&str>>();
-    assert_eq!(argument, expected);
+        let argument = ArgumentSplitter::new("ffmpeg -i \"file with spaces\" \"output with spaces\"");
+        let expected = vec!["ffmpeg", "-i", "file with spaces", "output with spaces"];
+        let argument = argument.collect::<Vec<Vec<u8>>>();
+        let argument = argument.iter().map(|x| str::from_utf8(x).unwrap()).collect::<Vec<&str>>();
+        assert_eq!(argument, expected);
 
-    let argument = ArgumentSplitter::new("one\\ two\\\\ a\\\'b\\\"c");
-    let expected = vec!["one two\\", "a\'b\"c"];
-    let argument = argument.collect::<Vec<Vec<u8>>>();
-    let argument = argument.iter().map(|x| str::from_utf8(x).unwrap()).collect::<Vec<&str>>();
-    assert_eq!(argument, expected);
+        let argument = ArgumentSplitter::new("one\\ two\\\\ a\\\'b\\\"c");
+        let expected = vec!["one two\\", "a\'b\"c"];
+        let argument = argument.collect::<Vec<Vec<u8>>>();
+        let argument = argument.iter().map(|x| str::from_utf8(x).unwrap()).collect::<Vec<&str>>();
+        assert_eq!(argument, expected);
+    }
 }
