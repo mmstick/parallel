@@ -362,7 +362,11 @@ fn quote_inputs(input: &str) -> String {
 fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf, inputs_are_commands: bool,
     quote_enabled: bool) -> Result<usize, ParseErr>
 {
-    println!("parallel: reading inputs from standard input");
+    // Write a message to standard error that inputs are being read from standard input
+    let stderr = io::stderr();
+    let mut stderr = stderr.lock();
+    let _ = stderr.write(b"parallel: reading inputs from standard input\n");
+
     unprocessed_path.push("unprocessed");
     let disk_buffer = fs::OpenOptions::new().truncate(true).write(true).create(true).open(&unprocessed_path)
         .map_err(|why| ParseErr::File(FileErr::Open(unprocessed_path.clone(), why)))?;

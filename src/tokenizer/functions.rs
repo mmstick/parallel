@@ -31,6 +31,7 @@ pub fn dirname(input: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    
     #[test]
     fn path_remove_ext_simple() {
         assert_eq!(remove_extension("foo.txt"), "foo");
