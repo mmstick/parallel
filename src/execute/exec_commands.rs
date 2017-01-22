@@ -9,25 +9,25 @@ use super::pipe::disk::State;
 use super::job_log::JobLog;
 use super::child::handle_child;
 
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
 /// Contains all the required data needed for executing commands in parallel.
 /// Commands will be generated based on a template of argument tokens combined
 /// with the current input argument.
-pub struct ExecCommands {
+pub struct ExecCommands<IO: Read> {
     pub slot:       usize,
     pub num_inputs: usize,
     pub flags:      u16,
     pub timeout:    Duration,
-    pub inputs:     InputsLock,
+    pub inputs:     InputsLock<IO>,
     pub output_tx:  Sender<State>,
     pub arguments:  &'static [Token],
     pub tempdir:    String,
 }
 
-impl ExecCommands {
+impl<IO: Read> ExecCommands<IO> {
     pub fn run(&mut self) {
         let stdout = io::stdout();
         let stderr = io::stderr();

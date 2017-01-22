@@ -24,7 +24,7 @@ mod shell;
 mod verbose;
 
 use std::env;
-use std::fs::{create_dir_all, File};
+use std::fs::{self, create_dir_all, File};
 use std::io::{self, BufRead, BufReader, Write};
 use std::mem;
 use std::process::exit;
@@ -104,7 +104,15 @@ fn main() {
     errors_path.push("errors");
 
     // Initialize the `InputIterator` structure, which iterates through all inputs.
-    let inputs = InputIterator::new(&unprocessed_path, args.ninputs)
+    let file = match fs::OpenOptions::new().read(true).open(&unprocessed_path) {
+        Ok(file) => file,
+        Err(why) => {
+            let stderr = &mut stderr.lock();
+            let _ = writeln!(stderr, "parallel: unable to open unprocessed file: {:?}: {}", &unprocessed_path, why);
+            exit(1);
+        }
+    };
+    let inputs = InputIterator::new(&unprocessed_path, file, args.ninputs)
         .expect("unable to initialize the InputIterator structure");
 
     // Coerce the `comm` `String` into a `&'static str` so that it may be shared by all threads.

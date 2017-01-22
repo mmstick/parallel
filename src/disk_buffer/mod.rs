@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::fs;
 use std::io::{Error, Read};
 
 /// Controls the size of the buffers for reading/writing to files.
@@ -16,46 +15,30 @@ pub trait DiskBufferTrait {
     fn is_empty(&self) -> bool;
 }
 
-
-/// A `DiskBuffer` is merely a temporary initial state that may be transformed into either
-/// a `DiskBufferReader` or a `DiskBufferWriter`.
-pub struct DiskBuffer {
-    path: PathBuf,
-}
-
-impl DiskBuffer {
-    // Create a new `DiskBuffer` from a `Path`.
-    pub fn new<P: AsRef<Path>>(path: P) -> DiskBuffer {
-        DiskBuffer { path: path.as_ref().to_owned() }
-    }
-
-    /// Transform the `DiskBuffer` into a `DiskBufferReader`
-    pub fn read(self) -> Result<DiskBufferReader, Error> {
-        let file = fs::OpenOptions::new().read(true).open(&self.path)?;
-        Ok(DiskBufferReader {
-            data:     [b'\0'; BUFFER_SIZE],
-            capacity: 0,
-            file:     file,
-            path:     self.path,
-        })
-    }
-}
-
 /// A `DiskBufferReader` contains the `buffer` method.
-pub struct DiskBufferReader {
+pub struct DiskBufferReader<IO: Read> {
     pub data:     [u8; BUFFER_SIZE],
     pub capacity: usize,
-    pub file:     fs::File,
+    pub file:     IO,
     pub path:     PathBuf,
 }
 
-impl DiskBufferTrait for DiskBufferReader {
+impl<IO: Read> DiskBufferTrait for DiskBufferReader<IO> {
     fn clear(&mut self) { self.capacity = 0; }
     fn get_ref(&self) -> &[u8] { &self.data[0..self.capacity] }
     fn is_empty(&self) -> bool { self.capacity == 0 }
 }
 
-impl DiskBufferReader {
+impl<IO: Read> DiskBufferReader<IO> {
+    pub fn new<P: AsRef<Path>>(path: P, file: IO) -> DiskBufferReader<IO> {
+        DiskBufferReader {
+            data:     [b'\0'; BUFFER_SIZE],
+            capacity: 0,
+            file:     file,
+            path:     path.as_ref().to_owned(),
+        }
+    }
+
     /// Reads the next set of bytes from the disk and stores them into memory.
     /// Takes an input argument that will optionally shift unused bytes at the end to the left,
     /// and then buffer into the adjacent bytes.
@@ -76,11 +59,13 @@ impl DiskBufferReader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
 
     #[test]
     fn test_disk_buffer_reader_simple() {
         let file = include_bytes!("../../tests/buffer.dat");
-        let mut disk_buffer_reader = DiskBuffer::new(Path::new("tests/buffer.dat")).read().unwrap();
+        let mut disk_buffer_reader = DiskBufferReader::new(Path::new("tests/buffer.dat"),
+            File::open("tests/buffer.dat").expect("unable to open test data"));
         let _ = disk_buffer_reader.buffer(0);
         assert_eq!(&file[0..BUFFER_SIZE], &disk_buffer_reader.data[..]);
         let _ = disk_buffer_reader.buffer(0);
@@ -92,7 +77,8 @@ mod tests {
     #[test]
     fn test_disk_buffer_reader_byte_shifting() {
         let file = include_bytes!("../../tests/buffer.dat");
-        let mut disk_buffer_reader = DiskBuffer::new(Path::new("tests/buffer.dat")).read().unwrap();
+        let mut disk_buffer_reader = DiskBufferReader::new(Path::new("tests/buffer.dat"),
+            File::open("tests/buffer.dat").expect("unable to open test data"));
         let _ = disk_buffer_reader.buffer(0);
         assert_eq!(&file[0..BUFFER_SIZE], &disk_buffer_reader.data[..]);
         let _ = disk_buffer_reader.buffer(BUFFER_SIZE/2);

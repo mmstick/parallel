@@ -4,11 +4,11 @@ use arguments;
 use execute::command;
 use numtoa::NumToA;
 
-use std::io::{self, StdoutLock, Write};
+use std::io::{self, StdoutLock, Read, Write};
 
 /// Instead of executing commands in parallel, the commands that would be executed will be printed
 /// directly to the standard output of this application. This also applies to shell quoted arguments.
-pub fn dry_run(flags: u16, inputs: InputIterator, arguments: &[Token]) {
+pub fn dry_run<IO: Read>(flags: u16, inputs: InputIterator<IO>, arguments: &[Token]) {
     let stdout             = io::stdout();
     let stdout             = &mut stdout.lock();
     let stderr             = io::stderr();

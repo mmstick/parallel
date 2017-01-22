@@ -4,11 +4,11 @@ use sys_info;
 
 use std::thread;
 use std::time::Duration;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::sync::{Arc, Mutex};
 
-pub struct InputsLock {
-    pub inputs:    Arc<Mutex<InputIterator>>,
+pub struct InputsLock<IO: Read> {
+    pub inputs:    Arc<Mutex<InputIterator<IO>>>,
     pub memory:    u64,
     pub delay:     Duration,
     pub has_delay: bool,
@@ -16,7 +16,7 @@ pub struct InputsLock {
     pub flags:     u16
 }
 
-impl InputsLock {
+impl<IO: Read> InputsLock<IO> {
     /// Attempts to obtain the next input in the queue, returning `None` when it is finished.
     /// It works the same as the `Iterator` trait's `next()` method, only re-using the same input buffer.
     pub fn try_next(&mut self, input: &mut String) -> Option<(usize)> {

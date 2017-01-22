@@ -10,20 +10,20 @@ use super::child::handle_child;
 
 use std::u16;
 use std::time::Duration;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::sync::mpsc::Sender;
 
 /// Contains all the required data needed for executing commands in parallel.
 /// The inputs will be executed as commands themselves.
-pub struct ExecInputs {
+pub struct ExecInputs<IO: Read> {
     pub num_inputs: usize,
     pub timeout:    Duration,
-    pub inputs:     InputsLock,
+    pub inputs:     InputsLock<IO>,
     pub output_tx:  Sender<State>,
     pub tempdir:    String,
 }
 
-impl ExecInputs {
+impl<IO: Read> ExecInputs<IO> {
     pub fn run(&mut self, mut flags: u16) {
         let stdout = io::stdout();
         let stderr = io::stderr();
