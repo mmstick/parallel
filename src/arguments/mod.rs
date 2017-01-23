@@ -381,9 +381,7 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf, inputs_ar
             input.map(|x| quote_command(&x))
         })
     } else {
-        Box::new(|input: io::Result<String>| -> io::Result<String> {
-            input
-        })
+        Box::new(|input: io::Result<String>| -> io::Result<String> { input })
     };
 
     let stdin = io::stdin();
@@ -456,7 +454,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
             disk_buffer.write(iter.next().unwrap().as_bytes())
                 .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
             for element in iter {
-                disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
             }
 
@@ -470,7 +468,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
                 disk_buffer.write(iter.next().unwrap().as_bytes())
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 for element in iter {
-                    disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                    disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 }
                 disk_buffer.write(b"\n")
@@ -489,17 +487,17 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
 
                     for element in iter {
-                        disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                        disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
                             .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                     }
                 } else if max_args_index == 1 {
                     max_args_index = max_args;
-                    disk_buffer.write(b"\\ ")
+                    disk_buffer.write(b" ")
                         .and_then(|_| disk_buffer.write(iter.next().unwrap().as_bytes()))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
 
                     for element in iter {
-                        disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                        disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
                             .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                     }
 
@@ -507,12 +505,12 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 } else {
                     max_args_index -= 1;
-                    disk_buffer.write(b"\\ ")
+                    disk_buffer.write(b" ")
                         .and_then(|_| disk_buffer.write(iter.next().unwrap().as_bytes()))
                         .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
 
                     for element in iter {
-                        disk_buffer.write(b"\\ ").and_then(|_| disk_buffer.write(element.as_bytes()))
+                        disk_buffer.write(b" ").and_then(|_| disk_buffer.write(element.as_bytes()))
                             .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                     }
                 }
@@ -533,7 +531,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
 
             while index != max_index {
                 disk_buffer.write(chunk[index].as_bytes())
-                    .and_then(|_| disk_buffer.write(b"\\ "))
+                    .and_then(|_| disk_buffer.write(b" "))
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 index += 1;
             }
