@@ -59,21 +59,24 @@ INPUT TOKENS
     will perform text manipulation on the inputs to mangle them in the way you
     like. Ideas for more tokens are welcome.
 
-    -         {}: Will supply the input argument untouched.
-    -        {.}: Will remove the extension from the input.
-    -        {/}: Displays the base name (file name) of the input.
-    -       {//}: Displays the directory name of the input.
-    -       {/.}: Displays the base name with the extension removed.
-    -  {^abc...}: Defines a custom suffix to remove from inputs, if found.
-    -        {#}: Displays the current job ID as a number counting from 1.
-    -       {##}: Displays the total number of jobs to be processed.
-    -        {%}: Displays the thread's ID number.
-    -        {N}: Where N is a number, display the associated job number.
-    -       {N.}: will remove the extension from the Nth job.
-    -       {N/}: Displays the base name (file name) of the Nth job.
-    -      {N//}: Displays the directory name of the Nth job.
-    -      {N/.}: Displays the base name of the Nth job with the extension removed.
-    - {N^abc...}: Defines a custom suffix to remove from the Nth job, if found.
+    -          {}: Will supply the input argument untouched.
+    -         {.}: Removes the extension from the input.
+    -   {^abc...}: Removes a custom suffix from the input.
+    -         {/}: Displays the base name (file name) of the input.
+    -        {//}: Displays the directory name of the input.
+    -        {/.}: Displays the base name with the extension removed.
+    -  {/^abc...}: Displays the base name with a custom suffix removed.
+    -         {#}: Displays the current job ID as a number counting from 1.
+    -        {##}: Displays the total number of jobs to be processed.
+    -         {%}: Displays the thread's ID number.
+    -         {N}: Where N is a number, display the associated job number.
+    -        {N.}: Removes the extension from the Nth job.
+    -        {N/}: Displays the base name (file name) of the Nth job.
+    -  {N^abc...}: Removes a custom suffix from the Nth job.
+    -       {N//}: Displays the directory name of the Nth job.
+    -       {N/.}: Displays the base name of the Nth job with the extension removed.
+    - {N/^abc...}: Displays the base name of the Nth job with a custom suffix removed.
+
 
 OPTIONS
     Options may also be supplied to the program to change how the program

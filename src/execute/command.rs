@@ -76,15 +76,16 @@ impl<'a> ParallelCommand<'a> {
         } else {
             for arg in self.command_template {
                 match *arg {
-                    Token::Argument(ref arg) => arguments.push_str(arg),
-                    Token::Basename          => arguments.push_str(basename(self.input)),
-                    Token::BaseAndExt        => arguments.push_str(basename(remove_extension(self.input))),
-                    Token::Dirname           => arguments.push_str(dirname(self.input)),
-                    Token::Job               => for character in self.job_no { arguments.push(*character as char); },
-                    Token::Placeholder       => arguments.push_str(self.input),
-                    Token::RemoveExtension   => arguments.push_str(remove_extension(self.input)),
-                    Token::RemoveSuffix(pat) => arguments.push_str(remove_pattern(self.input, pat)),
-                    Token::Slot              => arguments.push_str(self.slot_no)
+                    Token::Argument(ref arg)  => arguments.push_str(arg),
+                    Token::Basename           => arguments.push_str(basename(self.input)),
+                    Token::BaseAndExt         => arguments.push_str(basename(remove_extension(self.input))),
+                    Token::BaseAndSuffix(pat) => arguments.push_str(basename(remove_pattern(self.input, pat))),
+                    Token::Dirname            => arguments.push_str(dirname(self.input)),
+                    Token::Job                => for character in self.job_no { arguments.push(*character as char); },
+                    Token::Placeholder        => arguments.push_str(self.input),
+                    Token::RemoveExtension    => arguments.push_str(remove_extension(self.input)),
+                    Token::RemoveSuffix(pat)  => arguments.push_str(remove_pattern(self.input, pat)),
+                    Token::Slot               => arguments.push_str(self.slot_no)
                 }
             }
         }

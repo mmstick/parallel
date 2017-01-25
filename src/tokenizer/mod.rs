@@ -29,6 +29,8 @@ pub enum Token {
     Argument(Cow<'static, str>),
     /// Takes the basename (file name) of the input with the extension removed.
     BaseAndExt,
+    /// Takes the basename (file name) of the input with a custom suffix removed.
+    BaseAndSuffix(&'static str),
     /// Takes the basename (file name) of the input with the directory path removed.
     Basename,
     /// Takes the directory path of the input with the basename removed.
@@ -61,15 +63,16 @@ impl Number {
         let file = File::open(path).map_err(TokenErr::File)?;
         let input = &BufReader::new(file).lines().nth(self.id-1).unwrap().map_err(TokenErr::File)?;
         let argument = match self.token {
-            Token::Argument(_)            => unreachable!(),
-            Token::Basename               => basename(input),
-            Token::BaseAndExt             => basename(remove_extension(input)),
-            Token::Dirname                => dirname(input),
-            Token::Job                    => unreachable!(),
-            Token::Placeholder            => input,
-            Token::RemoveExtension        => remove_extension(input),
-            Token::RemoveSuffix(pattern) => remove_pattern(input, pattern),
-            Token::Slot                   => unreachable!()
+            Token::Argument(_)        => unreachable!(),
+            Token::Basename           => basename(input),
+            Token::BaseAndExt         => basename(remove_extension(input)),
+            Token::BaseAndSuffix(pat) => basename(remove_pattern(input, pat)),
+            Token::Dirname            => dirname(input),
+            Token::Job                => unreachable!(),
+            Token::Placeholder        => input,
+            Token::RemoveExtension    => remove_extension(input),
+            Token::RemoveSuffix(pat)  => remove_pattern(input, pat),
+            Token::Slot               => unreachable!()
         };
         Ok(String::from(argument))
     }
@@ -155,6 +158,8 @@ fn match_token(pattern: &'static str, path: &Path, nargs: usize) -> Result<Optio
         _    => {
             if pattern.starts_with('^') && pattern.len() > 1 {
                 Ok(Some(Token::RemoveSuffix(&pattern[1..])))
+            } else if pattern.starts_with("/^") && pattern.len() > 2 {
+                Ok(Some(Token::BaseAndSuffix(&pattern[2..])))
             } else {
                 let ndigits = pattern.bytes().take_while(|&x| (x as char).is_numeric()).count();
                 let nchars  = ndigits + pattern.bytes().skip(ndigits).count();
