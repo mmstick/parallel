@@ -22,9 +22,9 @@ impl<'a> ArgumentSplitter<'a> {
 }
 
 impl<'a> Iterator for ArgumentSplitter<'a> {
-    type Item = Vec<u8>;
+    type Item = String;
 
-    fn next(&mut self) -> Option<Vec<u8>> {
+    fn next(&mut self) -> Option<String> {
         for character in self.data.bytes().skip(self.read) {
             self.read += 1;
             match character {
@@ -48,7 +48,7 @@ impl<'a> Iterator for ArgumentSplitter<'a> {
             let mut output = self.buffer.clone();
             output.shrink_to_fit();
             self.buffer.clear();
-            Some(output)
+            Some(unsafe { String::from_utf8_unchecked(output) })
         }
     }
 }
@@ -56,7 +56,7 @@ impl<'a> Iterator for ArgumentSplitter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_split_args() {
         use std::str;

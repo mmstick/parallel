@@ -97,13 +97,8 @@ pub fn get_command_output(command: &str, flags: u16) -> io::Result<Child> {
     if flags & arguments::SHELL_ENABLED != 0 && flags & arguments::PIPE_IS_ENABLED == 0 {
         shell_output(command, flags)
     } else {
-        // Collect each argument as a raw vector of bytes
-        let arguments = ArgumentSplitter::new(command).collect::<Vec<Vec<u8>>>();
-        // No worries: this is OK because the original string was already checked,
-        // and the tokenizer does not perform any funny business.
-        let arguments = arguments.iter()
-            .map(|argument| unsafe { str::from_utf8_unchecked(argument) }).collect::<Vec<&str>>();
-
+        // Collect each argument into a vector
+        let arguments = ArgumentSplitter::new(command).collect::<Vec<String>>();
         match (arguments.len() == 1, flags & arguments::QUIET_MODE != 0, flags & arguments::PIPE_IS_ENABLED != 0) {
             (true, true, false) => Command::new(&arguments[0])
                 .stdout(Stdio::null()).stderr(Stdio::piped())

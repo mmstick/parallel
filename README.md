@@ -62,11 +62,11 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
 
 ```
 ~/D/parallel (master) $ time -v /usr/bin/parallel --joblog log echo ::: $(seq 1 1000) > /dev/null
-User time (seconds): 21.27
-System time (seconds): 7.44
-Percent of CPU this job got: 238%
-Elapsed (wall clock) time (h:mm:ss or m:ss): 0:12.05
-Maximum resident set size (kbytes): 16624
+    User time (seconds): 21.27
+    System time (seconds): 7.44
+    Percent of CPU this job got: 238%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:12.05
+    Maximum resident set size (kbytes): 16624
 ```
 
 ### Rust Parallel (Built with MUSL target)
@@ -77,10 +77,10 @@ It's highly recommend to compile Parallel with MUSL instead of glibc, as this re
 
 ```
 ~/D/parallel (master) $ seq 1 10000 | time -v target/release/x86_64-unknown-linux-musl/parallel echo > /dev/null
-    User time (seconds): 0.48
-    System time (seconds): 2.85
-    Percent of CPU this job got: 104%
-    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:03.20
+    User time (seconds): 0.40
+	System time (seconds): 2.53
+	Percent of CPU this job got: 97%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:03.01
     Maximum resident set size (kbytes): 1768
 ```
 
@@ -88,21 +88,21 @@ It's highly recommend to compile Parallel with MUSL instead of glibc, as this re
 
 ```
 ~/D/parallel (master) $ time -v target/release/x86_64-unknown-linux-musl/release/parallel cat ::: /usr/bin/* > /dev/null
-    User time (seconds): 0.96
-    System time (seconds): 4.61
-    Percent of CPU this job got: 192%
-    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:02.89
-    Maximum resident set size (kbytes): 1868
+    User time (seconds): 1.07
+	System time (seconds): 4.40
+	Percent of CPU this job got: 191%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:02.86
+    Maximum resident set size (kbytes): 1844
 ```
 
 #### Logging echo ::: $(seq 1 1000)
 
 ```
 ~/D/parallel (master) $ time -v target/x86_64-unknown-linux-musl/release/parallel --joblog log echo ::: $(seq 1 1000) > /dev/null
-    User time (seconds): 0.04
-	System time (seconds): 0.29
-	Percent of CPU this job got: 82%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.40
+    User time (seconds): 0.02
+    System time (seconds): 0.28
+    Percent of CPU this job got: 85%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.36
     Maximum resident set size (kbytes): 1768
 ```
 
@@ -115,12 +115,12 @@ parallel echo ::: *                               // If no placeholders are used
 parallel echo :::: list1 list2 list3              // Read newline-delimited arguments stored in files.
 parallel echo ::: arg1 ::::+ list :::+ arg2       // Interchangeably read arguments from the command line and files.
 parallel echo ::: 1 2 3 ::: A B C ::: D E F       // Permutate the inputs.
-parallel echo {} {1} {2} {3.} ::: 1 2 file.mkv    // {N} tokens are replaced by the Nth input argument
+parallel echo '{} {1} {2} {3.}' ::: 1 2 file.mkv  // {N} tokens are replaced by the Nth input argument
 parallel ::: "echo 1" "echo 2" "echo 3"           // If no command is supplied, the input arguments become commands.
 parallel 'cd {}; echo Directory: {}; echo - {}'   // Commands may be chained in the platform\'s shell.
 seq 1 10 | parallel 'echo {}'                     // If no input arguments are supplied, stdin will be read.
 seq 1 10 | parallel --pipe cat                    // Piping arguments to the standard input of the given command.
-#!/usr/bin/parallel --shebang echo            // Ability to use within a shebang line.
+#!/usr/bin/parallel --shebang echo                // Ability to use within a shebang line.
 ```
 
 ## Manual
@@ -132,7 +132,7 @@ tasks to all available CPU cores. There are three basic methods for how
 commands are supplied:
 
 1. A COMMAND may be defined, followed by an  which denotes
-   that all following arguments will be usde as INPUTS for the command.
+   that all following arguments will be used as INPUTS for the command.
 
 2. If no COMMAND is provided, then the INPUTS will be interpreted as
    COMMANDS.

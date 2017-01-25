@@ -14,7 +14,7 @@ DESCRIPTION
     commands are supplied:
 
     1. A COMMAND may be defined, followed by a MODE which denotes
-       that all following arguments will be usde as INPUTS for the command.
+       that all following arguments will be used as INPUTS for the command.
 
     2. If no COMMAND is provided, then the INPUTS will be interpreted as
        COMMANDS.

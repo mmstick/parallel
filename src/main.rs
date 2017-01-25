@@ -53,7 +53,7 @@ unsafe fn leak_string(comm: String) -> &'static str {
 unsafe fn static_arg(args: &[Token]) -> &'static [Token] { mem::transmute(args) }
 
 fn main() {
-    // Obtain a handle to standard error's buffer so we can write directly to it.
+    // Obtain a handle to standard output/error's buffers so we can write directly to them.
     let stdout = io::stdout();
     let stderr = io::stderr();
 
@@ -96,6 +96,7 @@ fn main() {
     };
 
     // Construct the paths of each of the required files using the base tempdir path.
+    // These paths will be shared all through the application to avoid needing to copy.
     let mut unprocessed_path = base.clone();
     let mut processed_path   = base.clone();
     let mut errors_path      = base;
@@ -103,7 +104,8 @@ fn main() {
     processed_path.push("processed");
     errors_path.push("errors");
 
-    // Initialize the `InputIterator` structure, which iterates through all inputs.
+    // This file is required by the upcoming `InputIterator`. It will remain open for the
+    // remainder of the application.
     let file = match fs::OpenOptions::new().read(true).open(&unprocessed_path) {
         Ok(file) => file,
         Err(why) => {
@@ -112,6 +114,9 @@ fn main() {
             exit(1);
         }
     };
+
+    // Initialize the `InputIterator` structure, which efficiently generates inputs from the
+    // above `unprocessed` file until all arguments have been processed, denoted by `args.ninputs`.
     let inputs = InputIterator::new(&unprocessed_path, file, args.ninputs)
         .expect("unable to initialize the InputIterator structure");
 
@@ -127,17 +132,25 @@ fn main() {
         exit(1)
     }
 
+    // Coerce the arguments into a `&'static [Token]` to eliminate the need to make a copy in
+    // each thread.
     let arguments = unsafe { static_arg(&args.arguments) };
 
+    // If the `--dry-run` parameter was passsed, the program will simply print all commands to
+    // execute and will subsequently quit. Otherwise, real work will be performed.
     if args.flags & arguments::DRY_RUN != 0 {
         execute::dry_run(args.flags, inputs, arguments);
     } else {
-        if shell::dash_exists() { args.flags |= arguments::DASH_EXISTS; }
-        if shell::required(shell::Kind::Tokens(arguments)) { args.flags |= arguments::SHELL_ENABLED; }
 
+
+        // The `InputIterator` will be wrapped within a `Mutex` so that it can safely be shared
+        // across all of the upcoming threads. A `Mutex` is required because each time a thread
+        // pulls the next input from the queue, it needs to update various data fields which
+        // rely on threads waiting for their turn to report back.
         let shared_input = Arc::new(Mutex::new(inputs));
 
-        // A channel for passing job state info to the receiving thread.
+        // This channel is used exclusively for signaling back to the main thread when a task
+        // has completed or has errored.
         let (output_tx, input_rx) = channel::<State>();
 
         // Will contain handles to the upcoming threads to know when the threads are finished.
@@ -149,6 +162,7 @@ fn main() {
 
         // The `slot` variable is required by the {%} token.
         if args.flags & arguments::INPUTS_ARE_COMMANDS != 0 {
+            // Dash kills all other shells in performance, so if it exists, we need to know.
             if shell::dash_exists() { args.flags |= arguments::DASH_EXISTS; }
 
             for _ in 0..args.ncores {
@@ -215,6 +229,8 @@ fn main() {
 
         /// Prints messages from executed commands in the correct order.
         execute::receive_messages(input_rx, args, &base_path, &processed_path, &errors_path);
+
+        /// Wait for all threads to exit before proceeding.
         for thread in threads { thread.join().unwrap(); }
 
         // If errors have occurred, re-print these errors at the end.

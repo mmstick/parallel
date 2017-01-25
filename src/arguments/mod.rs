@@ -118,6 +118,7 @@ impl Args {
                                         println!("{}", man::MAN_PAGE);
                                         exit(0);
                                     },
+                                    b'k' => (),
                                     b'p' => self.flags |= PIPE_IS_ENABLED,
                                     b'q' => quote_enabled = true,
                                     b's' => self.flags |= QUIET_MODE,
@@ -142,6 +143,7 @@ impl Args {
                                     println!("{}", man::MAN_PAGE);
                                     exit(0);
                                 },
+                                "keep-order" => (),
                                 "group" => (),
                                 "joblog" => {
                                     let file = arguments.get(index).ok_or(ParseErr::JoblogNoValue)?;
