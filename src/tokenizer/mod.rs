@@ -39,6 +39,8 @@ pub enum Token {
     Placeholder,
     /// Removes the extension from the input.
     RemoveExtension,
+    /// Removes a specified extension pattern
+    RemoveSuffix(&'static str),
     /// Returns the thread ID.
     Slot
 }
@@ -59,14 +61,15 @@ impl Number {
         let file = File::open(path).map_err(TokenErr::File)?;
         let input = &BufReader::new(file).lines().nth(self.id-1).unwrap().map_err(TokenErr::File)?;
         let argument = match self.token {
-            Token::Argument(_)     => unreachable!(),
-            Token::Basename        => basename(input),
-            Token::BaseAndExt      => basename(remove_extension(input)),
-            Token::Dirname         => dirname(input),
-            Token::Job             => unreachable!(),
-            Token::Placeholder     => input,
-            Token::RemoveExtension => remove_extension(input),
-            Token::Slot            => unreachable!()
+            Token::Argument(_)            => unreachable!(),
+            Token::Basename               => basename(input),
+            Token::BaseAndExt             => basename(remove_extension(input)),
+            Token::Dirname                => dirname(input),
+            Token::Job                    => unreachable!(),
+            Token::Placeholder            => input,
+            Token::RemoveExtension        => remove_extension(input),
+            Token::RemoveSuffix(pattern) => remove_pattern(input, pattern),
+            Token::Slot                   => unreachable!()
         };
         Ok(String::from(argument))
     }
@@ -150,25 +153,29 @@ fn match_token(pattern: &'static str, path: &Path, nargs: usize) -> Result<Optio
         "/." => Ok(Some(Token::BaseAndExt)),
         "##" => Ok(Some(Token::Argument(Cow::Owned(nargs.to_string())))),
         _    => {
-            let ndigits = pattern.bytes().take_while(|&x| (x as char).is_numeric()).count();
-            let nchars  = ndigits + pattern.bytes().skip(ndigits).count();
-            if ndigits != 0 {
-                let number = pattern[0..ndigits].parse::<usize>().unwrap();
-                if ndigits == nchars {
-                    if number == 0 || number > nargs { return Err(TokenErr::OutOfBounds); }
-                    let argument = Number::new(number, Token::Placeholder).into_argument(path)?;
-                    Ok(Some(Token::Argument(Cow::Owned(argument))))
-                } else {
-                    match match_token(&pattern[ndigits..], path, nargs)? {
-                        None | Some(Token::Job) |  Some(Token::Slot) => Ok(None),
-                        Some(token) => {
-                            let argument = Number::new(number, token).into_argument(path)?;
-                            Ok(Some(Token::Argument(Cow::Owned(argument))))
-                        },
-                    }
-                }
+            if pattern.starts_with('^') && pattern.len() > 1 {
+                Ok(Some(Token::RemoveSuffix(&pattern[1..])))
             } else {
-                Ok(None)
+                let ndigits = pattern.bytes().take_while(|&x| (x as char).is_numeric()).count();
+                let nchars  = ndigits + pattern.bytes().skip(ndigits).count();
+                if ndigits != 0 {
+                    let number = pattern[0..ndigits].parse::<usize>().unwrap();
+                    if ndigits == nchars {
+                        if number == 0 || number > nargs { return Err(TokenErr::OutOfBounds); }
+                        let argument = Number::new(number, Token::Placeholder).into_argument(path)?;
+                        Ok(Some(Token::Argument(Cow::Owned(argument))))
+                    } else {
+                        match match_token(&pattern[ndigits..], path, nargs)? {
+                            None | Some(Token::Job) |  Some(Token::Slot) => Ok(None),
+                            Some(token) => {
+                                let argument = Number::new(number, token).into_argument(path)?;
+                                Ok(Some(Token::Argument(Cow::Owned(argument))))
+                            },
+                        }
+                    }
+                } else {
+                    Ok(None)
+                }
             }
         }
     }

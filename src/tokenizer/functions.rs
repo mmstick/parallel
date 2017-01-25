@@ -12,6 +12,14 @@ pub fn remove_extension(input: &str) -> &str {
     if ext_index == 0 || dir_index + 2 > ext_index { input } else { &input[0..ext_index] }
 }
 
+pub fn remove_pattern<'a>(input: &'a str, pattern: &str) -> &'a str {
+    if input.ends_with(pattern) {
+        &input[0..input.len()-pattern.len()]
+    } else {
+        input
+    }
+}
+
 pub fn basename(input: &str) -> &str {
     let mut index = 0;
     for (id, character) in input.bytes().enumerate() {
@@ -31,7 +39,7 @@ pub fn dirname(input: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn path_remove_ext_simple() {
         assert_eq!(remove_extension("foo.txt"), "foo");

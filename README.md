@@ -184,6 +184,7 @@ like. Ideas for more tokens are welcome.
 - **{/}**: Each occurrence will be replaced with the base name of the input.
 - **{/.}**: Each occurrence will be replaced with the base name of the input, with the extension removed.
 - **{//}**: Each occurrence will be replaced with the directory name of the input.
+- **{^abc...}**: Defines a custom suffix to remove from inputs, if found.
 - **{%}**: Each occurrence will be replaced with the slot number.
 - **{#}**: Each occurrence will be replaced with the job number.
 - **{##}**: Each occurrence will be replaced with the total number of jobs.
@@ -192,6 +193,7 @@ like. Ideas for more tokens are welcome.
 - **{N/}**: Displays the base name (file name) of the Nth job.
 - **{N//}**: Displays the directory name of the Nth job.
 - **{N/.}**: Displays the base name of the Nth job with the extension removed.
+- **{N^abc...}**: Defines a custom suffix to remove from the Nth job, if found.
 
 ### OPTIONS
 

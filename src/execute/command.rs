@@ -14,10 +14,10 @@ pub enum CommandErr {
 /// If no placeholder tokens are in use, then the input will be appended at the end of the the command.
 pub fn append_argument(arguments: &mut String, command_template: &[Token], input: &str) {
     // Check to see if any placeholder tokens are in use.
-    let placeholder_exists = command_template.iter().any(|x| {
-        x == &Token::BaseAndExt || x == &Token::Basename || x == &Token::Dirname ||
-        x == &Token::Job || x == &Token::Placeholder || x == &Token::RemoveExtension ||
-        x == &Token::Slot
+    let placeholder_exists = command_template.iter().any(|x| match *x {
+        Token::BaseAndExt | Token::Basename | Token::Dirname | Token::Job | Token::Placeholder |
+        Token::RemoveExtension | Token::RemoveSuffix(_) | Token::Slot => true,
+        _ => false,
     });
 
     // If no placeholder tokens are in use, the user probably wants to infer one.
@@ -83,6 +83,7 @@ impl<'a> ParallelCommand<'a> {
                     Token::Job               => for character in self.job_no { arguments.push(*character as char); },
                     Token::Placeholder       => arguments.push_str(self.input),
                     Token::RemoveExtension   => arguments.push_str(remove_extension(self.input)),
+                    Token::RemoveSuffix(pat) => arguments.push_str(remove_pattern(self.input, pat)),
                     Token::Slot              => arguments.push_str(self.slot_no)
                 }
             }
