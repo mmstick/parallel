@@ -1,6 +1,6 @@
 [package]
 name = "parallel"
-version = "0.11.1"
+version = "0.11.2"
 authors = ["Michael Aaron Murphy <mmstickman@gmail.com>"]
 license = "MIT"
 description = "Command-line CPU load balancer for executing jobs in parallel"
@@ -10,40 +10,12 @@ categories = ["command-line-utilities"]
 readme = "README.md"
 
 [dependencies]
-itoa         = "0.1"
+itoa         = "0.3"
 numtoa       = "0.0"
-num_cpus     = "1.2"
-permutate    = "0.2"
+num_cpus     = "1.5"
+permutate    = "0.3"
 arrayvec     = "0.3"
 time         = "0.1"
-smallvec     = "0.3"
+smallvec     = "0.4"
 sys-info     = "0.4"
 wait-timeout = "0.1"
-
-[profile.release]
-opt-level = 3
-lto       = true
-
-[package.metadata.deb]
-maintainer = "Michael Aaron Murphy <mmstickman@gmail.com>"
-copyright = "2016-2017, Michael Aaron Murphy <mmstickman@gmail.com>"
-license_file = ["LICENSE", "4"]
-extended_description = """\
-A CPU load balancer for the command-line, written in Rust and inspired by \
-GNU Parallel. The purpose of the application is to parallelize otherwise \
-serial tasks by evenly distributing tasks to all CPU cores in a system.
-
-The program is supplied with a command template and a list of inputs, \
-where those inputs will be evenly passed to each core in the system. \
-Inputs are processed serially in parallel, as in each job will be assigned \
-the next task in the queue as soon as a job completes. In addition, the \
-standard output/error of each task will be buffered so that they are \
-printed in the order that inputs are received, as if the commands were \
-executed serially in a traditional for loop."""
-depends = "$auto"
-section = "utils"
-priority = "optional"
-assets = [
-    ["target/release/parallel", "usr/bin/", "755"],
-    ["README.md", "usr/share/doc/parallel/README", "644"],
-]

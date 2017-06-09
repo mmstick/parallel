@@ -100,7 +100,7 @@ pub fn get_command_output(command: &str, flags: u16) -> io::Result<Child> {
         shell_output(command, flags)
     } else {
         // Collect each argument into a vector
-        let arguments = ArgumentSplitter::new(command).collect::<Vec<String>>();
+        let arguments = ArgumentSplitter::new(command).collect::<Vec<&str>>();
         match (arguments.len() == 1, flags & arguments::QUIET_MODE != 0, flags & arguments::PIPE_IS_ENABLED != 0) {
             (true, true, false) => Command::new(&arguments[0])
                 .stdout(Stdio::null()).stderr(Stdio::piped())
@@ -134,6 +134,8 @@ pub fn get_command_output(command: &str, flags: u16) -> io::Result<Child> {
 fn shell_output<S: AsRef<OsStr>>(args: S, flags: u16) -> io::Result<Child> {
     let (cmd, flag) = if cfg!(windows) {
         ("cmd".to_owned(), "/C")
+    } else if flags & arguments::ION_EXISTS != 0 {
+        ("ion".to_owned(), "-c")
     } else if flags & arguments::DASH_EXISTS != 0  {
         ("dash".to_owned(), "-c")
     } else {

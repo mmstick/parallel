@@ -35,6 +35,7 @@ pub const SHELL_QUOTE:         u16 = 128;
 pub const ETA:                 u16 = 256;
 pub const JOBLOG:              u16 = 512;
 pub const JOBLOG_8601:         u16 = 1024;
+pub const ION_EXISTS:          u16 = 2048;
 
 /// `Args` is a collection of critical options and arguments that were collected at
 /// startup of the application.
@@ -118,13 +119,13 @@ impl Args {
                                         println!("{}", man::MAN_PAGE);
                                         exit(0);
                                     },
-                                    b'k' => (),
                                     b'p' => self.flags |= PIPE_IS_ENABLED,
                                     b'q' => quote_enabled = true,
                                     b's' => self.flags |= QUIET_MODE,
                                     b'v' => self.flags |= VERBOSE_MODE,
                                     _ => {
-                                        return Err(ParseErr::InvalidArgument(index-1))
+                                        let stderr = io::stderr();
+                                        let _ = writeln!(stderr.lock(), "parallel: unsupported argument: '-{}'", character as char);
                                     }
                                 }
                             }
@@ -143,8 +144,6 @@ impl Args {
                                     println!("{}", man::MAN_PAGE);
                                     exit(0);
                                 },
-                                "keep-order" => (),
-                                "group" => (),
                                 "joblog" => {
                                     let file = arguments.get(index).ok_or(ParseErr::JoblogNoValue)?;
                                     self.joblog = Some(file.to_owned());
@@ -157,7 +156,6 @@ impl Args {
                                     if val != 0 { self.ncores = val; }
                                     index += 1;
                                 },
-                                "line-buffer" | "lb" => (),
                                 "num-cpu-cores" => {
                                     println!("{}", num_cpus::get());
                                     exit(0);
@@ -172,7 +170,6 @@ impl Args {
                                     self.memory = parse_memory(val).map_err(|_| ParseErr::MemInvalid(index))?;
                                     index += 1;
                                 },
-                                "no-notice" => (),
                                 "pipe" => self.flags |= PIPE_IS_ENABLED,
                                 "quiet" | "silent" => self.flags |= QUIET_MODE,
                                 "quote" => quote_enabled = true,
@@ -183,13 +180,11 @@ impl Args {
                                     self.timeout = Duration::from_millis((seconds * 1000f64) as u64);
                                     index += 1;
                                 },
-                                "ungroup" => (),
                                 "verbose" => self.flags |= VERBOSE_MODE,
                                 "version" => {
                                     println!("MIT/Rust Parallel {}", env!("CARGO_PKG_VERSION"));
                                     exit(0);
                                 },
-                                "will-cite" => (),
                                 "tmpdir" | "tempdir" => {
                                     *base_path = PathBuf::from(arguments.get(index).ok_or(ParseErr::WorkDirNoValue)?);
                                     index += 1;
@@ -207,7 +202,10 @@ impl Args {
                                     comm.push_str(&argument[10..]);
                                     break
                                 },
-                                _ => return Err(ParseErr::InvalidArgument(index-1)),
+                                _ => {
+                                    let stderr = io::stderr();
+                                    let _ = writeln!(stderr.lock(), "parallel: unsupported argument: '{}'", argument);
+                                }
                             }
                         }
                     } else {
@@ -389,8 +387,9 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf, inputs_ar
 
     let stdin = io::stdin();
     if max_args < 2 {
-        for line in stdin.lock().lines() {
+        for line in BufReader::new(stdin.lock()).lines() {
             if let Ok(line) = parse_line(line) {
+                if line.is_empty() { continue }
                 disk_buffer.write(line.as_bytes()).and_then(|_| disk_buffer.write(b"\n"))
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
                 number_of_arguments += 1;
@@ -398,8 +397,9 @@ fn write_stdin_to_disk(max_args: usize, mut unprocessed_path: PathBuf, inputs_ar
         }
     } else {
         let mut max_args_index = max_args;
-        for line in stdin.lock().lines() {
+        for line in BufReader::new(stdin.lock()).lines() {
             if let Ok(line) = parse_line(line) {
+                if line.is_empty() { continue }
                 if max_args_index == max_args {
                     max_args_index -= 1;
                     number_of_arguments += 1;
@@ -466,7 +466,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
 
         if max_args < 2 {
             disk_buffer.write(b"\n").map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
-            while let Ok(true) = permutator.next_with_buffer(&mut permutation_buffer) {
+            while permutator.next_with_buffer(&mut permutation_buffer) {
                 let mut iter = permutation_buffer.iter();
                 disk_buffer.write(iter.next().unwrap().as_bytes())
                     .map_err(|why| FileErr::Write(unprocessed_path.clone(), why))?;
@@ -480,7 +480,7 @@ fn write_inputs_to_disk(lists: Vec<Vec<String>>, current_inputs: Vec<String>, ma
             }
         } else {
             let mut max_args_index = max_args - 1;
-            while let Ok(true) = permutator.next_with_buffer(&mut permutation_buffer) {
+            while permutator.next_with_buffer(&mut permutation_buffer) {
                 let mut iter = permutation_buffer.iter();
                 if max_args_index == max_args {
                     max_args_index -= 1;

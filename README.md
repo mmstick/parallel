@@ -8,28 +8,6 @@ This is an attempt at recreating the functionality of [GNU Parallel](https://www
 
 ## Note
 
-A nightly version of the Rust compiler is required to build this application.
-This is required to disable `jemalloc` because it incurs a performance overhead on Linux systems.
-In addition to using a nightly compiler, it is recommended to compile with a musl target.
-
-```
-rustup install nightly
-rustup target add x86_64-unknown-linux-musl
-rustup run nightly cargo build --release --target x86_64-unknown-linux-musl
-```
-
-Additionally, `transparent_hugepages` causes serious performance issues with the implementation
-of parallel, so it is recommended to ensure that your Linux distribution has the parameter set
-to `madvise`:
-
-```
-sudo sh -c "echo madvise > /sys/kernel/mm/transparent_hugepage/enabled"
-```
-
-It's a good idea to install the `dash` shell as this implementation of Parallel will try to use it by default.
-Dash is basically a superior implementation of `sh` that's many times faster and more secure.
-If `dash` cannot be found, it will default to `sh`. Although on Windows it will default to `cmd`.
-
 See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) for features and improvements that have yet to be done. If you want to contribute, pull requests are welcome. If you have an idea for improvement which isn't listed in the to-do list, feel free to [email me](mailto:mmstickman@gmail.com) and I will consider implementing that idea.
 
 ## Benchmark Comparison to GNU Parallel

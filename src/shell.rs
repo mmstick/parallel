@@ -15,13 +15,13 @@ pub fn required(kind: Kind) -> bool {
         Kind::Tokens(arguments) => {
             for token in arguments {
                 if let Token::Argument(ref arg) = *token {
-                    if arg.contains(';') || arg.contains('&') || arg.contains('|') {
+                    if arg.as_bytes().iter().any(|&x| x == b';' || x == b'&' || x == b'|' || x == b'$' || x == b'<' || x == b'>' || x == b'[' || x == b']' || x == b'@') {
                         return true
                     }
                 }
             }
         },
-        Kind::Input(arg) => if arg.contains(';') || arg.contains('&') || arg.contains('|') {
+        Kind::Input(arg) => if arg.as_bytes().iter().any(|&x| x == b';' || x == b'&' || x == b'|' || x == b'$' || x == b'<' || x == b'>' || x == b'[' || x == b']' || x == b'@') {
             return true
         }
     }
@@ -45,10 +45,29 @@ pub fn dash_exists() -> bool {
     false
 }
 
+/// Returns `true` if the Ion shell was found within the `PATH` environment variable.
+pub fn ion_exists() -> bool {
+    if let Ok(path) = env::var("PATH") {
+        for path in path.split(':') {
+            if let Ok(directory) = fs::read_dir(path) {
+                for entry in directory {
+                    if let Ok(entry) = entry {
+                        let path = entry.path();
+                        if path.is_file() && path.file_name() == Some(OsStr::new("ion")) { return true; }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Sets the corresponding flags if a shell is required and if dash exists.
 pub fn set_flags(flags: &mut u16, arguments: &[Token]) {
     if required(Kind::Tokens(arguments)) {
-        if dash_exists() {
+        if ion_exists() {
+            *flags |= arguments::SHELL_ENABLED + arguments::ION_EXISTS;
+        } else if dash_exists() {
             *flags |= arguments::SHELL_ENABLED + arguments::DASH_EXISTS;
         } else {
             *flags |= arguments::SHELL_ENABLED;

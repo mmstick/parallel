@@ -1,8 +1,5 @@
 #![deny(dead_code)]
 #![allow(unknown_lints)]
-#![feature(loop_break_value)]
-#![feature(alloc_system)]
-extern crate alloc_system;
 extern crate arrayvec;
 extern crate itoa;
 extern crate numtoa;
@@ -25,7 +22,7 @@ mod verbose;
 
 use std::env;
 use std::fs::{self, create_dir_all, File};
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::mem;
 use std::process::exit;
 use std::thread::{self, JoinHandle};
@@ -56,6 +53,18 @@ fn main() {
     // Obtain a handle to standard output/error's buffers so we can write directly to them.
     let stdout = io::stdout();
     let stderr = io::stderr();
+
+    // On Linux systems, check if transparent_hugepages is set to always and issue a warning if true.
+    if cfg!(target_os = "linux") {
+        if let Ok(mut file) = File::open("/sys/kernel/mm/transparent_hugepage/enabled") {
+            let mut buffer: [u8; 2] = [0, 0];
+            if let Ok(_) = file.read_exact(&mut buffer) {
+                if &buffer == b"[a" {
+                    let _ = writeln!(stderr.lock(), "ion: /sys/kernel/mm/transparent_hugepage/enabled is set to always instead of madvise. This will gravely effect the performance of Parallel.");
+                }
+            }
+        }
+    }
 
     // Parse arguments and collect flags and statistics.
     let mut args      = Args::new();
@@ -162,8 +171,11 @@ fn main() {
 
         // The `slot` variable is required by the {%} token.
         if args.flags & arguments::INPUTS_ARE_COMMANDS != 0 {
-            // Dash kills all other shells in performance, so if it exists, we need to know.
-            if shell::dash_exists() { args.flags |= arguments::DASH_EXISTS; }
+            if shell::ion_exists() {
+                args.flags |= arguments::ION_EXISTS;
+            } else if shell::dash_exists() {
+                args.flags |= arguments::DASH_EXISTS;
+            }
 
             for _ in 0..args.ncores {
                 let flags = args.flags;

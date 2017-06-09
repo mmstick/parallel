@@ -16,27 +16,27 @@ pub struct ETA {
 impl ETA {
     pub fn write_to_stderr(&self, completed: usize) {
         let stderr = io::stderr();
-        let mut stderr = &mut stderr.lock();
+        let mut stderr = stderr.lock();
 
         // Write the ETA to the standard error
         let _ = stderr.write(b"ETA: ");
-        let _ = itoa::write(stderr, self.time / 1_000_000_000);
+        let _ = itoa::write(&mut stderr, self.time / 1_000_000_000);
 
         // Write the number of inputs left to process to standard error
         let _ = stderr.write(b"s Left: ");
-        let _ = itoa::write(stderr, self.left);
+        let _ = itoa::write(&mut stderr, self.left);
 
         // Write the average runtime of processes (with two decimal places) to standard error
         let _ = stderr.write(b" AVG: ");
-        let _ = itoa::write(stderr, self.average / 1_000_000_000);
+        let _ = itoa::write(&mut stderr, self.average / 1_000_000_000);
         let _ = stderr.write(b".");
         let remainder = (self.average % 1_000_000_000) / 10_000_000;
-        let _ = itoa::write(stderr, remainder);
+        let _ = itoa::write(&mut stderr, remainder);
         if remainder < 10 { let _ = stderr.write(b"0"); }
 
         // Write the number of completed units so far to standard error
         let _ = stderr.write(b"s Completed: ");
-        let _ = itoa::write(stderr, completed);
+        let _ = itoa::write(&mut stderr, completed);
         let _ = stderr.write(b"\n");
     }
 }
