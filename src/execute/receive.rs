@@ -69,9 +69,13 @@ macro_rules! append_to_processed {
 
 #[allow(cyclomatic_complexity)]
 /// Tail and print the standard output and error of each process in the correct order
-pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, processed_path: &Path,
-    errors_path: &Path)
-{
+pub fn receive_messages (
+    input_rx: Receiver<State>,
+    args: Args,
+    base: &str,
+    processed_path: &Path,
+    errors_path: &Path
+) -> i32 {
     let stdout = io::stdout();
     let stderr = io::stderr();
 
@@ -79,6 +83,8 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
     let flags = args.flags;
     // Keeps track of which job is currently allowed to print to standard output/error.
     let mut counter = 0;
+    // Keep a record of how many errors have occurred.
+    let mut error_count = 0;
     // In the event that the joblog parameter was passed, a counter will be needed for jobs.
     let mut job_counter = args.ninputs;
     // The following `buffer` is used to store completed jobs that are awaiting processing.
@@ -139,13 +145,17 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
             // If an error occured and the id matches the counter, print the error immediately.
             State::Error(id, ref message) if id == counter => {
                 counter += 1;
+                if error_count != 254 { error_count += 1; }
                 if let Err(why) = error_file.write(message.as_bytes()) {
                     let mut stderr = stderr.lock();
                     let _ = write!(stderr, "parallel: I/O error: {}", why);
                 }
             },
             // Otherwise add that error to the job complete buffer as well.
-            State::Error(id, message) => buffer.push(State::Error(id, message)),
+            State::Error(id, message) => {
+                buffer.push(State::Error(id, message));
+                if error_count != 254 { error_count += 1; }
+            },
             // If the joblog parameter was set, a joblog signal can be received.
             // If the job ID matches the current job counter, write the log to the job log.
             State::JobLog(ref data) if data.job_id == job_counter => {
@@ -279,6 +289,7 @@ pub fn receive_messages(input_rx: Receiver<State>, args: Args, base: &str, proce
         let mut stderr = stderr.lock();
         let _ = write!(stderr, "parallel: I/O error: {}", why);
     }
+    error_count
 }
 
 /// Drops states that have been processed and are no longer required

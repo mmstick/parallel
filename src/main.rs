@@ -240,7 +240,7 @@ fn main() {
         }
 
         /// Prints messages from executed commands in the correct order.
-        execute::receive_messages(input_rx, args, &base_path, &processed_path, &errors_path);
+        let errors = execute::receive_messages(input_rx, args, &base_path, &processed_path, &errors_path);
 
         /// Wait for all threads to exit before proceeding.
         for thread in threads { thread.join().unwrap(); }
@@ -256,7 +256,7 @@ fn main() {
                         let _ = stderr.write(b"\n");
                     }
                 }
-                exit(1);
+                exit(errors);
             }
         }
     }
