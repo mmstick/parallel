@@ -189,6 +189,7 @@ impl Args {
                                     println!("MIT/Rust Parallel {}", env!("CARGO_PKG_VERSION"));
                                     exit(0);
                                 },
+                                "will-cite" => (),
                                 "tmpdir" | "tempdir" => {
                                     *base_path = PathBuf::from(arguments.get(index).ok_or(ParseErr::WorkDirNoValue)?);
                                     index += 1;
