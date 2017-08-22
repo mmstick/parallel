@@ -240,7 +240,7 @@ A PKGBUILD is available for Arch Linux users from the [AUR](https://aur.archlinu
 ### Everyone Else
 
 ```sh
-rustup component add x86_64-unknown-linux-musl
+rustup target add x86_64-unknown-linux-musl
 wget https://github.com/mmstick/parallel/archive/master.zip
 unzip master.zip
 cd parallel-master
