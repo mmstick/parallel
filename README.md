@@ -12,9 +12,11 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
 
 ## Benchmark Comparison to GNU Parallel
 
-### GNU Parallel
+Note: Parallel in these benchmarks is compiled with MUSL instead of glibc. This is highly recommended as it reduces memory consumption by half and doubles performance.
 
-#### Printing 1 to 10,000 in parallel
+### Printing 1 to 10,000 in parallel
+
+#### GNU Parallel
 
 ```
 ~/D/parallel (master) $ seq 1 10000 | time -v /usr/bin/parallel echo > /dev/null
@@ -25,33 +27,7 @@ See the [to-do list](https://github.com/mmstick/parallel/blob/master/TODO.md) fo
     Maximum resident set size (kbytes): 16140
 ```
 
-#### Cat the contents of every binary in /usr/bin
-
-```
-~/D/parallel (master) $ time -v /usr/bin/parallel cat ::: /usr/bin/* > /dev/null
-    User time (seconds): 71.71
-    System time (seconds): 27.67
-    Percent of CPU this job got: 222%
-    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:44.62
-    Maximum resident set size (kbytes): 17576
-```
-
-#### Logging echo ::: $(seq 1 1000)
-
-```
-~/D/parallel (master) $ time -v /usr/bin/parallel --joblog log echo ::: $(seq 1 1000) > /dev/null
-    User time (seconds): 21.27
-    System time (seconds): 7.44
-    Percent of CPU this job got: 238%
-    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:12.05
-    Maximum resident set size (kbytes): 16624
-```
-
-### Rust Parallel (Built with MUSL target)
-
-It's highly recommend to compile Parallel with MUSL instead of glibc, as this reduces memory consumption in half and doubles performance.
-
-#### Printing 1 to 10,000 in parallel
+#### Rust Parallel (Built with MUSL target)
 
 ```
 ~/D/parallel (master) $ seq 1 10000 | time -v target/release/x86_64-unknown-linux-musl/parallel echo > /dev/null
@@ -62,7 +38,20 @@ It's highly recommend to compile Parallel with MUSL instead of glibc, as this re
     Maximum resident set size (kbytes): 1768
 ```
 
-#### Cat the contents of every binary in /usr/bin
+### Cat the contents of every binary in /usr/bin
+
+#### GNU Parallel
+
+```
+~/D/parallel (master) $ time -v /usr/bin/parallel cat ::: /usr/bin/* > /dev/null
+    User time (seconds): 71.71
+    System time (seconds): 27.67
+    Percent of CPU this job got: 222%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:44.62
+    Maximum resident set size (kbytes): 17576
+```
+
+#### Rust Parallel (Built with MUSL target)
 
 ```
 ~/D/parallel (master) $ time -v target/release/x86_64-unknown-linux-musl/release/parallel cat ::: /usr/bin/* > /dev/null
@@ -73,7 +62,20 @@ It's highly recommend to compile Parallel with MUSL instead of glibc, as this re
     Maximum resident set size (kbytes): 1844
 ```
 
-#### Logging echo ::: $(seq 1 1000)
+### Logging echo ::: $(seq 1 1000)
+
+#### GNU Parallel
+
+```
+~/D/parallel (master) $ time -v /usr/bin/parallel --joblog log echo ::: $(seq 1 1000) > /dev/null
+    User time (seconds): 21.27
+    System time (seconds): 7.44
+    Percent of CPU this job got: 238%
+    Elapsed (wall clock) time (h:mm:ss or m:ss): 0:12.05
+    Maximum resident set size (kbytes): 16624
+```
+
+#### Rust Parallel (Built with MUSL target)
 
 ```
 ~/D/parallel (master) $ time -v target/x86_64-unknown-linux-musl/release/parallel --joblog log echo ::: $(seq 1 1000) > /dev/null
